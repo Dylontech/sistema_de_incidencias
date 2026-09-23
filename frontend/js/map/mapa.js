@@ -1,53 +1,110 @@
 /**
  * Mapa Leaflet.
  *
- * Puerto directo del módulo `Mapa` del monolito: capa satelital de Esri,
- * límite del municipio, polígonos de zona (geocerca), marcadores con emoji y
- * modo "elegir ubicación" para el formulario.
+ * Replica el comportamiento de la versión nueva del monolito:
+ *  - el municipio es un **polígono real** (ya no un rectángulo bbox): el mapa
+ *    encuadra ese polígono, limita el desplazamiento a su envolvente y sombrea
+ *    con una máscara todo lo que quede fuera;
+ *  - hay 4 capas base conmutables (Satélite, Calles, Relieve, Físico);
+ *  - las zonas (colonias/tenencias) se dibujan como polígonos de geocerca.
  */
 import { $, esc, fmtFechaCorta, textoAntiguedad, colorHex, etiquetaEstado } from '../core/utils.js';
+import { boundsDePoligono } from '../core/geocerca.js';
 
 let mapa = null;
 let marcadores = {};
 let capaMunicipio = null;
+let capaMascara = null;
 let capasZonas = [];
+let capasBase = {};
+let controlCapas = null;
 let zonasVisibles = true;
 let modoElegir = false;
 let alElegirUbicacion = null;
 
-/** Mosaicos: se usa Esri World Imagery porque OSM bloquea peticiones sin referer identificable. */
-function crearCapaBase() {
-  return L.tileLayer(
+/**
+ * Envolvente de Leaflet a partir del polígono [[lat,lng], …].
+ * Devuelve null si el municipio no trae polígono (datos antiguos con `bbox`),
+ * para poder degradar a `center`/`zoom` en lugar de romper el mapa.
+ */
+function boundsDe(poligono) {
+  if (!Array.isArray(poligono) || poligono.length < 3) return null;
+  const [[latMin, lngMin], [latMax, lngMax]] = boundsDePoligono(poligono);
+  if (![latMin, lngMin, latMax, lngMax].every(Number.isFinite)) return null;
+  return L.latLngBounds([latMin, lngMin], [latMax, lngMax]);
+}
+
+/**
+ * Capas base. Se usan servicios de Esri (satélite y calles) y OpenTopoMap
+ * (relieve) porque no imponen las restricciones que la política de
+ * OpenStreetMap aplica al tráfico directo desde el navegador.
+ */
+function crearCapasBase() {
+  const satelital = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     {
-      maxZoom: 19,
+      maxZoom: 18,
       attribution:
         '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, Maxar, Earthstar Geographics',
       crossOrigin: true
     }
   );
-  /* Alternativa con OpenStreetMap (dejar preparada, como en el monolito):
-  return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
-    crossOrigin: true,
-    referrerPolicy: 'strict-origin-when-cross-origin'
+  const calles = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxZoom: 18,
+      attribution:
+        '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, HERE, Garmin, FAO, USGS',
+      crossOrigin: true
+    }
+  );
+  const relieve = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17,
+    maxNativeZoom: 17,
+    subdomains: 'abc',
+    attribution:
+      'Map data: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, SRTM | &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>',
+    crossOrigin: true
   });
-  */
+  const fisico = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxZoom: 8,
+      maxNativeZoom: 8,
+      attribution:
+        '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, USGS, NOAA',
+      crossOrigin: true
+    }
+  );
+
+  return { Satélite: satelital, Calles: calles, 'Relieve / Topográfico': relieve, Físico: fisico };
 }
 
 export function inicializar(municipio) {
   if (mapa) return mapa;
+
+  const bounds = boundsDe(municipio.poligono);
   mapa = L.map('map', {
     center: municipio.center,
     zoom: municipio.zoom,
-    maxBounds: L.latLngBounds(municipio.bbox[0], municipio.bbox[1]),
-    maxBoundsViscosity: 0.8,
-    zoomControl: true
+    zoomControl: true,
+    // No se puede arrastrar fuera del municipio (viscosity 1 = tope duro).
+    ...(bounds ? { maxBounds: bounds.pad(0.03), maxBoundsViscosity: 1.0 } : {}),
+    maxZoom: 18
   });
-  crearCapaBase().addTo(mapa);
 
-  capaMunicipio = dibujarLimite(municipio);
+  capasBase = crearCapasBase();
+  capasBase['Satélite'].addTo(mapa);
+  controlCapas = L.control
+    .layers(capasBase, null, { position: 'topright', collapsed: true })
+    .addTo(mapa);
+
+  // Encuadrar el municipio completo y no permitir alejarse más allá.
+  if (bounds) {
+    mapa.fitBounds(bounds, { padding: [12, 12] });
+    mapa.setMinZoom(mapa.getBoundsZoom(bounds, false));
+    dibujarLimiteMunicipio(municipio);
+  }
 
   mapa.on('click', (evento) => {
     if (!modoElegir) return;
@@ -59,16 +116,34 @@ export function inicializar(municipio) {
   return mapa;
 }
 
-function dibujarLimite(municipio) {
+/** Límite del municipio + máscara que oscurece todo lo de fuera. */
+function dibujarLimiteMunicipio(municipio) {
   if (capaMunicipio) mapa.removeLayer(capaMunicipio);
-  return L.rectangle(L.latLngBounds(municipio.bbox[0], municipio.bbox[1]), {
+  if (capaMascara) mapa.removeLayer(capaMascara);
+
+  capaMunicipio = L.polygon(municipio.poligono, {
     color: '#006657',
-    weight: 2,
-    opacity: 0.6,
-    fillOpacity: 0.04,
-    dashArray: '8,6',
+    weight: 2.5,
+    opacity: 0.9,
+    fillOpacity: 0,
     interactive: false
   }).addTo(mapa);
+
+  // Anillo exterior gigante con el municipio como "agujero" (regla evenodd):
+  // solo se ve y se opera dentro del municipio.
+  const mundo = [
+    [-89, -179],
+    [-89, 179],
+    [89, 179],
+    [89, -179]
+  ];
+  capaMascara = L.polygon([mundo, municipio.poligono], {
+    stroke: false,
+    fillColor: '#0b1f1c',
+    fillOpacity: 0.45,
+    interactive: false
+  }).addTo(mapa);
+  capaMascara.bringToBack();
 }
 
 /** Dibuja los polígonos de zona y actualiza la leyenda del mapa. */
@@ -185,8 +260,11 @@ export function abrirPopup(id) {
   marcadores[id]?.openPopup();
 }
 
+/** Encuadra todo el municipio (equivale a `Mapa.centrarMunicipio`). */
 export function centrarMunicipio(municipio) {
-  mapa?.setView(municipio.center, municipio.zoom);
+  const bounds = boundsDe(municipio?.poligono);
+  if (!mapa || !bounds) return;
+  mapa.fitBounds(bounds, { padding: [12, 12] });
 }
 
 export function fijarVista(lat, lng, zoom = 16) {
@@ -227,10 +305,25 @@ export function cancelarModoElegir() {
 
 /** Cambia de municipio activo (paridad con `Mapa.resetMunicipio`). */
 export function reiniciarMunicipio(municipio) {
+  const bounds = boundsDe(municipio?.poligono);
+  if (!mapa || !bounds) return;
+  mapa.setMaxBounds(bounds.pad(0.03));
+  mapa.fitBounds(bounds, { padding: [12, 12] });
+  mapa.setMinZoom(mapa.getBoundsZoom(bounds, false));
+  dibujarLimiteMunicipio(municipio);
+}
+
+/**
+ * Avisa a Leaflet de que su contenedor cambió de tamaño.
+ * El mapa mide el contenedor solo al crearse; al ocultar/mostrar el panel
+ * lateral queda una franja en blanco hasta que se recalcula. Se llama varias
+ * veces para cubrir toda la transición CSS del panel (.25 s).
+ */
+export function invalidarTamano() {
   if (!mapa) return;
-  mapa.setView(municipio.center, municipio.zoom);
-  mapa.setMaxBounds(L.latLngBounds(municipio.bbox[0], municipio.bbox[1]));
-  capaMunicipio = dibujarLimite(municipio);
+  requestAnimationFrame(() => mapa.invalidateSize());
+  setTimeout(() => mapa.invalidateSize(), 130);
+  setTimeout(() => mapa.invalidateSize(), 270);
 }
 
 export function instancia() {

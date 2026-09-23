@@ -33,7 +33,7 @@ export async function seed(knex) {
       center_lat: m.center[0],
       center_lng: m.center[1],
       zoom: m.zoom,
-      bbox: JSON.stringify(m.bbox)
+      poligono: JSON.stringify(m.poligono)
     }))
   );
 

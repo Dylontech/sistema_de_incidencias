@@ -19,7 +19,7 @@ import {
   esDuplicado
 } from '../models/incidencia.model.js';
 import { construirNotificacion, destinatarioDeIncidencia } from '../models/notificacion.model.js';
-import { localizarZona } from './geocerca.service.js';
+import { localizarZona, dentroDelMunicipio } from './geocerca.service.js';
 import {
   enriquecer,
   enriquecerLista,
@@ -85,8 +85,18 @@ export async function crear(repositorio, usuario, datos) {
     await zonasDisponibles(repositorio, usuario)
   );
   if (!zona) {
+    // Mensaje más preciso: distinguir "fuera del municipio" (lo que la máscara
+    // del mapa oscurece) de "dentro del municipio pero fuera de toda zona".
+    const municipio = usuario.municipioId
+      ? await repositorio.municipioPorId(usuario.municipioId)
+      : null;
+    const fueraDelMunicipio =
+      municipio != null && !dentroDelMunicipio(entrada.lat, entrada.lng, municipio);
+
     throw AppError.solicitudInvalida(
-      'La ubicación está fuera de las zonas autorizadas (colonias/tenencias) del municipio'
+      fueraDelMunicipio
+        ? 'La ubicación está fuera del municipio'
+        : 'La ubicación está fuera de las zonas autorizadas (colonias/tenencias) del municipio'
     );
   }
 

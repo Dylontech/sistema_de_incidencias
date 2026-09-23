@@ -1,10 +1,17 @@
 /**
  * Sesión del cliente.
  *
- * - El token y los datos del usuario viven en sessionStorage (igual que la
- *   sesión del monolito: se cierra al cerrar la pestaña).
- * - `anonId` se conserva en localStorage para que el ciudadano anónimo siga
- *   viendo sus propios reportes en visitas posteriores, como antes.
+ * - El token y los datos del usuario viven en localStorage: la sesión persiste
+ *   entre visitas, de modo que el ciudadano (y el personal que ya entró) no
+ *   tienen que volver a identificarse en este dispositivo. Es la decisión que
+ *   tomó la versión nueva del monolito, que guardaba `inc_sesion_v1` en
+ *   localStorage en lugar de sessionStorage.
+ * - `anonId` también se conserva en localStorage para reconocer al ciudadano
+ *   anónimo y mostrarle sus propios reportes.
+ *
+ * Nota: guardar el token en localStorage lo expone a XSS igual que cualquier
+ * dato del navegador; aquí se acepta porque la sesión ciudadana no maneja
+ * información sensible. Con `HttpOnly` cookies sería más estricto.
  */
 import { token } from './api.js';
 
@@ -22,7 +29,7 @@ export const sesion = {
 
   cargar() {
     try {
-      this.datos = JSON.parse(sessionStorage.getItem(CLAVE_SESION) || 'null');
+      this.datos = JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null');
     } catch {
       this.datos = null;
     }
@@ -36,7 +43,7 @@ export const sesion = {
       usuario: respuesta.usuario,
       municipioActivo: respuesta.municipioActivo || null
     };
-    sessionStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
+    localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
     if (respuesta.anonId) localStorage.setItem(CLAVE_ANON, respuesta.anonId);
     return this.datos;
   },
@@ -44,13 +51,13 @@ export const sesion = {
   actualizarMunicipio(municipio) {
     if (!this.datos) return;
     this.datos.municipioActivo = municipio;
-    sessionStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
+    localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
   },
 
   limpiar() {
     token.borrar();
     this.datos = null;
-    sessionStorage.removeItem(CLAVE_SESION);
+    localStorage.removeItem(CLAVE_SESION);
   },
 
   get usuario() {

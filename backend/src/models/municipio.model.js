@@ -1,8 +1,16 @@
 /**
  * MODELO: Municipio.
+ *
  * La `clave` es el código de acceso que pide el login de funcionarios y el
  * cambio de municipio; solo se expone a los administradores.
+ *
+ * En la versión nueva del monolito el municipio define su límite con un
+ * polígono real (`poligono`) en lugar del rectángulo `bbox` anterior.
  */
+import { bboxDePoligono, centroDePoligono, poligonoValido } from '../utils/geometria.js';
+
+export { poligonoValido };
+
 export function normalizarClave(clave) {
   return String(clave || '').trim().toUpperCase();
 }
@@ -18,10 +26,22 @@ export function publico(municipio, { incluirClave = false } = {}) {
   return incluirClave ? { ...resto, clave } : resto;
 }
 
-export function centroValido(municipio) {
-  return (
-    Array.isArray(municipio?.center) &&
-    municipio.center.length === 2 &&
-    municipio.center.every((n) => Number.isFinite(Number(n)))
+/** Envolvente del municipio, usada para encuadrar el mapa y filtrar rápido. */
+export function bounds(municipio) {
+  if (!municipio?.poligono) return null;
+  return bboxDePoligono(municipio.poligono);
+}
+
+/** Centro del municipio (el declarado o, si falta, el centroide). */
+export function centro(municipio) {
+  if (municipio?.center) return municipio.center.map(Number);
+  if (!municipio?.poligono) return null;
+  return centroDePoligono(municipio.poligono);
+}
+
+/** Un municipio es utilizable si tiene identificador, nombre, clave y polígono. */
+export function municipioValido(municipio) {
+  return Boolean(
+    municipio?.id && municipio?.nombre && municipio?.clave && poligonoValido(municipio.poligono)
   );
 }

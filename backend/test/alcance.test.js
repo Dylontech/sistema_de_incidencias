@@ -3,21 +3,61 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { prepararBaseDeDatos, prepararEntorno } from './helpers/entorno.js';
-import { Api, PUNTO_MARAVATIO, PUNTO_MORELIA, incidenciaValida } from './helpers/api.js';
+import { Api, PUNTO_MARAVATIO, incidenciaValida } from './helpers/api.js';
 
 const entorno = prepararEntorno();
 await prepararBaseDeDatos(entorno);
 const { crearApp } = await import('../src/app.js');
+const { obtenerRepositorio } = await import('../src/repositories/index.js');
 
 /** PNG 1x1 para probar la conversión de base64 de los respaldos viejos. */
 const PNG_BASE64 =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
 
 let app;
-before(() => {
+let repositorio;
+before(async () => {
   app = crearApp();
+  repositorio = await obtenerRepositorio();
 });
 after(() => entorno.limpiar());
+
+/**
+ * Inserta directamente una incidencia de OTRO municipio.
+ * El sistema solo tiene Maravatío, pero el alcance por municipio debe seguir
+ * filtrando: sirve para comprobar que un funcionario no la ve y el admin sí.
+ */
+async function insertarDeOtroMunicipio() {
+  const fecha = new Date().toISOString();
+  const incidencia = {
+    id: `ajena-${Math.random().toString(36).slice(2, 8)}`,
+    tipoId: 'bache',
+    iconoCustom: '',
+    titulo: 'Reporte de otro municipio',
+    descripcion: 'Debe quedar fuera del alcance del funcionario de Maravatío.',
+    indicaciones: '',
+    lat: 19.75,
+    lng: -101.3,
+    fecha,
+    actualizado: fecha,
+    estado: 'reportada',
+    esAnonimo: true,
+    autor: 'Anónimo',
+    autorNombre: 'Anónimo',
+    userKey: 'anon_otro_municipio',
+    municipioId: 'morelia',
+    zonaId: 'mor_centro',
+    zonaNombre: 'Centro',
+    evidencia: [],
+    historial: [],
+    comentarios: [],
+    fechaResolucion: null,
+    solucion: null,
+    evidenciaSolucion: []
+  };
+  await repositorio.insertarIncidencias([incidencia]);
+  return incidencia;
+}
 
 describe('Alcance por municipio y rol', () => {
   test('el funcionario solo ve su municipio; el admin sin municipio ve todos', async () => {
@@ -25,17 +65,11 @@ describe('Alcance por municipio y rol', () => {
     const funcionario = await Api.funcionario(app); // Maravatío
     const anon = await Api.anonimo(app, 'ciudadanoAlcance');
 
-    const deMaravatio = await anon.post('/api/incidencias', incidenciaValida());
-    assert.equal(deMaravatio.status, 201);
-    assert.equal(deMaravatio.body.incidencia.municipioId, 'maravatio');
+    const propia = await anon.post('/api/incidencias', incidenciaValida());
+    assert.equal(propia.status, 201);
+    assert.equal(propia.body.incidencia.municipioId, 'maravatio');
 
-    // El admin crea una de Morelia (sus zonas permiten ese punto).
-    const deMorelia = await admin.post(
-      '/api/incidencias',
-      incidenciaValida({ titulo: 'Bache en Morelia centro', ...PUNTO_MORELIA })
-    );
-    assert.equal(deMorelia.status, 201);
-    assert.equal(deMorelia.body.incidencia.municipioId, 'morelia');
+    const ajena = await insertarDeOtroMunicipio();
 
     const vistaFuncionario = await funcionario.get('/api/incidencias');
     assert.equal(vistaFuncionario.body.incidencias.length, 1);
@@ -44,26 +78,32 @@ describe('Alcance por municipio y rol', () => {
     const vistaAdmin = await admin.get('/api/incidencias');
     assert.equal(vistaAdmin.body.incidencias.length, 2);
 
-    // El funcionario de Maravatío no puede ver la incidencia de Morelia.
-    const detalleAjeno = await funcionario.get(`/api/incidencias/${deMorelia.body.incidencia.id}`);
+    // El funcionario de Maravatío no puede ver la incidencia de otro municipio.
+    const detalleAjeno = await funcionario.get(`/api/incidencias/${ajena.id}`);
     assert.equal(detalleAjeno.status, 403);
+
+    // El admin sin municipio activo sí la ve.
+    const detalleAdmin = await admin.get(`/api/incidencias/${ajena.id}`);
+    assert.equal(detalleAdmin.status, 200);
+    assert.equal(detalleAdmin.body.incidencia.municipioId, 'morelia');
   });
 
   test('el admin puede limitarse a un municipio activo', async () => {
     const admin = await Api.admin(app);
     const conMunicipio = await admin.post('/api/auth/municipio-activo', {
-      municipioId: 'morelia',
-      clave: 'MORELIA-2024'
+      municipioId: 'maravatio',
+      clave: 'MARAVATIO-2024'
     });
+    assert.equal(conMunicipio.status, 200);
 
     const acotado = new Api(app, conMunicipio.body.token);
     const vista = await acotado.get('/api/incidencias');
     assert.ok(vista.body.incidencias.length >= 1);
-    assert.ok(vista.body.incidencias.every((i) => i.municipioId === 'morelia'));
+    assert.ok(vista.body.incidencias.every((i) => i.municipioId === 'maravatio'));
 
-    const zonas = await acotado.get('/api/municipios/morelia/zonas');
-    assert.equal(zonas.body.zonas.length, 4);
-    assert.equal(zonas.body.zonas[0].municipioId, 'morelia');
+    const zonas = await acotado.get('/api/municipios/maravatio/zonas');
+    assert.equal(zonas.body.zonas.length, 12);
+    assert.equal(zonas.body.zonas[0].municipioId, 'maravatio');
   });
 
   test('los informes y el resumen de zonas son solo para empleados', async () => {

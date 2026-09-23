@@ -11,8 +11,9 @@ export async function up(knex) {
     t.string('clave', 64).notNullable().unique();
     t.decimal('center_lat', 10, 7).notNullable();
     t.decimal('center_lng', 10, 7).notNullable();
-    t.integer('zoom').notNullable().defaultTo(14);
-    t.json('bbox').notNullable();
+    t.integer('zoom').notNullable().defaultTo(12);
+    // Límite municipal real (antes era el rectángulo `bbox`).
+    t.json('poligono').notNullable();
     t.timestamps(true, true);
   });
 

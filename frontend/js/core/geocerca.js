@@ -25,6 +25,35 @@ export function zonaDePunto(lat, lng, zonas = []) {
   return zonas.find((z) => puntoEnPoligono(lat, lng, z.poligono)) || null;
 }
 
+/**
+ * Envolvente [[latMin, lngMin], [latMax, lngMax]] de un polígono.
+ * Equivale a `bboxDePoligono` del backend.
+ */
+export function boundsDePoligono(poligono = []) {
+  const lats = poligono.map((v) => Number(v[0]));
+  const lngs = poligono.map((v) => Number(v[1]));
+  return [
+    [Math.min(...lats), Math.min(...lngs)],
+    [Math.max(...lats), Math.max(...lngs)]
+  ];
+}
+
+/** Centroide simple (promedio de vértices), para centrar vistas. */
+export function centroDePoligono(poligono = []) {
+  const n = poligono.length || 1;
+  const suma = poligono.reduce(
+    (acc, v) => [acc[0] + Number(v[0]), acc[1] + Number(v[1])],
+    [0, 0]
+  );
+  return [suma[0] / n, suma[1] / n];
+}
+
+/** ¿El punto cae dentro del polígono del municipio? */
+export function dentroDelMunicipio(lat, lng, municipio) {
+  if (!municipio?.poligono) return false;
+  return puntoEnPoligono(lat, lng, municipio.poligono);
+}
+
 /** Interpreta "lat, lng" (paridad con `Incidencias.parsearCoords`). */
 export function parsearCoordenadas(texto) {
   if (!texto) return null;

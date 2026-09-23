@@ -22,7 +22,8 @@ export function registrar() {
     'tipos:abrir': () => {
       document.getElementById('nuevoTipoNombre').value = '';
       limpiarPicker('iconPickerNuevo');
-      abrirModal('modalNuevoTipo');
+      // Anidado: puede abrirse desde el formulario de incidencia o desde el panel.
+      abrirModal('modalNuevoTipo', { nested: true });
     },
 
     'tipos:guardar': () =>

@@ -66,6 +66,17 @@ export function detener() {
   store.limpiarDatos();
 }
 
+/**
+ * Muestra u oculta el panel lateral.
+ * Después hay que avisar a Leaflet: el mapa mide su contenedor solo al crearse
+ * y, si el panel cambia de tamaño, queda una franja en blanco hasta que se
+ * recalcula (lo que hacía `Sidebar.toggle` en la versión nueva del monolito).
+ */
+export function alternarSidebar() {
+  loginView.alternarSidebar();
+  mapa.invalidarTamano();
+}
+
 /* ------------------------------- mapa ------------------------------- */
 
 export function montarMapa(municipio) {

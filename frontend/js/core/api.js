@@ -18,14 +18,14 @@ export class ErrorApi extends Error {
 
 export const token = {
   leer() {
-    return sessionStorage.getItem(CLAVE_TOKEN) || '';
+    return localStorage.getItem(CLAVE_TOKEN) || '';
   },
   guardar(valor) {
-    if (valor) sessionStorage.setItem(CLAVE_TOKEN, valor);
-    else sessionStorage.removeItem(CLAVE_TOKEN);
+    if (valor) localStorage.setItem(CLAVE_TOKEN, valor);
+    else localStorage.removeItem(CLAVE_TOKEN);
   },
   borrar() {
-    sessionStorage.removeItem(CLAVE_TOKEN);
+    localStorage.removeItem(CLAVE_TOKEN);
   }
 };
 

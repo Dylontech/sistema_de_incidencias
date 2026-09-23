@@ -5,9 +5,11 @@ import assert from 'node:assert/strict';
 import {
   puntoEnPoligono,
   zonaDePunto,
-  dentroDeBbox,
+  dentroDelMunicipio,
   parsearCoordenadas
 } from '../src/services/geocerca.service.js';
+import { bboxDePoligono } from '../src/utils/geometria.js';
+import { municipiosSemilla } from '../src/config/semilla.js';
 import { colorPorAntiguedad, contarPorEstado, filtrarPorColor, ordenarPorPrioridad } from '../src/services/estado.service.js';
 import { coincideUbicacion, esDuplicado, validarEntrada } from '../src/models/incidencia.model.js';
 import { poligonoValido } from '../src/models/zona.model.js';
@@ -37,9 +39,21 @@ describe('Geocerca', () => {
     assert.equal(zonaDePunto(19.7, -100.41, [ZONA]), null);
   });
 
-  test('dentroDeBbox valida el rectángulo del municipio', () => {
-    assert.equal(dentroDeBbox(19.9, -100.4, [[19.75, -100.6], [20.05, -100.28]]), true);
-    assert.equal(dentroDeBbox(19.0, -100.4, [[19.75, -100.6], [20.05, -100.28]]), false);
+  test('dentroDelMunicipio usa el polígono real del municipio', () => {
+    const municipio = municipiosSemilla[0];
+
+    assert.equal(dentroDelMunicipio(19.92, -100.42, municipio), true);
+    assert.equal(dentroDelMunicipio(19.7, -100.44, municipio), false);
+    assert.equal(dentroDelMunicipio(19.92, -100.42, null), false);
+
+    // La envolvente sirve de filtro rápido y encuadra el municipio completo.
+    const [[latMin, lngMin], [latMax, lngMax]] = bboxDePoligono(municipio.poligono);
+    assert.ok(latMin < 19.75 && latMax > 20.0);
+    assert.ok(lngMin < -100.6 && lngMax > -100.3);
+
+    // El modelo ya no usa el rectángulo `bbox`.
+    assert.equal(municipio.bbox, undefined);
+    assert.ok(municipio.poligono.length >= 3);
   });
 
   test('parsearCoordenadas acepta los formatos que usaba el monolito', () => {

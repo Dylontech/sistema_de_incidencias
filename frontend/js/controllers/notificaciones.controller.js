@@ -33,13 +33,3 @@ export function registrar() {
     'notificaciones:cerrarPanel': () => notifView.alternarPanel(false)
   });
 }
-
-/** Suscribe el cierre del panel a los clics fuera (login.controller no lo hace). */
-export function conectarCierreExterno() {
-  document.addEventListener('click', (evento) => {
-    if (!notifView.panelVisible()) return;
-    const panel = document.getElementById('notifPanel');
-    const boton = evento.target.closest('[data-action="notificaciones:toggle"]');
-    if (!panel.contains(evento.target) && !boton) notifView.alternarPanel(false);
-  });
-}

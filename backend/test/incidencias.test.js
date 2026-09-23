@@ -3,7 +3,7 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { prepararBaseDeDatos, prepararEntorno } from './helpers/entorno.js';
-import { Api, PUNTO_FUERA, PUNTO_MARAVATIO, incidenciaValida } from './helpers/api.js';
+import { Api, PUNTO_FUERA, PUNTO_MARAVATIO, PUNTO_SIN_ZONA, ZONA_MARAVATIO, incidenciaValida } from './helpers/api.js';
 
 const entorno = prepararEntorno();
 await prepararBaseDeDatos(entorno);
@@ -39,8 +39,8 @@ async function insertarAntigua(userKey, extra = {}) {
     autorNombre: 'Anónimo',
     userKey,
     municipioId: 'maravatio',
-    zonaId: 'col_centro',
-    zonaNombre: 'Centro',
+    zonaId: ZONA_MARAVATIO,
+    zonaNombre: 'Guadalupe',
     evidencia: [],
     historial: [],
     comentarios: [],
@@ -63,7 +63,7 @@ describe('Incidencias: creación', () => {
     assert.equal(inc.estado, 'reportada');
     assert.equal(inc.color, 'amarillo');
     assert.equal(inc.dias, 0);
-    assert.equal(inc.zonaId, 'col_centro');
+    assert.equal(inc.zonaId, ZONA_MARAVATIO);
     assert.equal(inc.municipioId, 'maravatio');
     assert.equal(inc.esAnonimo, true);
     assert.equal(inc.autor, 'Anónimo');
@@ -74,12 +74,18 @@ describe('Incidencias: creación', () => {
     assert.equal(inc.colorAuto, undefined);
   });
 
-  test('rechaza ubicaciones fuera de las zonas autorizadas', async () => {
+  test('rechaza ubicaciones fuera de las zonas y fuera del municipio', async () => {
     const anon = await Api.anonimo(app, 'ciudadano1002');
-    const r = await anon.post('/api/incidencias', incidenciaValida(PUNTO_FUERA));
 
-    assert.equal(r.status, 400);
-    assert.match(r.body.error, /fuera de las zonas autorizadas/);
+    // Dentro del municipio pero sin zona (hueco de la partición).
+    const sinZona = await anon.post('/api/incidencias', incidenciaValida(PUNTO_SIN_ZONA));
+    assert.equal(sinZona.status, 400);
+    assert.match(sinZona.body.error, /fuera de las zonas autorizadas/);
+
+    // Fuera del polígono municipal (lo que la máscara del mapa oscurece).
+    const fuera = await anon.post('/api/incidencias', incidenciaValida(PUNTO_FUERA));
+    assert.equal(fuera.status, 400);
+    assert.match(fuera.body.error, /fuera del municipio/);
   });
 
   test('valida tipo, título, descripción y coordenadas', async () => {
@@ -175,7 +181,7 @@ describe('Incidencias: filtros', () => {
     const porPrioridad = await anon.get('/api/incidencias?orden=prioridad');
     assert.equal(porPrioridad.body.incidencias[0].color, 'rojo');
 
-    const porZona = await anon.get('/api/incidencias?zona=col_centro');
+    const porZona = await anon.get(`/api/incidencias?zona=${ZONA_MARAVATIO}`);
     assert.equal(porZona.body.incidencias.length, 3);
 
     const zonaInexistente = await anon.get('/api/incidencias?zona=ten_apeo');

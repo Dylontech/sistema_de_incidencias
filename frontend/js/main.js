@@ -11,16 +11,16 @@ import { sesion } from './core/session.js';
 import { authService } from './services/auth.service.js';
 import * as aplicacion from './core/aplicacion.js';
 import * as mapa from './map/mapa.js';
-import * as loginView from './views/login.view.js';
-import { registrar as registrarAuth } from './controllers/auth.controller.js';
+import {
+  conectarCierreDePaneles,
+  entrarComoCiudadano,
+  registrar as registrarAuth
+} from './controllers/auth.controller.js';
 import { registrar as registrarIncidencias } from './controllers/incidencias.controller.js';
 import { registrar as registrarTipos } from './controllers/tipos.controller.js';
 import { registrar as registrarAdmin } from './controllers/admin.controller.js';
 import { registrar as registrarReportes } from './controllers/reportes.controller.js';
-import {
-  registrar as registrarNotificaciones,
-  conectarCierreExterno
-} from './controllers/notificaciones.controller.js';
+import { registrar as registrarNotificaciones } from './controllers/notificaciones.controller.js';
 
 function registrarControladores() {
   registrarAuth();
@@ -31,11 +31,18 @@ function registrarControladores() {
   registrarNotificaciones();
 }
 
-/** Intenta reanudar la sesión guardada en sessionStorage. */
-async function restaurarSesion() {
+/**
+ * Arranque de la sesión.
+ *
+ * Como en la versión nueva del monolito, el público NO pasa por la pantalla de
+ * acceso: si no hay sesión guardada se entra directamente como ciudadano
+ * anónimo. La pantalla de acceso solo se abre con el botón «Personal».
+ */
+async function iniciarSesion() {
   const guardada = sesion.cargar();
+
   if (!guardada) {
-    loginView.mostrarLogin();
+    await entrarComoCiudadano({ silencioso: true });
     return;
   }
 
@@ -44,10 +51,11 @@ async function restaurarSesion() {
     const { usuario, municipioActivo } = await authService.yo();
     await aplicacion.arrancar({ usuario, municipioActivo });
   } catch (error) {
-    // Token caducado o servidor no disponible: se vuelve al login.
+    // Token caducado o servidor no disponible: se entra como ciudadano en
+    // lugar de dejar la pantalla bloqueada.
     sesion.limpiar();
-    loginView.mostrarLogin();
-    if (error.estado !== 401) {
+    await entrarComoCiudadano({ silencioso: true });
+    if (error.estado && error.estado !== 401) {
       toast(error.message || 'No se pudo restaurar la sesión', 'err');
     }
   } finally {
@@ -58,7 +66,7 @@ async function restaurarSesion() {
 async function iniciar() {
   registrarControladores();
   conectarDelegacion();
-  conectarCierreExterno();
+  conectarCierreDePaneles();
   inicializarModales({
     // Mientras se elige una ubicación en el mapa, el fondo del modal no lo cierra.
     alIntentarCerrar: (id) => !(id === 'modalIncidencia' && mapa.modoElegirActivo())
@@ -71,7 +79,7 @@ async function iniciar() {
     setTimeout(() => location.reload(), 1200);
   });
 
-  await restaurarSesion();
+  await iniciarSesion();
 }
 
 document.addEventListener('DOMContentLoaded', iniciar);

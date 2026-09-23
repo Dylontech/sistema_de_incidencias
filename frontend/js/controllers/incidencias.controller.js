@@ -376,7 +376,8 @@ export function registrar() {
     'detalle:resolver': ({ id }) => {
       formView.abrirResolver(id);
       store.actualizarSeccion('formulario', { evidenciaResolver: [] }, 'formulario');
-      abrirModal('modalResolver');
+      // Anidado: se abre encima del detalle sin cerrarlo.
+      abrirModal('modalResolver', { nested: true });
     },
 
     'incidencias:resolver': () =>

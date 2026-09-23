@@ -13,6 +13,7 @@
   transition: all .2s; padding: 16px; overflow-y: auto;
 }
 .modal-overlay.show { opacity: 1; visibility: visible; }
+.modal-overlay.nested { z-index: 5100; }
 .modal-box {
   background: #fff; border-radius: 14px;
   width: 100%; max-width: 560px; max-height: 92vh;
@@ -201,6 +202,32 @@
 .notif-item .n-msg { color: var(--gris); line-height: 1.4; }
 .notif-item .n-time { color: #94a3b8; font-size: 10px; margin-top: 4px; }
 .notif-empty { padding: 30px; text-align: center; color: #94a3b8; font-size: 13px; }
+
+/* Panel de información (icono de exclamación) */
+.info-panel {
+  position: absolute; top: 100%; right: 16px;
+  width: 300px; max-height: 70vh; overflow-y: auto;
+  background: #fff; border-radius: 12px; color: #1a202c;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  z-index: 600; margin-top: 8px; display: none;
+}
+.info-panel.show { display: block; }
+.info-panel .notif-header { font-size: 13px; }
+.info-panel .info-body { padding: 12px 14px; }
+.info-panel .leg-title {
+  font-weight: 700; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--primario); margin-bottom: 6px;
+}
+.info-panel .legend-item {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 5px; font-size: 12.5px;
+}
+.info-panel .legend-color {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
 
 /* ============================================================
    TOAST, loading, marcadores y utilidades

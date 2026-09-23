@@ -12,7 +12,7 @@
  * @property {string} clave       código de acceso (solo visible para admin)
  * @property {[number,number]} center
  * @property {number} zoom
- * @property {[[number,number],[number,number]]} bbox
+ * @property {Array<[number,number]>} poligono  límite municipal real
  *
  * @typedef {Object} Zona
  * @property {string} id

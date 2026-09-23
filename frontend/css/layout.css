@@ -10,6 +10,7 @@
 .app.active { display: flex; }
 
 .topbar {
+  position: relative;
   background: linear-gradient(135deg, #006657 0%, #008f7a 100%);
   color: #fff; padding: 10px 16px;
   display: flex; align-items: center; gap: 12px;

@@ -50,6 +50,21 @@ export class RepositorioJson {
       }
       await this.almacen.escribir('usuarios', usuarios);
     }
+
+    // El catálogo geográfico se mantiene sincronizado con la semilla: cuando el
+    // contorno del municipio o la partición de zonas cambia (por ejemplo al
+    // pasar de rectángulos `bbox` a polígonos reales), los archivos existentes
+    // se refrescan. Es catálogo del sistema, no información del ciudadano.
+    await this.#sincronizarCatalogo('municipios', municipiosSemilla);
+    await this.#sincronizarCatalogo('zonas', zonasSemilla);
+  }
+
+  /** Reescribe una colección de catálogo si difiere de la semilla. */
+  async #sincronizarCatalogo(coleccion, semilla) {
+    const actuales = await this.almacen.leer(coleccion, []);
+    if (JSON.stringify(actuales) === JSON.stringify(semilla)) return false;
+    await this.almacen.escribir(coleccion, semilla);
+    return true;
   }
 
   async cerrar() {

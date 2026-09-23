@@ -52,7 +52,7 @@ describe('Autenticación', () => {
     assert.equal(r.body.municipioActivo.nombre, 'Maravatío');
   });
 
-  test('rechaza contraseña incorrecta, clave incorrecta y municipio ajeno', async () => {
+  test('rechaza contraseña incorrecta y clave de municipio incorrecta', async () => {
     const malaPassword = await request(app).post('/api/auth/funcionario').send({
       username: 'funcionario',
       password: 'incorrecta',
@@ -69,14 +69,15 @@ describe('Autenticación', () => {
     assert.equal(malaClave.status, 401);
     assert.equal(malaClave.body.error, 'Clave de municipio incorrecta');
 
-    // El funcionario está asignado a Maravatío: no puede entrar a Morelia.
-    const ajeno = await request(app).post('/api/auth/funcionario').send({
-      username: 'funcionario',
-      password: 'func123',
-      claveMunicipio: 'MORELIA-2024'
-    });
-    assert.equal(ajeno.status, 403);
-    assert.equal(ajeno.body.error, 'No tienes acceso a este municipio');
+    const sinCampos = await request(app)
+      .post('/api/auth/funcionario')
+      .send({ username: 'funcionario' });
+    assert.equal(sinCampos.status, 400);
+    assert.equal(sinCampos.body.error, 'Completa todos los campos');
+
+    // Nota: el caso «funcionario asignado a otro municipio» (403) solo puede
+    // probarse cuando exista un segundo municipio; hoy el sistema solo tiene
+    // Maravatío, por lo que esa comprobación vive en auth.service.js.
   });
 
   test('el administrador entra sin municipio forzado y ve la clave de los municipios', async () => {
@@ -89,8 +90,12 @@ describe('Autenticación', () => {
 
     const municipios = await admin.get('/api/municipios');
     assert.equal(municipios.status, 200);
-    assert.equal(municipios.body.municipios.length, 3);
+    assert.equal(municipios.body.municipios.length, 1);
+    assert.equal(municipios.body.municipios[0].id, 'maravatio');
     assert.equal(municipios.body.municipios[0].clave, 'MARAVATIO-2024');
+    // El límite municipal es un polígono real, ya no un rectángulo `bbox`.
+    assert.ok(municipios.body.municipios[0].poligono.length >= 3);
+    assert.equal(municipios.body.municipios[0].bbox, undefined);
   });
 
   test('el funcionario no recibe las claves de acceso de otros municipios', async () => {
@@ -113,31 +118,37 @@ describe('Autenticación', () => {
   test('cambio de municipio activo: exige la clave correcta y devuelve token nuevo', async () => {
     const admin = await Api.admin(app);
 
+    const inexistente = await admin.post('/api/auth/municipio-activo', {
+      municipioId: 'no-existe',
+      clave: 'X'
+    });
+    assert.equal(inexistente.status, 404);
+
     const claveMala = await admin.post('/api/auth/municipio-activo', {
-      municipioId: 'morelia',
+      municipioId: 'maravatio',
       clave: 'NO-ES'
     });
     assert.equal(claveMala.status, 400);
     assert.equal(claveMala.body.error, 'Clave incorrecta');
 
     const ok = await admin.post('/api/auth/municipio-activo', {
-      municipioId: 'morelia',
-      clave: 'MORELIA-2024'
+      municipioId: 'maravatio',
+      clave: 'MARAVATIO-2024'
     });
     assert.equal(ok.status, 200);
-    assert.equal(ok.body.usuario.municipioId, 'morelia');
-    assert.equal(ok.body.municipioActivo.nombre, 'Morelia');
+    assert.equal(ok.body.usuario.municipioId, 'maravatio');
+    assert.equal(ok.body.municipioActivo.nombre, 'Maravatío');
 
     const nuevo = new Api(app, ok.body.token);
     const yo = await nuevo.get('/api/auth/me');
-    assert.equal(yo.body.usuario.municipioId, 'morelia');
+    assert.equal(yo.body.usuario.municipioId, 'maravatio');
   });
 
   test('un ciudadano anónimo no puede cambiar de municipio', async () => {
     const anon = await Api.anonimo(app, 'ciudadano0002');
     const r = await anon.post('/api/auth/municipio-activo', {
-      municipioId: 'morelia',
-      clave: 'MORELIA-2024'
+      municipioId: 'maravatio',
+      clave: 'MARAVATIO-2024'
     });
     assert.equal(r.status, 403);
   });

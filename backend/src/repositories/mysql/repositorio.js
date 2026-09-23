@@ -78,7 +78,7 @@ export class RepositorioMysql {
       clave: fila.clave,
       center: [Number(fila.center_lat), Number(fila.center_lng)],
       zoom: Number(fila.zoom),
-      bbox: typeof fila.bbox === 'string' ? JSON.parse(fila.bbox) : fila.bbox
+      poligono: typeof fila.poligono === 'string' ? JSON.parse(fila.poligono) : fila.poligono
     };
   }
 

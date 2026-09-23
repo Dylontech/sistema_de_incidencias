@@ -26,13 +26,22 @@ export function loading(mostrar, texto = 'Procesando…') {
   }
 }
 
-/** Abre un modal cerrando cualquier otro (mismo comportamiento que UI.abrirModal). */
-export function abrirModal(id) {
-  $$('.modal-overlay.show').forEach((m) => {
-    if (m.id !== id) m.classList.remove('show');
-  });
+/**
+ * Abre un modal. Con `nested: true` se muestra ENCIMA del modal actual sin
+ * cerrarlo (por ejemplo «Nuevo concepto» o «Resolver» desde el detalle), para
+ * no perder lo que el usuario ya había escrito. Mismo criterio que
+ * `UI.abrirModal(id, nested)` de la versión nueva del monolito.
+ */
+export function abrirModal(id, { nested = false } = {}) {
+  if (!nested) {
+    $$('.modal-overlay.show').forEach((m) => {
+      if (m.id !== id) m.classList.remove('show');
+    });
+  }
   const modal = $(id);
-  if (modal) modal.classList.add('show');
+  if (!modal) return;
+  modal.classList.toggle('nested', nested);
+  modal.classList.add('show');
 }
 
 export function cerrarModal(id) {

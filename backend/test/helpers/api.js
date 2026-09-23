@@ -56,11 +56,16 @@ export class Api {
   }
 }
 
-/** Punto dentro de la zona col_centro de Maravatío. */
+/**
+ * Punto dentro de la zona col_guadalupe de Maravatío.
+ * Con la geometría nueva (polígonos reales) este punto cae en Guadalupe.
+ */
 export const PUNTO_MARAVATIO = { lat: 19.92, lng: -100.42 };
-/** Punto dentro de la zona mor_centro de Morelia. */
-export const PUNTO_MORELIA = { lat: 19.75, lng: -101.3 };
-/** Punto fuera de todas las zonas de Maravatío. */
+/** Zona que contiene PUNTO_MARAVATIO. */
+export const ZONA_MARAVATIO = 'col_guadalupe';
+/** Punto dentro del polígono municipal pero fuera de toda zona (hueco de la partición). */
+export const PUNTO_SIN_ZONA = { lat: 19.95, lng: -100.595 };
+/** Punto fuera del polígono municipal. */
 export const PUNTO_FUERA = { lat: 19.7, lng: -100.44 };
 
 export function incidenciaValida(extra = {}) {

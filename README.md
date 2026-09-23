@@ -207,6 +207,25 @@ tablas hijas con `ON DELETE CASCADE`; `notificaciones.para_usuario` nulo signifi
 notificación global. Las fechas son `DATETIME(3)` en UTC para que las cadenas ISO coincidan
 exactamente con las del driver JSON.
 
+### Actualizar una instalación existente
+
+- **Driver JSON (por defecto)**: el catálogo geográfico —`municipios` y `zonas`— se compara
+  con los datos semilla en cada arranque y se reescribe si difiere, así que un cambio de
+  contorno municipal o de partición de zonas se aplica solo. Las incidencias, notificaciones,
+  tipos y usuarios se conservan intactos.
+- **MySQL / MariaDB**: la tabla `municipios` cambia su columna `bbox` por `poligono`
+  (`json`). Reaplica el esquema:
+
+  ```bash
+  npm run migrate:rollback
+  npm run migrate
+  npm run seed
+  ```
+
+  El `rollback` elimina las tablas, así que si tienes reportes que conservar, expórtalos
+  antes (**Informes → Respaldo JSON**) y reimpórtalos después (**Informes → Importar
+  respaldo anterior**).
+
 ---
 
 ## Migrar los datos del sistema anterior
@@ -242,6 +261,26 @@ temporal y, con MySQL, su propia base de datos (`incidencias_test_<pid>`), de mo
 **misma suite valida los dos drivers**.
 
 ---
+
+## Sincronización con la versión nueva del monolito
+
+El proyecto original evolucionó a una segunda versión (`legacy/sistema_de_incidencias.html`)
+y esta aplicación se sincronizó con ella. Lo que cambió y cómo queda aquí:
+
+| Cambio en el monolito | Cómo queda en el sistema nuevo |
+|---|---|
+| El municipio deja de ser un rectángulo (`bbox`) y pasa a ser un **polígono real** de 18 vértices | `municipios.poligono` en el modelo, el contrato del repositorio, la migración y la semilla. El mapa encuadra el polígono, limita el desplazamiento a su envolvente y **sombrea con una máscara** todo lo de fuera. `utils/geometria.js` concentra la geometría compartida. |
+| Solo Maravatío (desaparecen Morelia y Uruapán) | Los datos semilla traen un único municipio. El alcance por municipio sigue activo para cuando se añadan más. |
+| Las 12 zonas pasan de rectángulos a **polígonos geográficos** | Mismo modelo (`zonas.poligono`); la geocerca y la detección de zona funcionan igual. |
+| El público **no pasa por la pantalla de acceso**: entra directo como ciudadano anónimo | `main.js` entra como anónimo si no hay sesión. La pantalla de acceso se abre con el botón **Personal** y se cancela con la «×». |
+| La sesión vive en `localStorage` y persiste entre visitas | `core/session.js` y `core/api.js` guardan el token en `localStorage`. |
+| Botones nuevos: **Personal** (solo ciudadanos) y **salir** (solo personal) | `#btn-staff-login` y `#btn-logout`, visibles según el rol. |
+| Cambiar de rol ya no recarga la página (`App.iniciado` / `App.refrescar`) | `aplicacion.arrancar()` es idempotente: no crea un segundo mapa ni duplica el intervalo, y refresca los datos. |
+| **4 capas base** conmutables: Satélite, Calles, Relieve/Topográfico y Físico | `map/mapa.js` con `L.control.layers` en la esquina superior derecha. |
+| **Panel de leyenda** en la barra superior (icono de exclamación) | `#infoPanel` con los estados por antigüedad y las zonas; es excluyente con el panel de notificaciones. |
+| **Modales anidados**: se abren encima del modal que los invoca sin cerrarlo | `abrirModal(id, { nested: true })` para «Nuevo concepto» y «Resolver». |
+| El panel lateral avisa a Leaflet con `invalidateSize()` | `mapa.invalidarTamano()` invocado desde `aplicacion.alternarSidebar()`. |
+| El error de ubicación distingue «fuera del municipio» | `incidencias.service.crear` usa `dentroDelMunicipio()` para elegir el mensaje. |
 
 ## Diferencias con el sistema anterior
 
