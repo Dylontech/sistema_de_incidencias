@@ -52,14 +52,20 @@ La interfaz no usa atributos `onclick`: cada elemento declara `data-action="domi
 ## Instalación y arranque
 
 ```bash
-npm install                 # instala el backend (el frontend no necesita dependencias)
-cp .env.example backend/.env
-npm run dev                 # servidor con recarga automática
-npm start                   # servidor normal
+npm install                    # instala el backend (el frontend no necesita dependencias)
+cp .env.example backend/.env   # configuración local: puerto, JWT y base de datos
+npm run dev                    # servidor con recarga automática
+npm start                      # servidor normal
 ```
 
-La aplicación queda disponible en `http://localhost:3000` (la API en `/api`).
-Express sirve el frontend estático, así que no hay CORS ni configuración de URL base.
+La aplicación queda disponible en **http://localhost:3100** (la API en `/api`), el puerto
+indicado en `PORT` dentro de `backend/.env`. Express sirve el frontend estático, así que no
+hay CORS ni configuración de URL base.
+
+Si el puerto está ocupado (lo más común: otro proyecto usando el 3000) el servidor lo
+informa y no arranca volcando una traza. Para resolverlo: cambia `PORT` en `backend/.env`,
+arráncalo puntualmente con `PORT=<otro puerto> npm run dev`, o libera el puerto
+(`ss -ltnp | grep 3000`).
 
 ### Credenciales de demostración
 

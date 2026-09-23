@@ -2,9 +2,6 @@
    Extraídos del monolito original (legacy/) sin cambios. */
 
 /* ============================================================
-   BASE y LOGIN
-   ============================================================ */
-/* ============================================================
    BASE
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -102,5 +99,3 @@ input, select, textarea { font-family: inherit; }
 }
 .btn-outline:hover { background: #edf2f7; }
 .btn-sm { padding: 6px 10px; font-size: 12px; }
-
-/* ============================================================

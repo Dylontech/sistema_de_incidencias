@@ -2,8 +2,6 @@
    Extraídos del monolito original (legacy/) sin cambios. */
 
 /* ============================================================
-   MODALES, detalle, evidencia y notificaciones
-   ============================================================ */
    MODALES
    ============================================================ */
 .modal-overlay {
@@ -230,9 +228,8 @@
 }
 
 /* ============================================================
-   TOAST, loading, marcadores y utilidades
+   Toast
    ============================================================ */
-/* Toast */
 .toast {
   position: fixed; bottom: 24px; right: 24px;
   padding: 12px 18px; border-radius: 10px;

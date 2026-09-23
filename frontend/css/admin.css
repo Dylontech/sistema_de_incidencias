@@ -2,9 +2,8 @@
    Extraídos del monolito original (legacy/) sin cambios. */
 
 /* ============================================================
-   PANEL DE ADMINISTRACIÓN: pestañas, tarjetas y tablas
+   Admin panel
    ============================================================ */
-/* Admin panel */
 .admin-tabs {
   display: flex; gap: 0; border-bottom: 2px solid var(--borde);
   margin-bottom: 16px; flex-wrap: wrap;
