@@ -1,0 +1,65 @@
+[
+  {
+    "id": "maravatio",
+    "nombre": "Maravatío",
+    "estado": "Michoacán",
+    "clave": "MARAVATIO-2024",
+    "center": [
+      19.8933,
+      -100.4431
+    ],
+    "zoom": 14,
+    "bbox": [
+      [
+        19.75,
+        -100.6
+      ],
+      [
+        20.05,
+        -100.28
+      ]
+    ]
+  },
+  {
+    "id": "morelia",
+    "nombre": "Morelia",
+    "estado": "Michoacán",
+    "clave": "MORELIA-2024",
+    "center": [
+      19.706,
+      -101.195
+    ],
+    "zoom": 14,
+    "bbox": [
+      [
+        19.6,
+        -101.35
+      ],
+      [
+        19.82,
+        -101.05
+      ]
+    ]
+  },
+  {
+    "id": "uruapan",
+    "nombre": "Uruapan",
+    "estado": "Michoacán",
+    "clave": "URUAPAN-2024",
+    "center": [
+      19.4167,
+      -102.05
+    ],
+    "zoom": 14,
+    "bbox": [
+      [
+        19.3,
+        -102.2
+      ],
+      [
+        19.55,
+        -101.9
+      ]
+    ]
+  }
+]

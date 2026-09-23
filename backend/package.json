@@ -1,0 +1,34 @@
+{
+  "name": "sistema-incidencias-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "API REST del Sistema de Incidencias Municipales (Express + MVC + capa Repository con drivers json/MySQL)",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/*.test.js",
+    "extraer-semilla": "node scripts/extraer-semilla.mjs",
+    "importar-legacy": "node scripts/importar-legacy.mjs",
+    "limpiar-bases-prueba": "node scripts/limpiar-bases-prueba.mjs",
+    "migrate": "knex --knexfile knexfile.js migrate:latest",
+    "migrate:rollback": "knex --knexfile knexfile.js migrate:rollback",
+    "seed": "knex --knexfile knexfile.js seed:run"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.3",
+    "express": "^4.22.3",
+    "jsonwebtoken": "^9.0.3",
+    "knex": "^3.3.0",
+    "multer": "^2.4.0",
+    "mysql2": "^3.24.4"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.0"
+  }
+}

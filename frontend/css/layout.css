@@ -1,0 +1,196 @@
+/* Estilos del Sistema de Incidencias Municipales.
+   Extraídos del monolito original (legacy/) sin cambios. */
+
+/* ============================================================
+   APP SHELL: topbar, sidebar, filtros, listado y mapa
+   ============================================================ */
+   APP SHELL
+   ============================================================ */
+.app { display: none; height: 100vh; flex-direction: column; }
+.app.active { display: flex; }
+
+.topbar {
+  background: linear-gradient(135deg, #006657 0%, #008f7a 100%);
+  color: #fff; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 500;
+  flex-wrap: wrap;
+}
+.topbar .brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 15px;
+}
+.topbar .brand i { font-size: 1.4rem; }
+.topbar .muni-name { font-size: 11px; opacity: 0.85; font-weight: 400; }
+.topbar .spacer { flex: 1; }
+.topbar .user-info {
+  font-size: 12px; background: rgba(255,255,255,0.15);
+  padding: 5px 12px; border-radius: 20px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.topbar .notif-btn {
+  position: relative; background: rgba(255,255,255,0.15);
+  border: none; color: #fff; width: 36px; height: 36px;
+  border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 1.1rem;
+  transition: background .15s;
+}
+.topbar .notif-btn:hover { background: rgba(255,255,255,0.25); }
+.notif-badge {
+  position: absolute; top: -2px; right: -2px;
+  background: var(--rojo); color: #fff;
+  font-size: 10px; font-weight: 700;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 10px; display: flex;
+  align-items: center; justify-content: center;
+  border: 2px solid #006657;
+}
+
+/* Layout principal */
+.main-layout {
+  flex: 1; display: flex; overflow: hidden; position: relative;
+}
+.sidebar {
+  width: 340px; background: #fff;
+  border-right: 1px solid var(--borde);
+  display: flex; flex-direction: column;
+  overflow: hidden; transition: transform .25s;
+  z-index: 100;
+}
+.sidebar.collapsed { transform: translateX(-100%); position: absolute; height: 100%; }
+.sidebar-header {
+  padding: 12px 14px; border-bottom: 1px solid var(--borde);
+  background: #f8f9fc;
+}
+.sidebar-header h3 {
+  font-size: 13px; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--primario);
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+}
+.filters { display: flex; flex-direction: column; gap: 6px; }
+.filter-row { display: flex; gap: 6px; }
+.filter-row > * { flex: 1; }
+.filter-input, .filter-select {
+  padding: 6px 10px; border: 1px solid #cbd5e0;
+  border-radius: 6px; font-size: 12px; outline: none;
+  width: 100%; background: #fff;
+}
+.filter-input:focus, .filter-select:focus { border-color: var(--primario); }
+
+.list-container {
+  flex: 1; overflow-y: auto; padding: 10px;
+}
+.incidencia-card {
+  background: #fff; border: 1px solid var(--borde);
+  border-left: 4px solid var(--gris);
+  border-radius: 10px; padding: 10px 12px;
+  margin-bottom: 8px; cursor: pointer;
+  transition: all .15s;
+}
+.incidencia-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+.incidencia-card.estado-verde   { border-left-color: var(--verde); }
+.incidencia-card.estado-amarillo { border-left-color: var(--amarillo); }
+.incidencia-card.estado-naranja { border-left-color: var(--naranja); }
+.incidencia-card.estado-rojo    { border-left-color: var(--rojo); }
+.incidencia-card .inc-head {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-bottom: 4px;
+}
+.incidencia-card .inc-icon {
+  font-size: 1.4rem; line-height: 1; flex-shrink: 0;
+}
+.incidencia-card .inc-title {
+  font-weight: 700; font-size: 13px; color: var(--oscuro);
+  flex: 1; min-width: 0;
+}
+.incidencia-card .inc-desc {
+  font-size: 12px; color: #4a5568; line-height: 1.4;
+  margin-bottom: 6px;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.incidencia-card .inc-meta {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: #94a3b8; gap: 6px;
+}
+.incidencia-card .inc-badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 10px; font-size: 9.5px;
+  font-weight: 700; text-transform: uppercase;
+}
+.badge-verde   { background: #d4edda; color: #155724; }
+.badge-amarillo { background: #fff3cd; color: #856404; }
+.badge-naranja { background: #ffe5d0; color: #8a3d00; }
+.badge-rojo    { background: #f8d7da; color: #721c24; }
+.badge-resuelta { background: #d4edda; color: #155724; }
+
+.empty-state {
+  text-align: center; padding: 40px 20px;
+  color: #94a3b8; font-size: 13px;
+}
+.empty-state i {
+  font-size: 2.5rem; display: block; margin-bottom: 8px;
+  color: #cbd5e0;
+}
+
+/* Mapa */
+.map-container {
+  flex: 1; position: relative; overflow: hidden;
+}
+#map { width: 100%; height: 100%; }
+
+.floating-btns {
+  position: absolute; right: 16px; bottom: 90px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 400;
+}
+.fab {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: none; background: #fff; color: var(--primario);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  font-size: 1.4rem; display: flex;
+  align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.fab.primary { background: var(--primario); color: #fff; }
+.fab.primary:hover { background: var(--primario-claro); }
+
+/* Leyenda */
+.legend-box {
+  position: absolute; left: 16px; bottom: 16px;
+  background: #fff; border-radius: 10px;
+  padding: 10px 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  font-size: 11.5px; z-index: 400;
+  max-width: 220px; max-height: 58vh; overflow-y: auto;
+}
+.legend-box .leg-title {
+  font-weight: 700; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--primario); margin-bottom: 6px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 3px;
+}
+.legend-color {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+}
+
+/* Toggle sidebar btn */
+.sidebar-toggle {
+  position: absolute; left: 8px; top: 8px;
+  z-index: 401; background: #fff; border: none;
+  width: 36px; height: 36px; border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; color: var(--primario);
+}
+
+/* ============================================================

@@ -1,0 +1,66 @@
+{
+  "bache": {
+    "titulo": "Bache grande sobre Av. Juárez",
+    "descripcion": "Bache de aprox. 60 cm de diámetro y 15 cm de profundidad a media cuadra del mercado, sobre el carril derecho. Ya provocó que un vehículo ponchara una llanta."
+  },
+  "banqueta": {
+    "titulo": "Banqueta hundida frente al parque",
+    "descripcion": "La banqueta está agrietada y hundida casi 5 cm, es un riesgo de caída para adultos mayores y niños que pasan a la escuela."
+  },
+  "fuga": {
+    "titulo": "Fuga de agua en la toma principal",
+    "descripcion": "Desde hace 3 días brota agua de la tubería a nivel de calle, se está formando un charco constante y ya se ve desgaste del pavimento alrededor."
+  },
+  "luminaria": {
+    "titulo": "Poste de luz apagado en la esquina",
+    "descripcion": "La luminaria no enciende desde hace más de una semana, la cuadra queda muy oscura por la noche y genera inseguridad."
+  },
+  "agua_contaminada": {
+    "titulo": "Agua con mal olor y color en la llave",
+    "descripcion": "Desde ayer el agua de la toma sale turbia y con olor extraño, varias casas de la cuadra reportan lo mismo."
+  },
+  "basura": {
+    "titulo": "Acumulación de basura en lote baldío",
+    "descripcion": "Hay basura acumulada desde hace semanas, atrae fauna nociva y mal olor. El camión recolector no pasa por esta calle."
+  },
+  "drenaje": {
+    "titulo": "Coladera tapada, se encharca la calle",
+    "descripcion": "Cada vez que llueve se tapa el drenaje y el agua sube casi hasta la banqueta, entra a los negocios cercanos."
+  },
+  "pavimento": {
+    "titulo": "Tramo de pavimento totalmente destruido",
+    "descripcion": "A lo largo de una cuadra el pavimento está agrietado y con hundimientos, es difícil circular en auto o bicicleta."
+  },
+  "arbol": {
+    "titulo": "Árbol a punto de caer sobre la calle",
+    "descripcion": "El árbol está muy inclinado desde la última tormenta y sus raíces ya se ven expuestas, hay riesgo de que caiga sobre los cables o un vehículo."
+  },
+  "semaforo": {
+    "titulo": "Semáforo intermitente en cruce peligroso",
+    "descripcion": "El semáforo de la esquina lleva días solo parpadeando en amarillo, ha causado varios sustos entre peatones y autos."
+  },
+  "cableado": {
+    "titulo": "Cables de luz colgando muy bajo",
+    "descripcion": "Hay un cable eléctrico caído que cuelga a menos de 2 metros del suelo, junto a la parada de camión."
+  },
+  "parque": {
+    "titulo": "Juegos infantiles rotos en el parque",
+    "descripcion": "Los columpios y el resbaladero están oxidados y con partes rotas, representan un riesgo para los niños que juegan ahí."
+  },
+  "senal": {
+    "titulo": "Señal de alto derribada",
+    "descripcion": "La señal de alto de la esquina fue derribada por un vehículo y no ha sido repuesta, ya se han visto casi-choques."
+  },
+  "grafiti": {
+    "titulo": "Grafiti en fachada de edificio público",
+    "descripcion": "La barda de la escuela primaria amaneció con grafiti la semana pasada y sigue sin limpiarse."
+  },
+  "animal": {
+    "titulo": "Perros abandonados en la calle",
+    "descripcion": "Hay un grupo de perros callejeros que rondan la cuadra desde hace días, algunos parecen enfermos o agresivos."
+  },
+  "otro": {
+    "titulo": "Describe brevemente el problema",
+    "descripcion": "Explica qué observaste, desde cuándo, y por qué representa un riesgo o molestia para la comunidad."
+  }
+}

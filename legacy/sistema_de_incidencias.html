@@ -1,0 +1,3439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Incidencias Municipales — Maravatío, Michoacán</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<style>
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --verde: #28a745;
+  --amarillo: #ffc107;
+  --naranja: #fd7e14;
+  --rojo: #dc3545;
+  --gris: #6c757d;
+  --primario: #006657;
+  --primario-claro: #008f7a;
+  --oscuro: #1a202c;
+  --fondo: #f0f4f8;
+  --borde: #e2e8f0;
+}
+body {
+  font-family: 'Segoe UI', Roboto, -apple-system, sans-serif;
+  background: var(--fondo);
+  color: var(--oscuro);
+  overflow: hidden;
+  height: 100vh;
+}
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+
+/* ============================================================
+   LOGIN
+   ============================================================ */
+.login-screen {
+  position: fixed; inset: 0; z-index: 10000;
+  background: linear-gradient(135deg, #006657 0%, #008f7a 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.login-card {
+  background: #fff; border-radius: 16px;
+  padding: 32px; max-width: 420px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.login-card h1 {
+  font-size: 1.4rem; color: var(--primario); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 8px;
+}
+.login-card p.sub {
+  color: var(--gris); font-size: 13px; margin-bottom: 24px;
+}
+.login-tabs {
+  display: flex; gap: 0; margin-bottom: 20px;
+  border-bottom: 2px solid var(--borde);
+}
+.login-tab {
+  flex: 1; padding: 10px; border: none; background: transparent;
+  font-size: 13px; font-weight: 600; color: var(--gris);
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all .15s;
+}
+.login-tab.active { color: var(--primario); border-bottom-color: var(--primario); }
+.login-panel { display: none; }
+.login-panel.active { display: block; }
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block; font-size: 11px; font-weight: 700;
+  color: #4a5568; text-transform: uppercase; letter-spacing: .5px;
+  margin-bottom: 5px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid #cbd5e0;
+  border-radius: 8px; font-size: 13px; outline: none; transition: border .15s;
+  background: #fff;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--primario);
+  box-shadow: 0 0 0 3px rgba(0,102,87,0.12);
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 10px 18px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap;
+}
+.btn-block { width: 100%; }
+.btn-primary { background: var(--primario); color: #fff; }
+.btn-primary:hover { background: var(--primario-claro); }
+.btn-success { background: var(--verde); color: #fff; }
+.btn-success:hover { background: #218838; }
+.btn-danger { background: var(--rojo); color: #fff; }
+.btn-danger:hover { background: #c82333; }
+.btn-warning { background: var(--amarillo); color: #333; }
+.btn-warning:hover { background: #e0a800; }
+.btn-orange { background: var(--naranja); color: #fff; }
+.btn-orange:hover { background: #d35400; }
+.btn-secondary { background: var(--gris); color: #fff; }
+.btn-secondary:hover { background: #5a6268; }
+.btn-outline {
+  background: transparent; border: 1px solid #cbd5e0; color: #4a5568;
+}
+.btn-outline:hover { background: #edf2f7; }
+.btn-sm { padding: 6px 10px; font-size: 12px; }
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app { display: none; height: 100vh; flex-direction: column; }
+.app.active { display: flex; }
+
+.topbar {
+  position: relative;
+  background: linear-gradient(135deg, #006657 0%, #008f7a 100%);
+  color: #fff; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 500;
+  flex-wrap: wrap;
+}
+.topbar .brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 15px;
+}
+.topbar .brand i { font-size: 1.4rem; }
+.topbar .muni-name { font-size: 11px; opacity: 0.85; font-weight: 400; }
+.topbar .spacer { flex: 1; }
+.topbar .user-info {
+  font-size: 12px; background: rgba(255,255,255,0.15);
+  padding: 5px 12px; border-radius: 20px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.topbar .notif-btn {
+  position: relative; background: rgba(255,255,255,0.15);
+  border: none; color: #fff; width: 36px; height: 36px;
+  border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 1.1rem;
+  transition: background .15s;
+}
+.topbar .notif-btn:hover { background: rgba(255,255,255,0.25); }
+.notif-badge {
+  position: absolute; top: -2px; right: -2px;
+  background: var(--rojo); color: #fff;
+  font-size: 10px; font-weight: 700;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 10px; display: flex;
+  align-items: center; justify-content: center;
+  border: 2px solid #006657;
+}
+
+/* Layout principal */
+.main-layout {
+  flex: 1; display: flex; overflow: hidden; position: relative;
+}
+.sidebar {
+  width: 340px; background: #fff;
+  border-right: 1px solid var(--borde);
+  display: flex; flex-direction: column;
+  overflow: hidden; transition: transform .25s;
+  z-index: 100;
+}
+.sidebar.collapsed { transform: translateX(-100%); position: absolute; height: 100%; }
+.sidebar-header {
+  padding: 12px 14px; border-bottom: 1px solid var(--borde);
+  background: #f8f9fc;
+}
+.sidebar-header h3 {
+  font-size: 13px; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--primario);
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+}
+.filters { display: flex; flex-direction: column; gap: 6px; }
+.filter-row { display: flex; gap: 6px; }
+.filter-row > * { flex: 1; }
+.filter-input, .filter-select {
+  padding: 6px 10px; border: 1px solid #cbd5e0;
+  border-radius: 6px; font-size: 12px; outline: none;
+  width: 100%; background: #fff;
+}
+.filter-input:focus, .filter-select:focus { border-color: var(--primario); }
+
+.list-container {
+  flex: 1; overflow-y: auto; padding: 10px;
+}
+.incidencia-card {
+  background: #fff; border: 1px solid var(--borde);
+  border-left: 4px solid var(--gris);
+  border-radius: 10px; padding: 10px 12px;
+  margin-bottom: 8px; cursor: pointer;
+  transition: all .15s;
+}
+.incidencia-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+.incidencia-card.estado-verde   { border-left-color: var(--verde); }
+.incidencia-card.estado-amarillo { border-left-color: var(--amarillo); }
+.incidencia-card.estado-naranja { border-left-color: var(--naranja); }
+.incidencia-card.estado-rojo    { border-left-color: var(--rojo); }
+.incidencia-card .inc-head {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-bottom: 4px;
+}
+.incidencia-card .inc-icon {
+  font-size: 1.4rem; line-height: 1; flex-shrink: 0;
+}
+.incidencia-card .inc-title {
+  font-weight: 700; font-size: 13px; color: var(--oscuro);
+  flex: 1; min-width: 0;
+}
+.incidencia-card .inc-desc {
+  font-size: 12px; color: #4a5568; line-height: 1.4;
+  margin-bottom: 6px;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.incidencia-card .inc-meta {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: #94a3b8; gap: 6px;
+}
+.incidencia-card .inc-badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 10px; font-size: 9.5px;
+  font-weight: 700; text-transform: uppercase;
+}
+.badge-verde   { background: #d4edda; color: #155724; }
+.badge-amarillo { background: #fff3cd; color: #856404; }
+.badge-naranja { background: #ffe5d0; color: #8a3d00; }
+.badge-rojo    { background: #f8d7da; color: #721c24; }
+.badge-resuelta { background: #d4edda; color: #155724; }
+
+.empty-state {
+  text-align: center; padding: 40px 20px;
+  color: #94a3b8; font-size: 13px;
+}
+.empty-state i {
+  font-size: 2.5rem; display: block; margin-bottom: 8px;
+  color: #cbd5e0;
+}
+
+/* Mapa */
+.map-container {
+  flex: 1; position: relative; overflow: hidden;
+}
+#map { width: 100%; height: 100%; }
+
+.floating-btns {
+  position: absolute; right: 16px; bottom: 90px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 400;
+}
+.fab {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: none; background: #fff; color: var(--primario);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  font-size: 1.4rem; display: flex;
+  align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.fab.primary { background: var(--primario); color: #fff; }
+.fab.primary:hover { background: var(--primario-claro); }
+
+/* Leyenda */
+.legend-box {
+  position: absolute; left: 16px; bottom: 16px;
+  background: #fff; border-radius: 10px;
+  padding: 10px 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  font-size: 11.5px; z-index: 400;
+  max-width: 220px; max-height: 58vh; overflow-y: auto;
+}
+.legend-box .leg-title {
+  font-weight: 700; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--primario); margin-bottom: 6px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 3px;
+}
+.legend-color {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+}
+
+/* Toggle sidebar btn */
+.sidebar-toggle {
+  position: absolute; left: 8px; top: 8px;
+  z-index: 401; background: #fff; border: none;
+  width: 36px; height: 36px; border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; color: var(--primario);
+}
+
+/* ============================================================
+   MODALES
+   ============================================================ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5000; opacity: 0; visibility: hidden;
+  transition: all .2s; padding: 16px; overflow-y: auto;
+}
+.modal-overlay.show { opacity: 1; visibility: visible; }
+.modal-overlay.nested { z-index: 5100; }
+.modal-box {
+  background: #fff; border-radius: 14px;
+  width: 100%; max-width: 560px; max-height: 92vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  transform: translateY(20px); transition: transform .2s;
+  margin: auto;
+}
+.modal-box.lg { max-width: 800px; }
+.modal-overlay.show .modal-box { transform: translateY(0); }
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px; border-bottom: 1px solid var(--borde);
+  background: #f8f9fc; border-radius: 14px 14px 0 0;
+}
+.modal-head h3 {
+  font-size: 15px; font-weight: 700; color: var(--oscuro);
+  display: flex; align-items: center; gap: 8px;
+}
+.modal-close {
+  background: transparent; border: none; font-size: 1.4rem;
+  color: var(--gris); line-height: 1; padding: 4px 8px;
+}
+.modal-close:hover { color: var(--rojo); }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-foot {
+  padding: 14px 20px; border-top: 1px solid var(--borde);
+  background: #f8f9fc; display: flex; justify-content: flex-end;
+  gap: 10px; border-radius: 0 0 14px 14px; flex-wrap: wrap;
+}
+
+/* Selector de iconos */
+.icon-picker {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 6px; max-height: 220px; overflow-y: auto;
+  padding: 8px; border: 1px solid #cbd5e0; border-radius: 10px;
+  background: #f8f9fc;
+}
+.icon-opt {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 4px; border-radius: 8px; cursor: pointer;
+  border: 2px solid transparent; transition: all .12s;
+  background: #fff;
+}
+.icon-opt:hover { background: #e8f5f2; }
+.icon-opt.selected {
+  border-color: var(--primario); background: #e8f5f2;
+}
+.icon-opt .emoji { font-size: 1.5rem; line-height: 1; }
+.icon-opt .label {
+  font-size: 8.5px; color: #4a5568; margin-top: 3px;
+  text-align: center; line-height: 1.1;
+}
+
+/* Evidencia */
+.evidence-drop {
+  border: 2px dashed #cbd5e0; border-radius: 12px;
+  padding: 24px; text-align: center; cursor: pointer;
+  transition: all .15s; background: #f8f9fc;
+}
+.evidence-drop:hover { border-color: var(--primario); background: #e8f5f2; }
+.evidence-drop i { font-size: 2rem; color: var(--primario); }
+.evidence-drop p { font-size: 12px; color: var(--gris); margin-top: 6px; }
+.evidence-drop small { font-size: 10px; color: #aaa; }
+.evidence-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px; margin-top: 10px;
+}
+.evidence-item {
+  position: relative; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--borde); background: #f0f4f8;
+}
+.evidence-item img, .evidence-item video {
+  width: 100%; height: 90px; object-fit: cover; display: block;
+}
+.evidence-item .ev-file {
+  width: 100%; height: 90px; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 2rem; color: var(--gris);
+}
+.evidence-item .ev-name {
+  font-size: 10px; padding: 4px 6px; color: #4a5568;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #fff;
+}
+.evidence-item .ev-remove {
+  position: absolute; top: 4px; right: 4px;
+  background: rgba(220,53,69,0.9); color: #fff;
+  border: none; border-radius: 50%; width: 22px; height: 22px;
+  font-size: 12px; display: flex; align-items: center;
+  justify-content: center;
+}
+
+/* Detalles incidencia */
+.detail-row {
+  display: flex; gap: 10px; margin-bottom: 10px;
+  font-size: 13px; line-height: 1.5;
+}
+.detail-row .label {
+  font-weight: 700; color: var(--primario);
+  min-width: 100px; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .3px;
+  padding-top: 2px;
+}
+.detail-row .value { flex: 1; color: var(--oscuro); }
+.detail-section {
+  border-top: 1px solid var(--borde);
+  padding-top: 12px; margin-top: 12px;
+}
+.detail-section-title {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--primario); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.status-timeline {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px; background: #f8f9fc; border-radius: 8px;
+}
+.timeline-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 12px;
+}
+.timeline-item .t-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--primario); flex-shrink: 0; margin-top: 4px;
+}
+.timeline-item .t-time {
+  font-size: 10px; color: #94a3b8;
+}
+
+/* Estado selector */
+.status-options {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 8px; margin-top: 8px;
+}
+.status-opt {
+  padding: 10px; border: 2px solid var(--borde);
+  border-radius: 8px; cursor: pointer; text-align: center;
+  font-size: 12px; font-weight: 600;
+  transition: all .12s; background: #fff;
+}
+.status-opt:hover { border-color: var(--primario); }
+.status-opt.selected {
+  border-color: var(--primario); background: #e8f5f2;
+  color: var(--primario);
+}
+
+/* Comentarios */
+.comment-list { display: flex; flex-direction: column; gap: 8px; }
+.comment-item {
+  background: #f8f9fc; border-radius: 8px;
+  padding: 8px 12px; font-size: 12px;
+}
+.comment-item .c-meta {
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; color: #94a3b8; margin-bottom: 4px;
+}
+.comment-item .c-author { font-weight: 700; color: var(--primario); }
+.comment-item .c-text { color: #2d3748; line-height: 1.5; }
+
+/* Notificaciones panel */
+.notif-panel {
+  position: absolute; top: 100%; right: 16px;
+  width: 340px; max-height: 420px; overflow-y: auto;
+  background: #fff; border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  z-index: 600; margin-top: 8px; display: none;
+}
+.notif-panel.show { display: block; }
+.notif-header {
+  padding: 12px 14px; border-bottom: 1px solid var(--borde);
+  display: flex; justify-content: space-between;
+  align-items: center; background: #f8f9fc;
+  border-radius: 12px 12px 0 0;
+  font-size: 13px; font-weight: 700;
+}
+.notif-item {
+  padding: 12px 14px; border-bottom: 1px solid #f0f4f8;
+  display: flex; gap: 10px; font-size: 12px;
+}
+.notif-item.unread { background: #f0faf8; }
+.notif-item .n-icon { font-size: 1.3rem; }
+.notif-item .n-content { flex: 1; }
+.notif-item .n-title { font-weight: 700; color: var(--oscuro); margin-bottom: 2px; }
+.notif-item .n-msg { color: var(--gris); line-height: 1.4; }
+.notif-item .n-time { color: #94a3b8; font-size: 10px; margin-top: 4px; }
+.notif-empty { padding: 30px; text-align: center; color: #94a3b8; font-size: 13px; }
+
+/* Panel de información (icono de exclamación) */
+.info-panel {
+  position: absolute; top: 100%; right: 16px;
+  width: 300px; max-height: 70vh; overflow-y: auto;
+  background: #fff; border-radius: 12px; color: #1a202c;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  z-index: 600; margin-top: 8px; display: none;
+}
+.info-panel.show { display: block; }
+.info-panel .notif-header { font-size: 13px; }
+.info-panel .info-body { padding: 12px 14px; }
+.info-panel .leg-title {
+  font-weight: 700; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .5px;
+  color: var(--primario); margin-bottom: 6px;
+}
+.info-panel .legend-item {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 5px; font-size: 12.5px;
+}
+.info-panel .legend-color {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
+
+/* Admin panel */
+.admin-tabs {
+  display: flex; gap: 0; border-bottom: 2px solid var(--borde);
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.admin-tab {
+  padding: 10px 16px; border: none; background: transparent;
+  font-size: 13px; font-weight: 600; color: var(--gris);
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.admin-tab.active { color: var(--primario); border-bottom-color: var(--primario); }
+.admin-panel { display: none; }
+.admin-panel.active { display: block; }
+
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.stat-card {
+  background: #fff; border: 1px solid var(--borde);
+  border-radius: 10px; padding: 14px 12px; text-align: center;
+}
+.stat-card .stat-num {
+  font-size: 1.6rem; font-weight: 800;
+  color: var(--primario); line-height: 1.1;
+}
+.stat-card .stat-label {
+  font-size: 10px; color: var(--gris);
+  text-transform: uppercase; letter-spacing: .4px;
+  margin-top: 4px;
+}
+.stat-card.verde .stat-num { color: var(--verde); }
+.stat-card.rojo .stat-num { color: var(--rojo); }
+.stat-card.naranja .stat-num { color: var(--naranja); }
+.stat-card.amarillo .stat-num { color: var(--amarillo); }
+
+.data-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  background: #fff; border-radius: 10px; overflow: hidden;
+}
+.data-table th {
+  background: #f8f9fc; padding: 10px 12px;
+  text-align: left; font-size: 10.5px; font-weight: 700;
+  color: #4a5568; text-transform: uppercase;
+  letter-spacing: .4px; border-bottom: 2px solid var(--borde);
+}
+.data-table td {
+  padding: 9px 12px; border-bottom: 1px solid #f0f4f8;
+  vertical-align: middle;
+}
+.data-table tbody tr:hover { background: #f8f9fc; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 12px 18px; border-radius: 10px;
+  font-size: 13px; font-weight: 600;
+  z-index: 9999; opacity: 0; transform: translateY(20px);
+  transition: all .3s; max-width: 380px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.toast.ok { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.toast.err { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.toast.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+/* Loading */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: none; align-items: center; justify-content: center;
+  z-index: 9998; color: #fff;
+}
+.loading-overlay.show { display: flex; }
+.spinner {
+  width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin .9s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Location indicator */
+.loc-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; padding: 6px 10px;
+  background: #f0faf8; border: 1px solid #b2dfdb;
+  border-radius: 8px; color: var(--primario);
+  margin-top: 6px;
+}
+.loc-status.error { background: #fde8ea; border-color: #f5c6cb; color: #721c24; }
+.loc-status.loading { background: #fff3cd; border-color: #ffe0b2; color: #856404; }
+
+/* Custom marker */
+.marker-icon {
+  background: transparent; border: none;
+}
+.marker-icon .pin {
+  width: 32px; height: 32px; border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); display: flex;
+  align-items: center; justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+.marker-icon .pin-inner {
+  transform: rotate(45deg); font-size: 14px;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9));
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 100%; position: absolute; height: 60%; top: 0; }
+  .sidebar.collapsed { transform: translateY(-100%); }
+  .notif-panel { width: calc(100vw - 32px); right: 16px; }
+  .modal-box { max-width: 100%; }
+  .topbar .muni-name { display: none; }
+  .fab { width: 46px; height: 46px; font-size: 1.2rem; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     LOGIN
+     ============================================================ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card" style="position:relative;">
+    <button class="modal-close" id="loginCancelBtn" onclick="Auth.cancelarLogin()" style="display:none;position:absolute;top:10px;right:10px;" title="Volver">&times;</button>
+    <h1><i class="bi bi-geo-alt-fill"></i> Sistema de Incidencias</h1>
+    <p class="sub">Municipio de Maravatío, Michoacán</p>
+
+    <div class="login-tabs">
+      <button class="login-tab active" data-tab="anon">Ciudadano</button>
+      <button class="login-tab" data-tab="func">Funcionario</button>
+      <button class="login-tab" data-tab="admin">Administrador</button>
+    </div>
+
+    <!-- ANÓNIMO -->
+    <div class="login-panel active" id="panel-anon">
+      <p style="font-size:12.5px;color:#4a5568;margin-bottom:14px;line-height:1.5;">
+        No necesitas cuenta: cualquier persona puede reportar incidencias de forma <strong>anónima</strong>. Este sistema recuerda tus reportes en este dispositivo automáticamente.
+      </p>
+      <button class="btn btn-primary btn-block" onclick="Auth.entrarAnonimo()">
+        <i class="bi bi-person-fill"></i> Entrar como ciudadano anónimo
+      </button>
+      <p style="font-size:11px;color:#94a3b8;margin-top:12px;text-align:center;">
+        <i class="bi bi-info-circle"></i> Los reportes anónimos no recopilan datos personales.
+      </p>
+    </div>
+
+    <!-- FUNCIONARIO -->
+    <div class="login-panel" id="panel-func">
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="func-user" placeholder="ej. jlopez">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="func-pass" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label>Clave de municipio</label>
+        <input type="text" id="func-code" placeholder="Ej. MARAVATIO-2024" style="text-transform:uppercase;">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="Auth.loginFuncionario()">
+        <i class="bi bi-shield-lock-fill"></i> Iniciar sesión
+      </button>
+      <div style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
+        <strong>Demo:</strong> usuario <code>funcionario</code> · contraseña <code>func123</code> · clave <code>MARAVATIO-2024</code>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="login-panel" id="panel-admin">
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="admin-user" placeholder="admin">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="admin-pass" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="Auth.loginAdmin()">
+        <i class="bi bi-shield-fill-check"></i> Iniciar sesión
+      </button>
+      <div style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
+        <strong>Demo:</strong> usuario <code>admin</code> · contraseña <code>admin123</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     APP
+     ============================================================ -->
+<div class="app" id="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="notif-btn" style="background:rgba(255,255,255,0.1);" onclick="Sidebar.toggle()" title="Menú">
+      <i class="bi bi-list"></i>
+    </button>
+    <div class="brand">
+      <i class="bi bi-geo-alt-fill"></i>
+      <div>
+        <div>Incidencias Municipales</div>
+        <div class="muni-name" id="topbar-muni">Maravatío, Michoacán</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+
+    <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" onclick="Admin.abrir()" id="btn-admin" title="Panel de administración">
+      <i class="bi bi-speedometer2"></i> <span class="d-none-mobile">Panel</span>
+    </button>
+    <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" onclick="Reportes.abrir()" id="btn-informes" title="Informes">
+      <i class="bi bi-file-earmark-bar-graph"></i> <span class="d-none-mobile">Informes</span>
+    </button>
+
+    <button class="notif-btn" onclick="UI.toggleInfoPanel(event)" title="Leyenda del mapa">
+      <i class="bi bi-exclamation-circle-fill"></i>
+    </button>
+
+    <button class="notif-btn" onclick="Notificaciones.togglePanel(event)" title="Notificaciones">
+      <i class="bi bi-bell-fill"></i>
+      <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+    </button>
+
+    <div class="user-info" id="userInfo">
+      <i class="bi bi-person-circle"></i>
+      <span id="userName">Anónimo</span>
+    </div>
+    <button class="btn btn-outline btn-sm" id="btn-staff-login" onclick="Auth.mostrarLogin()" title="Acceso de funcionario o administrador" style="background:rgba(255,255,255,0.1);border:none;color:#fff;">
+      <i class="bi bi-shield-lock"></i> <span class="d-none-mobile">Personal</span>
+    </button>
+    <button class="notif-btn" onclick="Auth.logout()" title="Cerrar sesión" id="btn-logout" style="display:none;">
+      <i class="bi bi-box-arrow-right"></i>
+    </button>
+
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-header">
+        <span>Notificaciones</span>
+        <button class="btn btn-sm btn-outline" onclick="Notificaciones.marcarTodasLeidas()">Marcar leídas</button>
+      </div>
+      <div id="notifList"></div>
+    </div>
+
+    <div class="info-panel" id="infoPanel">
+      <div class="notif-header">
+        <span><i class="bi bi-info-circle"></i> Leyenda del mapa</span>
+      </div>
+      <div class="info-body">
+        <div class="leg-title">Estado por antigüedad</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--verde);"></div> Resuelta</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--amarillo);"></div> &lt; 15 días</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--naranja);"></div> 15–30 días</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--rojo);"></div> &gt; 30 días</div>
+        <div class="leg-title" style="margin-top:12px;">Zonas de responsabilidad</div>
+        <div id="legendZonas"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div id="visibilidadNota" style="display:none;font-size:11px;color:#8a5a00;background:#fff8e6;border:1px solid #ffe4a3;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;">
+          <i class="bi bi-shield-lock"></i> Por privacidad, solo ves <strong>tus propios reportes</strong>. El listado completo es visible únicamente para funcionarios y administradores.
+        </div>
+        <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
+        <div class="filters">
+          <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" oninput="UI.renderLista()">
+          <div class="filter-row">
+            <select class="filter-select" id="filterEstado" onchange="UI.renderLista()">
+              <option value="todos">Todos los estados</option>
+              <option value="reportada">Reportadas</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="resuelta">Resueltas</option>
+            </select>
+            <select class="filter-select" id="filterTipo" onchange="UI.renderLista()">
+              <option value="todos">Todos los tipos</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <select class="filter-select" id="filterColor" onchange="UI.renderLista()">
+              <option value="todos">Todos los colores</option>
+              <option value="verde">🟢 Resueltas</option>
+              <option value="amarillo">🟡 &lt; 15 días</option>
+              <option value="naranja">🟠 &gt; 15 días</option>
+              <option value="rojo">🔴 &gt; 30 días</option>
+            </select>
+            <select class="filter-select" id="filterOrden" onchange="UI.renderLista()">
+              <option value="reciente">Más recientes</option>
+              <option value="antigua">Más antiguas</option>
+              <option value="prioridad">Prioridad</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <select class="filter-select" id="filterZona" onchange="UI.renderLista()">
+              <option value="todos">Todas las zonas</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="list-container" id="listaIncidencias"></div>
+    </aside>
+
+    <!-- MAPA -->
+    <div class="map-container">
+      <div id="map"></div>
+      <button class="sidebar-toggle" onclick="Sidebar.toggle()" title="Mostrar/ocultar panel">
+        <i class="bi bi-layout-sidebar-inset"></i>
+      </button>
+
+      <div class="floating-btns">
+        <button class="fab primary" onclick="Incidencias.abrirReportar()" title="Reportar incidencia">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+        <button class="fab" onclick="Mapa.centrarEnUsuario()" title="Mi ubicación">
+          <i class="bi bi-crosshair"></i>
+        </button>
+        <button class="fab" onclick="Mapa.centrarMunicipio()" title="Centrar municipio">
+          <i class="bi bi-geo-alt"></i>
+        </button>
+        <button class="fab" onclick="Mapa.toggleZonas()" title="Mostrar/ocultar zonas">
+          <i class="bi bi-bounding-box-circles"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: REPORTAR / EDITAR INCIDENCIA
+     ============================================================ -->
+<div class="modal-overlay" id="modalIncidencia">
+  <div class="modal-box lg">
+    <div class="modal-head">
+      <h3><i class="bi bi-plus-circle-fill"></i> <span id="modalIncTitle">Reportar incidencia</span></h3>
+      <button class="modal-close" onclick="Incidencias.cerrar()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="incId">
+      <input type="hidden" id="incLat">
+      <input type="hidden" id="incLng">
+
+      <div class="form-group">
+        <label>Tipo de incidencia *</label>
+        <select id="incTipo" onchange="Incidencias.onTipoChange()"></select>
+        <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="Incidencias.abrirNuevoTipo()">
+          <i class="bi bi-plus-circle"></i> Agregar nuevo concepto
+        </button>
+      </div>
+
+      <div id="ejemploTipoBox" style="display:none;background:#f0faf8;border:1px dashed #8ecdc0;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div style="font-size:11.5px;font-weight:700;color:var(--primario);text-transform:uppercase;letter-spacing:.4px;">
+            <i class="bi bi-lightbulb-fill"></i> Ejemplo para este tipo
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="Incidencias.usarEjemplo()">
+            <i class="bi bi-magic"></i> Usar este ejemplo
+          </button>
+        </div>
+        <div style="font-size:12.5px;color:#1a202c;font-weight:600;margin-top:6px;" id="ejemploTitulo"></div>
+        <div style="font-size:12px;color:#4a5568;margin-top:2px;line-height:1.45;" id="ejemploDescripcion"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Icono *</label>
+        <div class="icon-picker" id="iconPicker"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Título breve *</label>
+        <input type="text" id="incTitulo" maxlength="80" placeholder="Ej. Bache grande en Av. Juárez">
+      </div>
+
+      <div class="form-group">
+        <label>Descripción *</label>
+        <textarea id="incDescripcion" rows="3" maxlength="600" placeholder="Describe el problema con el mayor detalle posible…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Indicaciones / Referencias para llegar</label>
+        <textarea id="incIndicaciones" rows="2" maxlength="400" placeholder="Ej. Frente a la tienda, junto al poste, color de la fachada…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Ubicación *</label>
+        <p style="font-size:11.5px;color:#718096;margin-bottom:6px;line-height:1.4;">
+          <i class="bi bi-info-circle"></i> Solo se aceptan ubicaciones dentro de las zonas (colonias/tenencias) marcadas en el mapa.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="Incidencias.obtenerUbicacion()">
+            <i class="bi bi-crosshair"></i> Usar mi ubicación
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="Incidencias.elegirEnMapa()">
+            <i class="bi bi-map"></i> Elegir en el mapa
+          </button>
+          <span id="incZonaBadge" style="display:none;align-items:center;gap:5px;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;"></span>
+        </div>
+        <div class="loc-status" id="locStatus" style="display:none;"></div>
+        <input type="text" id="incCoordsTexto" placeholder="O pega coordenadas (lat, lng)" style="margin-top:8px;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:12.5px;width:100%;" onchange="Incidencias.parsearCoords(this.value)">
+      </div>
+
+      <div class="form-group">
+        <label>Evidencia (fotos hasta 100 MB · video hasta 1 GB o 5 min)</label>
+        <div class="evidence-drop" id="evidenceDrop" onclick="document.getElementById('incEvidencia').click()">
+          <i class="bi bi-cloud-arrow-up-fill"></i>
+          <p>Haz clic o arrastra archivos aquí</p>
+          <small>JPG, PNG, MP4, MOV</small>
+        </div>
+        <input type="file" id="incEvidencia" multiple accept="image/*,video/*" style="display:none;" onchange="Incidencias.agregarEvidencia(event)">
+        <div class="evidence-list" id="evidenceList"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="Incidencias.cerrar()">Cancelar</button>
+      <button class="btn btn-primary" onclick="Incidencias.guardar()">
+        <i class="bi bi-send-fill"></i> Enviar reporte
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DETALLE INCIDENCIA
+     ============================================================ -->
+<div class="modal-overlay" id="modalDetalle">
+  <div class="modal-box lg">
+    <div class="modal-head">
+      <h3><i class="bi bi-info-circle-fill"></i> Detalle de incidencia</h3>
+      <button class="modal-close" onclick="UI.cerrarDetalle()">&times;</button>
+    </div>
+    <div class="modal-body" id="detalleBody"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: ADMIN PANEL
+     ============================================================ -->
+<div class="modal-overlay" id="modalAdmin">
+  <div class="modal-box lg" style="max-width:1000px;">
+    <div class="modal-head">
+      <h3><i class="bi bi-speedometer2"></i> Panel de control</h3>
+      <button class="modal-close" onclick="Admin.cerrar()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="Admin.tab('stats', this)"><i class="bi bi-bar-chart-fill"></i> Estadísticas</button>
+        <button class="admin-tab" onclick="Admin.tab('incidencias', this)"><i class="bi bi-list-ul"></i> Incidencias</button>
+        <button class="admin-tab" onclick="Admin.tab('tipos', this)"><i class="bi bi-tags-fill"></i> Tipos</button>
+        <button class="admin-tab" onclick="Admin.tab('municipios', this)"><i class="bi bi-geo-fill"></i> Municipios</button>
+        <button class="admin-tab" onclick="Admin.tab('zonas', this)"><i class="bi bi-bounding-box-circles"></i> Zonas</button>
+        <button class="admin-tab" onclick="Admin.tab('usuarios', this)"><i class="bi bi-people-fill"></i> Usuarios</button>
+      </div>
+
+      <div class="admin-panel active" id="panel-stats">
+        <div class="stats-grid" id="statsGrid"></div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:12px;color:var(--primario);">
+            <i class="bi bi-pie-chart-fill"></i> Incidencias por tipo
+          </h4>
+          <div id="statsByTipo"></div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panel-incidencias">
+        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" class="filter-input" id="adminBuscar" placeholder="Buscar…" oninput="Admin.renderTablaIncidencias()" style="max-width:280px;">
+          <button class="btn btn-outline btn-sm" onclick="Reportes.exportarCSV()"><i class="bi bi-file-earmark-spreadsheet"></i> CSV</button>
+          <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Título</th><th>Tipo</th><th>Estado</th>
+                <th>Días</th><th>Reportó</th><th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="adminIncidenciasBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panel-tipos">
+        <button class="btn btn-primary btn-sm" onclick="Incidencias.abrirNuevoTipo()" style="margin-bottom:12px;">
+          <i class="bi bi-plus-circle"></i> Nuevo tipo
+        </button>
+        <div id="tiposLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-municipios">
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;margin-bottom:12px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-pin-map-fill"></i> Municipio activo
+          </h4>
+          <p style="font-size:12.5px;color:var(--gris);margin-bottom:10px;">
+            Selecciona el municipio que deseas monitorear. Necesitas la clave de acceso correspondiente.
+          </p>
+          <select class="filter-select" id="municipioSelect" style="max-width:400px;margin-bottom:10px;"></select>
+          <br>
+          <button class="btn btn-primary btn-sm" onclick="Admin.cambiarMunicipio()">
+            <i class="bi bi-arrow-repeat"></i> Cambiar municipio
+          </button>
+        </div>
+        <div id="municipiosLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-zonas">
+        <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;">
+          Zonas de responsabilidad (colonias/tenencias) del municipio activo. Los reportes ciudadanos solo se permiten dentro de estas áreas.
+        </p>
+        <div id="zonasLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-usuarios">
+        <div id="usuariosLista"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: REPORTES
+     ============================================================ -->
+<div class="modal-overlay" id="modalReportes">
+  <div class="modal-box lg" style="max-width:900px;">
+    <div class="modal-head">
+      <h3><i class="bi bi-file-earmark-bar-graph-fill"></i> Informes y reportes</h3>
+      <button class="modal-close" onclick="Reportes.cerrar()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="stats-grid" id="reporteStats"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-filetype-csv"></i> Exportar CSV
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Descarga todas las incidencias en formato compatible con Excel.
+          </p>
+          <button class="btn btn-primary btn-block" onclick="Reportes.exportarCSV()">
+            <i class="bi bi-download"></i> Descargar CSV
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-filetype-json"></i> Respaldo JSON
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Descarga un respaldo completo de la base de datos local.
+          </p>
+          <button class="btn btn-primary btn-block" onclick="Reportes.exportarJSON()">
+            <i class="bi bi-download"></i> Descargar JSON
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-printer-fill"></i> Reporte imprimible
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Genera un reporte imprimible con estadísticas y detalle.
+          </p>
+          <button class="btn btn-primary btn-block" onclick="Reportes.generarReporteImprimible()">
+            <i class="bi bi-file-pdf"></i> Ver reporte
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-trash3-fill"></i> Restablecer datos
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Borra todas las incidencias locales (irreversible).
+          </p>
+          <button class="btn btn-danger btn-block" onclick="Reportes.limpiarTodo()">
+            <i class="bi bi-exclamation-triangle"></i> Borrar todo
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+          <i class="bi bi-table"></i> Resumen por tipo
+        </h4>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead><tr><th>Tipo</th><th>Total</th><th>Resueltas</th><th>Pendientes</th><th>Promedio días</th></tr></thead>
+            <tbody id="reporteTablaBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: NUEVO TIPO
+     ============================================================ -->
+<div class="modal-overlay" id="modalNuevoTipo">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-tag-fill"></i> Nuevo concepto de incidencia</h3>
+      <button class="modal-close" onclick="UI.cerrarModal('modalNuevoTipo')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nombre del concepto *</label>
+        <input type="text" id="nuevoTipoNombre" maxlength="60" placeholder="Ej. Semáforo descompuesto">
+      </div>
+      <div class="form-group">
+        <label>Icono *</label>
+        <div class="icon-picker" id="iconPickerNuevo"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="UI.cerrarModal('modalNuevoTipo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="Incidencias.guardarNuevoTipo()">
+        <i class="bi bi-check-circle"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: RESOLVER INCIDENCIA
+     ============================================================ -->
+<div class="modal-overlay" id="modalResolver">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-check-circle-fill" style="color:var(--verde);"></i> Marcar como resuelta</h3>
+      <button class="modal-close" onclick="UI.cerrarModal('modalResolver')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="resolverId">
+      <div class="form-group">
+        <label>Descripción de la solución *</label>
+        <textarea id="resolverTexto" rows="3" placeholder="Describe brevemente cómo se resolvió la incidencia…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Evidencia de la solución (oficio, foto, etc.)</label>
+        <div class="evidence-drop" onclick="document.getElementById('resolverEvidencia').click()">
+          <i class="bi bi-cloud-arrow-up-fill"></i>
+          <p>Haz clic o arrastra archivos aquí</p>
+        </div>
+        <input type="file" id="resolverEvidencia" multiple accept="image/*,video/*,application/pdf" style="display:none;" onchange="Incidencias.agregarEvidenciaResolver(event)">
+        <div class="evidence-list" id="resolverEvidenceList"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="UI.cerrarModal('modalResolver')">Cancelar</button>
+      <button class="btn btn-success" onclick="Incidencias.confirmarResolver()">
+        <i class="bi bi-check2-circle"></i> Confirmar resolución
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loading">
+  <div style="text-align:center;">
+    <div class="spinner"></div>
+    <div id="loadingText">Procesando…</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ============================================================
+   SISTEMA DE INCIDENCIAS MUNICIPALES
+   Single-file · localStorage · Leaflet
+   ============================================================ */
+'use strict';
+
+// ============================================================
+// CONFIGURACIÓN DE MOSAICOS (tiles)
+// ============================================================
+// Se usan servicios de Esri (World Imagery / World Street Map) como
+// capas principales porque no tienen las restricciones de uso que
+// impone la política oficial de OpenStreetMap para tráfico directo
+// desde el navegador. Para la vista de relieve/topografía se usa
+// OpenTopoMap, un servicio público pensado para este tipo de uso.
+L.TileLayer.prototype.options.referrerPolicy = 'strict-origin-when-cross-origin';
+// ============================================================
+
+/* ============================================================
+   CONSTANTES
+   ============================================================ */
+const STORAGE = {
+  INCIDENCIAS: 'inc_municipales_v1',
+  TIPOS: 'inc_tipos_v1',
+  USUARIOS: 'inc_usuarios_v1',
+  NOTIFICACIONES: 'inc_notificaciones_v1',
+  MUNICIPIOS: 'inc_municipios_v1',
+  ZONAS: 'inc_zonas_v1',
+  SESION: 'inc_sesion_v1'
+};
+
+/* ============================================================
+   MUNICIPIO — solo Maravatío, Michoacán.
+   El polígono "poligono" es el límite real (aproximado) del
+   municipio, construido a partir de datos públicos: colindancias
+   oficiales (INEGI/Wikipedia: limita con Guanajuato al norte;
+   Contepec, Tlalpujahua y Senguio al este/sureste; Senguio, Irimbo
+   e Hidalgo al sur; Hidalgo, Zinapécuaro y Guanajuato al oeste) y
+   la superficie oficial (~691-698 km²). No es el polígono
+   catastral exacto del Marco Geoestadístico del INEGI —ese archivo
+   (shapefile/GeoJSON oficial) no fue posible descargarlo desde este
+   entorno— pero sí es un contorno real e irregular, muy superior al
+   rectángulo que usaba el sistema antes. Si cuentan con el GeoJSON
+   oficial del INEGI, puede reemplazarse aquí directamente.
+   ============================================================ */
+const MUNICIPIOS_DEFAULT = [
+  {
+    id: 'maravatio',
+    nombre: 'Maravatío',
+    estado: 'Michoacán',
+    clave: 'MARAVATIO-2024',
+    center: [19.8933, -100.4431],
+    zoom: 12,
+    poligono: [
+      [20.020,-100.470],[20.010,-100.380],[19.985,-100.320],[19.930,-100.290],
+      [19.887,-100.300],[19.860,-100.310],[19.820,-100.330],[19.760,-100.360],
+      [19.740,-100.420],[19.745,-100.480],[19.770,-100.530],[19.800,-100.580],
+      [19.840,-100.610],[19.880,-100.625],[19.930,-100.610],[19.970,-100.580],
+      [20.000,-100.540],[20.020,-100.500]
+    ]
+  }
+];
+
+/* ============================================================
+   ZONAS DE RESPONSABILIDAD (colonias / tenencias)
+   Partición SIN traslapes y SIN huecos del polígono municipal,
+   calculada con un diagrama de Voronoi a partir de las coordenadas
+   reales (INEGI/ITER) de cada tenencia y de un segundo Voronoi para
+   repartir el núcleo urbano de la cabecera entre sus 4 colonias.
+   San Vicente el Grande y Campo Hermoso no tienen coordenada
+   publicada localizable desde aquí, así que se estimaron dentro del
+   municipio; el resto usa la coordenada real de la localidad.
+   No son los polígonos catastrales/AGEB oficiales del INEGI, pero
+   sí cubren el municipio de forma real, correcta y sin traslapes.
+   ============================================================ */
+const ZONAS_DEFAULT = {
+  maravatio: [
+    // Tenencias (comunidades rurales del municipio)
+    { id: 'ten_sanvicente',   nombre: 'San Vicente el Grande',      tipo: 'tenencia', color: '#16a34a',
+      poligono: [[19.8,-100.58],[19.77,-100.53],[19.745,-100.48],[19.74183,-100.44195],[19.82198,-100.45288],[19.84299,-100.4588],[19.89492,-100.50772],[19.89062,-100.5263],[19.80523,-100.58393]] },
+    { id: 'ten_campohermoso', nombre: 'Campo Hermoso',              tipo: 'tenencia', color: '#65a30d',
+      poligono: [[19.74183,-100.44195],[19.74,-100.42],[19.76,-100.36],[19.81398,-100.33301],[19.87021,-100.37411],[19.82198,-100.45288]] },
+    { id: 'ten_tziritzicuaro',nombre: 'Tziritzícuaro',              tipo: 'tenencia', color: '#ca8a04',
+      poligono: [[19.93504,-100.4113],[20.00712,-100.37309],[20.01,-100.38],[20.02,-100.47],[20.02,-100.5],[20.01876,-100.50249],[19.91407,-100.49592]] },
+    { id: 'ten_puriatzicuaro',nombre: 'Santiago Puriatzícuaro',     tipo: 'tenencia', color: '#d97706',
+      poligono: [[19.88,-100.625],[19.84,-100.61],[19.80523,-100.58393],[19.89062,-100.5263],[19.94389,-100.59958],[19.93,-100.61]] },
+    { id: 'ten_uripitio',     nombre: 'Uripitio',                   tipo: 'tenencia', color: '#0d9488',
+      poligono: [[20.01876,-100.50249],[20.0,-100.54],[19.97,-100.58],[19.94389,-100.59958],[19.89062,-100.5263],[19.89492,-100.50772],[19.91407,-100.49592]] },
+    { id: 'ten_apeo',         nombre: 'Apeo',                       tipo: 'tenencia', color: '#b45309',
+      poligono: [[19.85118,-100.31441],[19.86,-100.31],[19.887,-100.3],[19.93,-100.29],[19.95548,-100.3039],[19.87349,-100.37552],[19.87021,-100.37411],[19.81398,-100.33301]] },
+    { id: 'ten_tungareo',     nombre: 'Tungareo',                   tipo: 'tenencia', color: '#059669',
+      poligono: [[19.985,-100.32],[20.00712,-100.37309],[19.93504,-100.4113],[19.89744,-100.40392],[19.87349,-100.37552],[19.95548,-100.3039]] },
+    { id: 'ten_santaelena',   nombre: 'Santa Elena',                tipo: 'tenencia', color: '#a16207',
+      poligono: [[19.82198,-100.45288],[19.87021,-100.37411],[19.87349,-100.37552],[19.89744,-100.40392],[19.84299,-100.4588]] },
+    // Colonias (cabecera municipal: Maravatío de Ocampo)
+    { id: 'col_estacion',  nombre: 'La Estación',  tipo: 'colonia', color: '#0891b2',
+      poligono: [[19.86025,-100.47506],[19.84299,-100.4588],[19.88129,-100.4202],[19.88765,-100.42991],[19.88765,-100.44905]] },
+    { id: 'col_chapultepec',nombre: 'Chapultepec', tipo: 'colonia', color: '#4f46e5',
+      poligono: [[19.86025,-100.47506],[19.88765,-100.44905],[19.91647,-100.44905],[19.92495,-100.452],[19.91407,-100.49592],[19.89492,-100.50772]] },
+    { id: 'col_guadalupe', nombre: 'Guadalupe',    tipo: 'colonia', color: '#7c3aed',
+      poligono: [[19.93504,-100.4113],[19.92495,-100.452],[19.91647,-100.44905],[19.88765,-100.42991],[19.88129,-100.4202],[19.89744,-100.40392]] },
+    { id: 'col_centro',    nombre: 'Centro',       tipo: 'colonia', color: '#2563eb',
+      poligono: [[19.88765,-100.44905],[19.88765,-100.42991],[19.91647,-100.44905]] }
+  ]
+};
+
+const TIPOS_DEFAULT = [
+  { id: 'bache', nombre: 'Bache', icono: '🕳️' },
+  { id: 'banqueta', nombre: 'Banqueta dañada', icono: '🚧' },
+  { id: 'fuga', nombre: 'Fuga de agua', icono: '💧' },
+  { id: 'luminaria', nombre: 'Luminaria dañada', icono: '💡' },
+  { id: 'agua_contaminada', nombre: 'Contaminación del agua', icono: '🌊' },
+  { id: 'basura', nombre: 'Zona con basura', icono: '🗑️' },
+  { id: 'drenaje', nombre: 'Drenaje obstruido', icono: '🚰' },
+  { id: 'pavimento', nombre: 'Pavimento en mal estado', icono: '🛣️' },
+  { id: 'arbol', nombre: 'Árbol caído o riesgoso', icono: '🌳' },
+  { id: 'semaforo', nombre: 'Semáforo descompuesto', icono: '🚦' },
+  { id: 'cableado', nombre: 'Cableado peligroso', icono: '⚡' },
+  { id: 'parque', nombre: 'Parque en mal estado', icono: '🏞️' },
+  { id: 'senal', nombre: 'Señalización dañada', icono: '🚏' },
+  { id: 'grafiti', nombre: 'Grafiti / vandalismo', icono: '🎨' },
+  { id: 'animal', nombre: 'Animal callejero', icono: '🐕' },
+  { id: 'otro', nombre: 'Otro', icono: '❗' }
+];
+
+/* ============================================================
+   EJEMPLOS GUIA — se muestran dentro del modal de reporte para
+   ayudar al ciudadano a redactar un título y descripción útiles.
+   ============================================================ */
+const EJEMPLOS_TIPO = {
+  bache: { titulo: 'Bache grande sobre Av. Juárez', descripcion: 'Bache de aprox. 60 cm de diámetro y 15 cm de profundidad a media cuadra del mercado, sobre el carril derecho. Ya provocó que un vehículo ponchara una llanta.' },
+  banqueta: { titulo: 'Banqueta hundida frente al parque', descripcion: 'La banqueta está agrietada y hundida casi 5 cm, es un riesgo de caída para adultos mayores y niños que pasan a la escuela.' },
+  fuga: { titulo: 'Fuga de agua en la toma principal', descripcion: 'Desde hace 3 días brota agua de la tubería a nivel de calle, se está formando un charco constante y ya se ve desgaste del pavimento alrededor.' },
+  luminaria: { titulo: 'Poste de luz apagado en la esquina', descripcion: 'La luminaria no enciende desde hace más de una semana, la cuadra queda muy oscura por la noche y genera inseguridad.' },
+  agua_contaminada: { titulo: 'Agua con mal olor y color en la llave', descripcion: 'Desde ayer el agua de la toma sale turbia y con olor extraño, varias casas de la cuadra reportan lo mismo.' },
+  basura: { titulo: 'Acumulación de basura en lote baldío', descripcion: 'Hay basura acumulada desde hace semanas, atrae fauna nociva y mal olor. El camión recolector no pasa por esta calle.' },
+  drenaje: { titulo: 'Coladera tapada, se encharca la calle', descripcion: 'Cada vez que llueve se tapa el drenaje y el agua sube casi hasta la banqueta, entra a los negocios cercanos.' },
+  pavimento: { titulo: 'Tramo de pavimento totalmente destruido', descripcion: 'A lo largo de una cuadra el pavimento está agrietado y con hundimientos, es difícil circular en auto o bicicleta.' },
+  arbol: { titulo: 'Árbol a punto de caer sobre la calle', descripcion: 'El árbol está muy inclinado desde la última tormenta y sus raíces ya se ven expuestas, hay riesgo de que caiga sobre los cables o un vehículo.' },
+  semaforo: { titulo: 'Semáforo intermitente en cruce peligroso', descripcion: 'El semáforo de la esquina lleva días solo parpadeando en amarillo, ha causado varios sustos entre peatones y autos.' },
+  cableado: { titulo: 'Cables de luz colgando muy bajo', descripcion: 'Hay un cable eléctrico caído que cuelga a menos de 2 metros del suelo, junto a la parada de camión.' },
+  parque: { titulo: 'Juegos infantiles rotos en el parque', descripcion: 'Los columpios y el resbaladero están oxidados y con partes rotas, representan un riesgo para los niños que juegan ahí.' },
+  senal: { titulo: 'Señal de alto derribada', descripcion: 'La señal de alto de la esquina fue derribada por un vehículo y no ha sido repuesta, ya se han visto casi-choques.' },
+  grafiti: { titulo: 'Grafiti en fachada de edificio público', descripcion: 'La barda de la escuela primaria amaneció con grafiti la semana pasada y sigue sin limpiarse.' },
+  animal: { titulo: 'Perros abandonados en la calle', descripcion: 'Hay un grupo de perros callejeros que rondan la cuadra desde hace días, algunos parecen enfermos o agresivos.' },
+  otro: { titulo: 'Describe brevemente el problema', descripcion: 'Explica qué observaste, desde cuándo, y por qué representa un riesgo o molestia para la comunidad.' }
+};
+
+const ICONOS_DISPONIBLES = [
+  '🕳️','🚧','💧','💡','🌊','🗑️','🚰','🛣️','🌳','🚦','⚡','🏞️','🚏','🎨','🐕','❗',
+  '🏗️','🚨','🔥','🌪️','🌧️','☀️','🚗','🚌','🏥','🏫','⛪','🏛️','🏘️','📡','🔌','🛠️'
+];
+
+const DIAS_LIMITES = { amarillo: 15, naranja: 30 };
+const MAX_FOTO = 100 * 1024 * 1024;
+const MAX_VIDEO = 1024 * 1024 * 1024;
+const MAX_VIDEO_SEG = 300;
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function fmtFechaCorta(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function diasDesde(iso) {
+  if (!iso) return 0;
+  const diff = Date.now() - new Date(iso).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+function uid() {
+  return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+/* ------------------------------------------------------------
+   Geocerca por polígono (ray-casting) — usada para restringir
+   los reportes a las zonas (colonias/tenencias) autorizadas.
+   ------------------------------------------------------------ */
+function puntoEnPoligono(lat, lng, poligono) {
+  let dentro = false;
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+    const yi = poligono[i][0], xi = poligono[i][1];
+    const yj = poligono[j][0], xj = poligono[j][1];
+    const interseca = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (interseca) dentro = !dentro;
+  }
+  return dentro;
+}
+function zonaDePunto(lat, lng, municipioId) {
+  const zonas = DB.getZonas(municipioId || (App.municipioActivo && App.municipioActivo.id));
+  return zonas.find(z => puntoEnPoligono(lat, lng, z.poligono)) || null;
+}
+function toast(msg, tipo) {
+  tipo = tipo || 'ok';
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + tipo + ' show';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.className = 'toast ' + tipo; }, 4000);
+}
+function loading(show, text) {
+  const el = $('loading');
+  if (show) {
+    $('loadingText').textContent = text || 'Procesando…';
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+}
+
+/* ============================================================
+   DB — localStorage
+   ============================================================ */
+const DB = {
+  getIncidencias() {
+    try { return JSON.parse(localStorage.getItem(STORAGE.INCIDENCIAS) || '[]'); }
+    catch { return []; }
+  },
+  saveIncidencias(arr) {
+    try { localStorage.setItem(STORAGE.INCIDENCIAS, JSON.stringify(arr)); }
+    catch (e) {
+      toast('Error al guardar: almacenamiento lleno. Intenta eliminar evidencia pesada.', 'err');
+    }
+  },
+  getTipos() {
+    try {
+      const t = JSON.parse(localStorage.getItem(STORAGE.TIPOS) || 'null');
+      return Array.isArray(t) && t.length ? t : TIPOS_DEFAULT.slice();
+    } catch { return TIPOS_DEFAULT.slice(); }
+  },
+  saveTipos(arr) { localStorage.setItem(STORAGE.TIPOS, JSON.stringify(arr)); },
+  getMunicipios() {
+    try {
+      const m = JSON.parse(localStorage.getItem(STORAGE.MUNICIPIOS) || 'null');
+      return Array.isArray(m) && m.length ? m : MUNICIPIOS_DEFAULT.slice();
+    } catch { return MUNICIPIOS_DEFAULT.slice(); }
+  },
+  saveMunicipios(arr) { localStorage.setItem(STORAGE.MUNICIPIOS, JSON.stringify(arr)); },
+  getZonas(municipioId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(STORAGE.ZONAS) || 'null');
+      if (all && Array.isArray(all[municipioId])) return all[municipioId];
+    } catch {}
+    return ZONAS_DEFAULT[municipioId] ? ZONAS_DEFAULT[municipioId].slice() : [];
+  },
+  getUsuarios() {
+    try {
+      const u = JSON.parse(localStorage.getItem(STORAGE.USUARIOS) || 'null');
+      if (Array.isArray(u) && u.length) return u;
+    } catch {}
+    const defaults = [
+      { id: 'u1', username: 'admin', password: 'admin123', nombre: 'Administrador', rol: 'admin', municipioId: null, activo: true },
+      { id: 'u2', username: 'funcionario', password: 'func123', nombre: 'Juan López', rol: 'funcionario', municipioId: 'maravatio', activo: true },
+      { id: 'u3', username: 'funcionario2', password: 'func123', nombre: 'María Ramírez', rol: 'funcionario', municipioId: 'maravatio', activo: true }
+    ];
+    localStorage.setItem(STORAGE.USUARIOS, JSON.stringify(defaults));
+    return defaults;
+  },
+  saveUsuarios(arr) { localStorage.setItem(STORAGE.USUARIOS, JSON.stringify(arr)); },
+  getNotificaciones() {
+    try { return JSON.parse(localStorage.getItem(STORAGE.NOTIFICACIONES) || '[]'); }
+    catch { return []; }
+  },
+  saveNotificaciones(arr) { localStorage.setItem(STORAGE.NOTIFICACIONES, JSON.stringify(arr)); }
+};
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+const Auth = {
+  sesion: null,
+
+  init() {
+    try {
+      // Se usa localStorage (no sessionStorage) para que la sesión
+      // persista entre visitas: nadie necesita iniciar sesión ni
+      // volver a entrar cada vez, sus datos/reportes se recuerdan
+      // automáticamente en este dispositivo.
+      this.sesion = JSON.parse(localStorage.getItem(STORAGE.SESION) || 'null');
+    } catch { this.sesion = null; }
+    if (this.sesion) { this.iniciarApp(); return; }
+    // No se requiere inicio de sesión para el público: se entra
+    // directo como ciudadano anónimo, sin mostrar la pantalla de login.
+    this.entrarAnonimo();
+  },
+
+  entrarAnonimo() {
+    if (!localStorage.getItem('anon_id')) localStorage.setItem('anon_id', uid());
+    this.sesion = {
+      username: 'anon_' + localStorage.getItem('anon_id'),
+      nombre: 'Ciudadano anónimo',
+      rol: 'anonimo',
+      municipioId: 'maravatio',
+      esAnonimo: true
+    };
+    localStorage.setItem(STORAGE.SESION, JSON.stringify(this.sesion));
+    $('loginScreen').style.display = 'none';
+    this.iniciarApp();
+  },
+
+  loginFuncionario() {
+    const user = $('func-user').value.trim();
+    const pass = $('func-pass').value;
+    const code = $('func-code').value.trim().toUpperCase();
+    if (!user || !pass || !code) { toast('Completa todos los campos', 'err'); return; }
+
+    const usuarios = DB.getUsuarios();
+    const u = usuarios.find(x => x.username === user && x.password === pass && x.rol === 'funcionario');
+    if (!u) { toast('Credenciales incorrectas', 'err'); return; }
+
+    const muns = DB.getMunicipios();
+    const mun = muns.find(m => m.clave.toUpperCase() === code);
+    if (!mun) { toast('Clave de municipio incorrecta', 'err'); return; }
+
+    if (u.municipioId && u.municipioId !== mun.id) {
+      toast('No tienes acceso a este municipio', 'err');
+      return;
+    }
+
+    this.sesion = {
+      username: u.username,
+      nombre: u.nombre,
+      rol: 'funcionario',
+      municipioId: mun.id,
+      esAnonimo: false
+    };
+    localStorage.setItem(STORAGE.SESION, JSON.stringify(this.sesion));
+    $('loginScreen').style.display = 'none';
+    this.iniciarApp();
+  },
+
+  loginAdmin() {
+    const user = $('admin-user').value.trim();
+    const pass = $('admin-pass').value;
+    if (!user || !pass) { toast('Completa todos los campos', 'err'); return; }
+
+    const usuarios = DB.getUsuarios();
+    const u = usuarios.find(x => x.username === user && x.password === pass && x.rol === 'admin');
+    if (!u) { toast('Credenciales incorrectas', 'err'); return; }
+
+    this.sesion = {
+      username: u.username,
+      nombre: u.nombre,
+      rol: 'admin',
+      municipioId: 'maravatio',
+      esAnonimo: false
+    };
+    localStorage.setItem(STORAGE.SESION, JSON.stringify(this.sesion));
+    $('loginScreen').style.display = 'none';
+    this.iniciarApp();
+  },
+
+  // Muestra la pantalla de acceso para personal (funcionario/administrador)
+  // sin afectar la sesión ciudadana ya activa. Si ya había una sesión,
+  // se puede cancelar y regresar a la app con el botón "×".
+  mostrarLogin() {
+    $('loginScreen').style.display = 'flex';
+    $('loginCancelBtn').style.display = this.sesion ? 'block' : 'none';
+    document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+    $('panel-func').classList.add('active');
+    document.querySelector('.login-tab[data-tab="func"]')?.classList.add('active');
+  },
+
+  cancelarLogin() {
+    $('loginScreen').style.display = 'none';
+  },
+
+  logout() {
+    if (!confirm('¿Cerrar sesión? Volverás al modo ciudadano anónimo.')) return;
+    localStorage.removeItem(STORAGE.SESION);
+    location.reload();
+  },
+
+  iniciarApp() {
+    $('loginScreen').style.display = 'none';
+    $('app').classList.add('active');
+
+    const esFuncionarioOAdmin = this.sesion.rol === 'funcionario' || this.sesion.rol === 'admin';
+    $('btn-admin').style.display = esFuncionarioOAdmin ? 'inline-flex' : 'none';
+    $('btn-informes').style.display = esFuncionarioOAdmin ? 'inline-flex' : 'none';
+    $('btn-logout').style.display = esFuncionarioOAdmin ? 'inline-flex' : 'none';
+    $('btn-staff-login').style.display = esFuncionarioOAdmin ? 'none' : 'inline-flex';
+    $('visibilidadNota').style.display = esFuncionarioOAdmin ? 'none' : 'block';
+
+    $('userName').textContent = this.sesion.nombre;
+
+    const muns = DB.getMunicipios();
+    const mun = muns.find(m => m.id === this.sesion.municipioId) || muns[0];
+    App.municipioActivo = mun;
+
+    App.init();
+  }
+};
+
+/* ============================================================
+   APP
+   ============================================================ */
+const App = {
+  municipioActivo: null,
+  iniciado: false,
+
+  init() {
+    // Si la app ya se había inicializado (p. ej. un ciudadano anónimo
+    // que ahora inicia sesión como funcionario/administrador, o cierra
+    // esa sesión y vuelve a modo ciudadano SIN recargar la página),
+    // solo se refresca — así no se crea un segundo mapa de Leaflet ni
+    // se duplica el intervalo de actualización automática.
+    if (this.iniciado) { this.refrescar(); return; }
+    this.iniciado = true;
+
+    Mapa.init();
+    UI.init();
+    Notificaciones.init();
+
+    Tipos.loadTipos();
+
+    setInterval(() => {
+      Incidencias.actualizarEstadosAutomaticos();
+      UI.renderLista();
+      Mapa.refreshMarkers();
+    }, 60000);
+
+    Incidencias.actualizarEstadosAutomaticos();
+    UI.renderLista();
+    Mapa.refreshMarkers();
+    Notificaciones.renderizar();
+  },
+
+  refrescar() {
+    $('topbar-muni').textContent = `${this.municipioActivo.nombre}, ${this.municipioActivo.estado}`;
+    Tipos.loadTipos();
+    Mapa.resetMunicipio(this.municipioActivo);
+    Incidencias.actualizarEstadosAutomaticos();
+    UI.renderLista();
+    Mapa.refreshMarkers();
+    Notificaciones.renderizar();
+  }
+};
+
+/* ============================================================
+   MAPA
+   ============================================================ */
+const Mapa = {
+  map: null,
+  markers: {},
+  capaMunicipio: null,
+  capaMascara: null,
+  modoElegir: false,
+  capaActual: null,
+  capasBase: null,
+  controlCapas: null,
+  capasZonas: [],
+  zonasVisibles: true,
+
+  // Envolvente [[latSW,lngSW],[latNE,lngNE]] del polígono del municipio.
+  boundsDe(poligono) {
+    const lats = poligono.map(p => p[0]);
+    const lngs = poligono.map(p => p[1]);
+    return L.latLngBounds(
+      [Math.min(...lats), Math.min(...lngs)],
+      [Math.max(...lats), Math.max(...lngs)]
+    );
+  },
+
+  init() {
+    const mun = App.municipioActivo;
+    const bounds = this.boundsDe(mun.poligono);
+
+    this.map = L.map('map', {
+      zoomControl: true,
+      // Límite real de navegación: no se puede arrastrar/hacer pan
+      // fuera del municipio (viscosity 1 = tope duro).
+      maxBounds: bounds.pad(0.03),
+      maxBoundsViscosity: 1.0,
+      maxZoom: 18
+    });
+
+    // ============================================================
+    // CAPAS DE MOSAICOS — varias vistas además de la satelital
+    // ============================================================
+    const satelital = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 18, attribution: '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, Maxar, Earthstar Geographics', crossOrigin: true }
+    );
+    const calles = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 18, attribution: '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, HERE, Garmin, FAO, USGS', crossOrigin: true }
+    );
+    const relieve = L.tileLayer(
+      'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      { maxZoom: 17, maxNativeZoom: 17, subdomains: 'abc', attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, SRTM | &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>', crossOrigin: true }
+    );
+    const fisico = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 8, maxNativeZoom: 8, attribution: '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, USGS, NOAA', crossOrigin: true }
+    );
+
+    this.capasBase = {
+      'Satélite': satelital,
+      'Calles': calles,
+      'Relieve / Topográfico': relieve,
+      'Físico': fisico
+    };
+    this.capaActual = satelital.addTo(this.map);
+    this.controlCapas = L.control.layers(this.capasBase, null, { position: 'topright', collapsed: true }).addTo(this.map);
+
+    // Encuadrar el municipio completo y no permitir alejar más allá de eso.
+    this.map.fitBounds(bounds, { padding: [12, 12] });
+    this.map.setMinZoom(this.map.getBoundsZoom(bounds, false));
+
+    // Límite real + "máscara": todo lo que quede fuera del polígono
+    // del municipio se sombrea, para que solo se vea/opere Maravatío.
+    this.dibujarLimiteMunicipio(mun);
+
+    // Click en mapa para elegir ubicación
+    this.map.on('click', (e) => {
+      if (this.modoElegir) {
+        Incidencias.setUbicacion(e.latlng.lat, e.latlng.lng);
+        this.modoElegir = false;
+        this.map.getContainer().style.cursor = '';
+      }
+    });
+
+    this.dibujarZonas();
+    this.refreshMarkers();
+  },
+
+  dibujarLimiteMunicipio(mun) {
+    if (this.capaMunicipio) this.map.removeLayer(this.capaMunicipio);
+    if (this.capaMascara) this.map.removeLayer(this.capaMascara);
+
+    this.capaMunicipio = L.polygon(mun.poligono, {
+      color: '#006657', weight: 2.5, opacity: 0.9, fillOpacity: 0, interactive: false
+    }).addTo(this.map);
+
+    // Anillo exterior gigante + el polígono del municipio como
+    // "agujero" (regla evenodd) para oscurecer todo lo de fuera.
+    const mundo = [[-89,-179],[-89,179],[89,179],[89,-179]];
+    this.capaMascara = L.polygon([mundo, mun.poligono], {
+      stroke: false, fillColor: '#0b1f1c', fillOpacity: 0.45, interactive: false
+    }).addTo(this.map);
+    this.capaMascara.bringToBack();
+  },
+
+  /* ------------------------------------------------------------
+     ZONAS DE RESPONSABILIDAD (colonias / tenencias)
+     ------------------------------------------------------------ */
+  dibujarZonas() {
+    this.capasZonas.forEach(c => this.map.removeLayer(c));
+    this.capasZonas = [];
+    const zonas = DB.getZonas(App.municipioActivo.id);
+    zonas.forEach(z => {
+      const poly = L.polygon(z.poligono, {
+        color: z.color, weight: 2, opacity: 0.85,
+        fillColor: z.color, fillOpacity: 0.14
+      });
+      poly.bindTooltip(
+        `<strong>${esc(z.nombre)}</strong><br><span style="font-size:10.5px;text-transform:capitalize;">${esc(z.tipo)}</span>`,
+        { sticky: true }
+      );
+      poly.zonaId = z.id;
+      if (this.zonasVisibles) poly.addTo(this.map);
+      this.capasZonas.push(poly);
+    });
+    const leg = $('legendZonas');
+    if (leg) {
+      leg.innerHTML = zonas.map(z => `
+        <div class="legend-item"><div class="legend-color" style="background:${z.color};"></div> ${esc(z.nombre)} <span style="color:#94a3b8;text-transform:capitalize;">· ${esc(z.tipo)}</span></div>
+      `).join('') || '<div style="font-size:11px;color:#94a3b8;">Sin zonas definidas</div>';
+    }
+    const fz = $('filterZona');
+    if (fz) {
+      const actual = fz.value;
+      fz.innerHTML = '<option value="todos">Todas las zonas</option>' +
+        zonas.map(z => `<option value="${z.id}">${esc(z.nombre)}</option>`).join('');
+      if ([...fz.options].some(o => o.value === actual)) fz.value = actual;
+    }
+  },
+
+  toggleZonas() {
+    this.zonasVisibles = !this.zonasVisibles;
+    this.capasZonas.forEach(c => {
+      if (this.zonasVisibles) c.addTo(this.map);
+      else this.map.removeLayer(c);
+    });
+    toast(this.zonasVisibles ? 'Zonas visibles' : 'Zonas ocultas', 'info');
+  },
+
+  getColorByEstado(inc) {
+    if (inc.estado === 'resuelta') return 'verde';
+    const dias = diasDesde(inc.fecha);
+    if (dias >= DIAS_LIMITES.naranja) return 'rojo';
+    if (dias >= DIAS_LIMITES.amarillo) return 'naranja';
+    return 'amarillo';
+  },
+
+  getColorHex(color) {
+    const m = { verde: '#28a745', amarillo: '#ffc107', naranja: '#fd7e14', rojo: '#dc3545' };
+    return m[color] || '#6c757d';
+  },
+
+  crearIcono(inc) {
+    const color = this.getColorByEstado(inc);
+    const hex = this.getColorHex(color);
+    const tipo = Tipos.getTipo(inc.tipoId);
+    const emoji = tipo ? tipo.icono : '❗';
+    return L.divIcon({
+      className: 'marker-icon',
+      html: `<div class="pin" style="background:${hex};">
+               <span class="pin-inner">${emoji}</span>
+             </div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+  },
+
+  refreshMarkers() {
+    Object.values(this.markers).forEach(m => this.map.removeLayer(m));
+    this.markers = {};
+
+    const incs = Incidencias.getFiltradas();
+    incs.forEach(inc => {
+      if (inc.lat == null || inc.lng == null) return;
+      const marker = L.marker([inc.lat, inc.lng], { icon: this.crearIcono(inc) });
+      marker.bindPopup(this.crearPopup(inc), { maxWidth: 320 });
+      marker.addTo(this.map);
+      this.markers[inc.id] = marker;
+    });
+  },
+
+  crearPopup(inc) {
+    const tipo = Tipos.getTipo(inc.tipoId);
+    const color = this.getColorByEstado(inc);
+    const colorHex = this.getColorHex(color);
+    const dias = diasDesde(inc.fecha);
+    const autor = inc.esAnonimo ? 'Anónimo' : esc(inc.autorNombre || inc.autor || '—');
+    return `
+      <div style="font-size:13px;min-width:200px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="font-size:1.3rem;">${tipo ? tipo.icono : '❗'}</span>
+          <strong style="color:#1a202c;">${esc(inc.titulo)}</strong>
+        </div>
+        <div style="font-size:11px;color:#718096;margin-bottom:4px;">
+          ${esc(tipo ? tipo.nombre : '—')} · ${fmtFechaCorta(inc.fecha)}${inc.zonaNombre ? ' · ' + esc(inc.zonaNombre) : ''}
+        </div>
+        <div style="font-size:12px;color:#4a5568;line-height:1.4;margin-bottom:8px;">
+          ${esc(inc.descripcion).substring(0, 160)}${inc.descripcion.length > 160 ? '…' : ''}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;">
+          <span style="background:${colorHex};color:${color === 'amarillo' ? '#333' : '#fff'};padding:2px 8px;border-radius:8px;font-weight:700;">
+            ${inc.estado === 'resuelta' ? 'RESUELTA' : dias + ' día' + (dias !== 1 ? 's' : '')}
+          </span>
+          <span style="color:#94a3b8;">${autor}</span>
+        </div>
+        <button onclick="UI.abrirDetalle('${inc.id}')" style="margin-top:8px;width:100%;padding:6px;background:#006657;color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;">
+          Ver detalles →
+        </button>
+      </div>
+    `;
+  },
+
+  centrarMunicipio() {
+    const m = App.municipioActivo;
+    this.map.fitBounds(this.boundsDe(m.poligono), { padding: [12, 12] });
+  },
+
+  centrarEnUsuario() {
+    if (!navigator.geolocation) { toast('Geolocalización no disponible', 'err'); return; }
+    toast('Obteniendo tu ubicación…', 'info');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        this.map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+        toast('Ubicación centrada', 'ok');
+      },
+      err => toast('No se pudo obtener tu ubicación: ' + err.message, 'err'),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  },
+
+  activarModoElegir() {
+    this.modoElegir = true;
+    this.map.getContainer().style.cursor = 'crosshair';
+    toast('Haz clic en el mapa para elegir la ubicación', 'info');
+  },
+
+  resetMunicipio(mun) {
+    if (!this.map) return;
+    const bounds = this.boundsDe(mun.poligono);
+    this.map.setMaxBounds(bounds.pad(0.03));
+    this.map.fitBounds(bounds, { padding: [12, 12] });
+    this.map.setMinZoom(this.map.getBoundsZoom(bounds, false));
+    this.dibujarLimiteMunicipio(mun);
+    this.dibujarZonas();
+  }
+};
+
+/* ============================================================
+   TIPOS
+   ============================================================ */
+const Tipos = {
+  loadTipos() {
+    const tipos = DB.getTipos();
+    const sel = $('incTipo');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Selecciona un tipo —</option>' +
+      tipos.map(t => `<option value="${t.id}">${t.icono} ${esc(t.nombre)}</option>`).join('');
+
+    const fTipo = $('filterTipo');
+    if (fTipo) {
+      fTipo.innerHTML = '<option value="todos">Todos los tipos</option>' +
+        tipos.map(t => `<option value="${t.id}">${t.icono} ${esc(t.nombre)}</option>`).join('');
+    }
+
+    this.renderIconPickers();
+  },
+
+  getTipo(id) {
+    return DB.getTipos().find(t => t.id === id);
+  },
+
+  renderIconPickers() {
+    const html = ICONOS_DISPONIBLES.map(emo => `
+      <div class="icon-opt" data-emoji="${emo}" onclick="Tipos.seleccionarIcono('${emo}', this)">
+        <span class="emoji">${emo}</span>
+      </div>
+    `).join('');
+    if ($('iconPicker')) $('iconPicker').innerHTML = html;
+    if ($('iconPickerNuevo')) $('iconPickerNuevo').innerHTML = html;
+  },
+
+  seleccionarIcono(emoji, el) {
+    const parent = el.parentElement;
+    parent.querySelectorAll('.icon-opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    parent.dataset.selected = emoji;
+  },
+
+  getIconoSeleccionado(pickerId) {
+    const p = $(pickerId);
+    return p ? p.dataset.selected : null;
+  },
+
+  addTipo(nombre, icono) {
+    const tipos = DB.getTipos();
+    const id = 'custom_' + uid();
+    tipos.push({ id, nombre, icono, custom: true });
+    DB.saveTipos(tipos);
+    this.loadTipos();
+    return id;
+  },
+
+  deleteTipo(id) {
+    const tipos = DB.getTipos().filter(t => t.id !== id);
+    DB.saveTipos(tipos);
+    this.loadTipos();
+  }
+};
+
+/* ============================================================
+   INCIDENCIAS
+   ============================================================ */
+const Incidencias = {
+  evidenciaTemp: [],
+  evidenciaResolverTemp: [],
+  ubicacionTemp: null,
+  zonaTemp: null,
+  tipoIdTemp: null,
+  editarId: null,
+
+  getFiltradas() {
+    let list = DB.getIncidencias();
+
+    // Privacidad: los reportes completos de la comunidad SOLO son
+    // visibles para administradores y funcionarios. Un ciudadano
+    // (rol "anonimo") únicamente ve los reportes que él mismo envió.
+    if (Auth.sesion && Auth.sesion.rol === 'anonimo') {
+      const userKey = 'anon_' + (localStorage.getItem('anon_id') || '');
+      list = list.filter(i => (i.esAnonimo ? i.userKey : i.autor) === userKey);
+    }
+
+    const texto = ($('filterText')?.value || '').toLowerCase();
+    const estado = $('filterEstado')?.value || 'todos';
+    const tipo = $('filterTipo')?.value || 'todos';
+    const color = $('filterColor')?.value || 'todos';
+    const zona = $('filterZona')?.value || 'todos';
+    const orden = $('filterOrden')?.value || 'reciente';
+
+    if (zona !== 'todos') list = list.filter(i => i.zonaId === zona);
+
+    if (texto) {
+      list = list.filter(i =>
+        (i.titulo || '').toLowerCase().includes(texto) ||
+        (i.descripcion || '').toLowerCase().includes(texto)
+      );
+    }
+    if (estado !== 'todos') list = list.filter(i => i.estado === estado);
+    if (tipo !== 'todos') list = list.filter(i => i.tipoId === tipo);
+    if (color !== 'todos') {
+      list = list.filter(i => Mapa.getColorByEstado(i) === color);
+    }
+
+    list.sort((a, b) => {
+      if (orden === 'reciente') return new Date(b.fecha) - new Date(a.fecha);
+      if (orden === 'antigua') return new Date(a.fecha) - new Date(b.fecha);
+      if (orden === 'prioridad') {
+        const ordenCol = { rojo: 0, naranja: 1, amarillo: 2, verde: 3 };
+        return ordenCol[Mapa.getColorByEstado(a)] - ordenCol[Mapa.getColorByEstado(b)];
+      }
+      return 0;
+    });
+
+    return list;
+  },
+
+  actualizarEstadosAutomaticos() {
+    const incs = DB.getIncidencias();
+    let cambio = false;
+    incs.forEach(i => {
+      if (i.estado === 'resuelta') return;
+      const dias = diasDesde(i.fecha);
+      const colorAntes = i.colorAuto;
+      let colorNuevo;
+      if (dias >= 30) colorNuevo = 'rojo';
+      else if (dias >= 15) colorNuevo = 'naranja';
+      else colorNuevo = 'amarillo';
+
+      if (colorAntes !== colorNuevo) {
+        i.colorAuto = colorNuevo;
+        cambio = true;
+        if (colorNuevo === 'rojo' && colorAntes !== 'rojo') {
+          Notificaciones.crear({
+            tipo: 'alerta',
+            titulo: '🔴 Incidencia crítica',
+            mensaje: `"${i.titulo}" lleva más de 30 días sin resolver.`,
+            incidenciaId: i.id
+          });
+        }
+      }
+    });
+    if (cambio) DB.saveIncidencias(incs);
+  },
+
+  abrirReportar(id) {
+    this.evidenciaTemp = [];
+    this.ubicacionTemp = null;
+    this.zonaTemp = null;
+    this.renderZonaBadge(null);
+    this.editarId = id || null;
+
+    $('incId').value = id || '';
+    $('incTipo').value = '';
+    $('incTitulo').value = '';
+    $('incDescripcion').value = '';
+    $('incIndicaciones').value = '';
+    $('incCoordsTexto').value = '';
+    $('locStatus').style.display = 'none';
+    $('ejemploTipoBox').style.display = 'none';
+    $('evidenceList').innerHTML = '';
+    document.querySelectorAll('#iconPicker .icon-opt').forEach(o => o.classList.remove('selected'));
+    $('iconPicker').dataset.selected = '';
+
+    if (id) {
+      const inc = DB.getIncidencias().find(i => i.id === id);
+      if (!inc) { toast('Incidencia no encontrada', 'err'); return; }
+      $('modalIncTitle').textContent = 'Editar incidencia';
+      $('incTipo').value = inc.tipoId || '';
+      $('incTitulo').value = inc.titulo || '';
+      $('incDescripcion').value = inc.descripcion || '';
+      $('incIndicaciones').value = inc.indicaciones || '';
+      this.ubicacionTemp = inc.lat != null ? { lat: inc.lat, lng: inc.lng } : null;
+      if (this.ubicacionTemp) {
+        $('incCoordsTexto').value = `${inc.lat}, ${inc.lng}`;
+        this.zonaTemp = zonaDePunto(inc.lat, inc.lng, inc.municipioId || App.municipioActivo.id);
+        this.mostrarLocStatus(this.zonaTemp ? `Ubicación cargada · zona: ${this.zonaTemp.nombre}` : 'Ubicación cargada (fuera de zonas actuales)', 'ok');
+        this.renderZonaBadge(this.zonaTemp);
+      }
+      if (inc.iconoCustom) {
+        const picker = $('iconPicker');
+        picker.dataset.selected = inc.iconoCustom;
+        picker.querySelectorAll('.icon-opt').forEach(o => {
+          if (o.dataset.emoji === inc.iconoCustom) o.classList.add('selected');
+        });
+      }
+      this.mostrarEjemplo(inc.tipoId);
+      this.evidenciaTemp = (inc.evidencia || []).map(e => ({ ...e, existente: true }));
+      this.renderEvidencia();
+    } else {
+      $('modalIncTitle').textContent = 'Reportar incidencia';
+    }
+
+    UI.abrirModal('modalIncidencia');
+  },
+
+  cerrar() {
+    UI.cerrarModal('modalIncidencia');
+    this.evidenciaTemp = [];
+    this.ubicacionTemp = null;
+    this.zonaTemp = null;
+    this.editarId = null;
+  },
+
+  onTipoChange() {
+    const tipoId = $('incTipo').value;
+    this.mostrarEjemplo(tipoId);
+    if (!tipoId) return;
+    const tipo = Tipos.getTipo(tipoId);
+    if (tipo) {
+      const picker = $('iconPicker');
+      picker.dataset.selected = tipo.icono;
+      picker.querySelectorAll('.icon-opt').forEach(o => {
+        o.classList.toggle('selected', o.dataset.emoji === tipo.icono);
+      });
+    }
+  },
+
+  mostrarEjemplo(tipoId) {
+    const ejemplo = EJEMPLOS_TIPO[tipoId];
+    if (ejemplo) {
+      $('ejemploTitulo').textContent = '"' + ejemplo.titulo + '"';
+      $('ejemploDescripcion').textContent = ejemplo.descripcion;
+      $('ejemploTipoBox').style.display = 'block';
+    } else {
+      $('ejemploTipoBox').style.display = 'none';
+    }
+  },
+
+  usarEjemplo() {
+    const tipoId = $('incTipo').value;
+    const ejemplo = EJEMPLOS_TIPO[tipoId];
+    if (!ejemplo) return;
+    if (!$('incTitulo').value.trim()) $('incTitulo').value = ejemplo.titulo;
+    if (!$('incDescripcion').value.trim()) $('incDescripcion').value = ejemplo.descripcion;
+    toast('Ejemplo aplicado, ajústalo a tu caso real', 'ok');
+  },
+
+  obtenerUbicacion() {
+    if (!navigator.geolocation) {
+      this.mostrarLocStatus('Geolocalización no soportada por el navegador', 'error');
+      return;
+    }
+    this.mostrarLocStatus('Obteniendo ubicación…', 'loading');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        this.setUbicacion(pos.coords.latitude, pos.coords.longitude);
+        this.mostrarLocStatus(`Ubicación obtenida (±${Math.round(pos.coords.accuracy)} m)`, 'ok');
+      },
+      err => {
+        this.mostrarLocStatus('No se pudo obtener la ubicación: ' + err.message, 'error');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  },
+
+  elegirEnMapa() {
+    $('modalIncidencia').classList.remove('show');
+    Mapa.activarModoElegir();
+  },
+
+  setUbicacion(lat, lng) {
+    const zona = zonaDePunto(lat, lng, App.municipioActivo.id);
+    $('incLat').value = lat;
+    $('incLng').value = lng;
+    $('incCoordsTexto').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    Mapa.map.setView([lat, lng], 16);
+
+    if (!zona) {
+      this.ubicacionTemp = null;
+      this.zonaTemp = null;
+      this.mostrarLocStatus('Ubicación fuera de las zonas autorizadas (colonias/tenencias) del municipio. Elige un punto dentro del área marcada en el mapa.', 'error');
+      this.renderZonaBadge(null);
+      toast('Esa ubicación está fuera de las zonas permitidas', 'err');
+      return;
+    }
+    this.ubicacionTemp = { lat, lng };
+    this.zonaTemp = zona;
+    this.mostrarLocStatus(`Ubicación válida · zona: ${zona.nombre}`, 'ok');
+    this.renderZonaBadge(zona);
+  },
+
+  renderZonaBadge(zona) {
+    const el = $('incZonaBadge');
+    if (!el) return;
+    if (!zona) {
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    el.style.display = 'inline-flex';
+    el.style.background = zona.color;
+    el.innerHTML = `<i class="bi bi-pin-map-fill"></i> ${esc(zona.nombre)} <span style="opacity:.8;text-transform:capitalize;">(${esc(zona.tipo)})</span>`;
+  },
+
+  parsearCoords(texto) {
+    if (!texto) return;
+    const m = texto.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+    if (!m) { toast('Formato de coordenadas no reconocido', 'err'); return; }
+    const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      toast('Coordenadas fuera de rango', 'err');
+      return;
+    }
+    this.setUbicacion(lat, lng);
+    toast('Coordenadas aplicadas', 'ok');
+  },
+
+  mostrarLocStatus(msg, tipo) {
+    const el = $('locStatus');
+    el.style.display = 'flex';
+    el.className = 'loc-status ' + (tipo || '');
+    const icons = { ok: 'bi-check-circle-fill', error: 'bi-exclamation-triangle-fill', loading: 'bi-hourglass-split' };
+    el.innerHTML = `<i class="bi ${icons[tipo] || 'bi-info-circle-fill'}"></i> ${esc(msg)}`;
+  },
+
+  agregarEvidencia(event) {
+    const files = event.target.files;
+    if (!files.length) return;
+    Array.from(files).forEach(file => {
+      this.procesarArchivo(file, this.evidenciaTemp, () => this.renderEvidencia());
+    });
+    event.target.value = '';
+  },
+
+  procesarArchivo(file, target, callback) {
+    const esVideo = file.type.startsWith('video/');
+    const esImagen = file.type.startsWith('image/');
+    const esPDF = file.type === 'application/pdf';
+    const limite = esVideo ? MAX_VIDEO : MAX_FOTO;
+
+    if (file.size > limite) {
+      toast(`"${file.name}" excede el límite de ${esVideo ? '1 GB' : '100 MB'}`, 'err');
+      return;
+    }
+
+    const procesar = (extra) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        target.push({
+          id: uid(),
+          nombre: file.name,
+          tipo: file.type,
+          tamano: file.size,
+          data: e.target.result,
+          ...extra
+        });
+        callback();
+      };
+      reader.onerror = () => toast('Error al leer el archivo', 'err');
+      reader.readAsDataURL(file);
+    };
+
+    if (esVideo) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src);
+        const dur = video.duration;
+        if (dur > MAX_VIDEO_SEG) {
+          toast(`"${file.name}" dura ${Math.round(dur)}s (máx. 5 min)`, 'err');
+          return;
+        }
+        procesar({ duracion: dur });
+      };
+      video.onerror = () => {
+        toast('No se pudo leer el video', 'err');
+      };
+      video.src = URL.createObjectURL(file);
+    } else {
+      procesar();
+    }
+  },
+
+  renderEvidencia() {
+    const cont = $('evidenceList');
+    if (!this.evidenciaTemp.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = this.evidenciaTemp.map((ev, i) => {
+      const esImg = ev.tipo && ev.tipo.startsWith('image/');
+      const esVid = ev.tipo && ev.tipo.startsWith('video/');
+      return `
+        <div class="evidence-item">
+          ${esImg
+            ? `<img src="${ev.data}" alt="">`
+            : esVid
+              ? `<video src="${ev.data}" muted></video>`
+              : `<div class="ev-file"><i class="bi bi-file-earmark-fill"></i></div>`}
+          <div class="ev-name" title="${esc(ev.nombre)}">${esc(ev.nombre)}</div>
+          <button class="ev-remove" onclick="Incidencias.quitarEvidencia(${i})">×</button>
+        </div>
+      `;
+    }).join('');
+  },
+
+  quitarEvidencia(i) {
+    this.evidenciaTemp.splice(i, 1);
+    this.renderEvidencia();
+  },
+
+  abrirNuevoTipo() {
+    $('nuevoTipoNombre').value = '';
+    const picker = $('iconPickerNuevo');
+    picker.dataset.selected = '';
+    picker.querySelectorAll('.icon-opt').forEach(o => o.classList.remove('selected'));
+    UI.abrirModal('modalNuevoTipo', true);
+  },
+
+  guardarNuevoTipo() {
+    const nombre = $('nuevoTipoNombre').value.trim();
+    const icono = Tipos.getIconoSeleccionado('iconPickerNuevo');
+    if (!nombre) { toast('Escribe un nombre para el concepto', 'err'); return; }
+    if (!icono) { toast('Selecciona un icono', 'err'); return; }
+
+    const id = Tipos.addTipo(nombre, icono);
+    UI.cerrarModal('modalNuevoTipo');
+    toast('Concepto agregado correctamente', 'ok');
+    $('incTipo').value = id;
+    this.onTipoChange();
+  },
+
+  guardar() {
+    const tipoId = $('incTipo').value;
+    const titulo = $('incTitulo').value.trim();
+    const descripcion = $('incDescripcion').value.trim();
+    const indicaciones = $('incIndicaciones').value.trim();
+    const iconoCustom = Tipos.getIconoSeleccionado('iconPicker');
+
+    if (!tipoId) { toast('Selecciona el tipo de incidencia', 'err'); return; }
+    if (!titulo) { toast('Escribe un título breve', 'err'); return; }
+    if (!descripcion) { toast('Escribe una descripción', 'err'); return; }
+    if (!this.ubicacionTemp) { toast('Selecciona una ubicación válida dentro de una zona autorizada', 'err'); return; }
+    if (!this.zonaTemp) { toast('No se pudo determinar la zona de la ubicación', 'err'); return; }
+
+    const incs = DB.getIncidencias();
+    const sesion = Auth.sesion;
+    const userKey = sesion.esAnonimo ? 'anon_' + localStorage.getItem('anon_id') : sesion.username;
+    if (!localStorage.getItem('anon_id')) localStorage.setItem('anon_id', uid());
+
+    const duplicado = incs.find(i => {
+      if (this.editarId && i.id === this.editarId) return false;
+      if (i.estado === 'resuelta') return false;
+      const iUserKey = i.esAnonimo ? i.userKey : i.autor;
+      if (iUserKey !== userKey) return false;
+      if (i.tipoId !== tipoId) return false;
+      const dLat = Math.abs((i.lat || 0) - this.ubicacionTemp.lat);
+      const dLng = Math.abs((i.lng || 0) - this.ubicacionTemp.lng);
+      return dLat < 0.0002 && dLng < 0.0002;
+    });
+    if (duplicado) {
+      toast('Ya reportaste esta misma incidencia recientemente en esta ubicación.', 'err');
+      return;
+    }
+
+    const ahora = new Date().toISOString();
+    const incData = {
+      id: this.editarId || uid(),
+      tipoId,
+      iconoCustom: iconoCustom || (Tipos.getTipo(tipoId)?.icono || '❗'),
+      titulo,
+      descripcion,
+      indicaciones,
+      lat: this.ubicacionTemp.lat,
+      lng: this.ubicacionTemp.lng,
+      fecha: this.editarId ? (incs.find(i => i.id === this.editarId)?.fecha || ahora) : ahora,
+      actualizado: ahora,
+      estado: 'reportada',
+      colorAuto: 'amarillo',
+      esAnonimo: sesion.esAnonimo,
+      autor: sesion.esAnonimo ? 'Anónimo' : sesion.username,
+      autorNombre: sesion.esAnonimo ? 'Anónimo' : sesion.nombre,
+      userKey,
+      municipioId: App.municipioActivo.id,
+      zonaId: this.zonaTemp ? this.zonaTemp.id : null,
+      zonaNombre: this.zonaTemp ? this.zonaTemp.nombre : null,
+      evidencia: this.evidenciaTemp.map(e => ({
+        id: e.id, nombre: e.nombre, tipo: e.tipo, tamano: e.tamano, data: e.data,
+        duracion: e.duracion
+      })),
+      historial: this.editarId ? (incs.find(i => i.id === this.editarId)?.historial || []) : [{
+        fecha: ahora,
+        estado: 'reportada',
+        accion: 'Incidencia reportada',
+        por: sesion.nombre
+      }],
+      comentarios: this.editarId ? (incs.find(i => i.id === this.editarId)?.comentarios || []) : []
+    };
+
+    const dias = diasDesde(incData.fecha);
+    if (dias >= 30) incData.colorAuto = 'rojo';
+    else if (dias >= 15) incData.colorAuto = 'naranja';
+    else incData.colorAuto = 'amarillo';
+
+    if (this.editarId) {
+      const idx = incs.findIndex(i => i.id === this.editarId);
+      if (idx !== -1) incs[idx] = { ...incs[idx], ...incData };
+    } else {
+      incs.push(incData);
+    }
+
+    DB.saveIncidencias(incs);
+
+    if (!this.editarId) {
+      Notificaciones.crear({
+        tipo: 'reporte',
+        titulo: '✅ Reporte enviado',
+        mensaje: `Tu reporte "${titulo}" fue registrado correctamente.`,
+        incidenciaId: incData.id,
+        paraUsuario: userKey
+      });
+    }
+
+    toast(this.editarId ? 'Incidencia actualizada' : 'Reporte enviado correctamente', 'ok');
+    this.cerrar();
+    UI.renderLista();
+    Mapa.refreshMarkers();
+  },
+
+  abrirResolver(id) {
+    $('resolverId').value = id;
+    $('resolverTexto').value = '';
+    $('resolverEvidenceList').innerHTML = '';
+    this.evidenciaResolverTemp = [];
+    UI.abrirModal('modalResolver', true);
+  },
+
+  agregarEvidenciaResolver(event) {
+    const files = event.target.files;
+    if (!files.length) return;
+    Array.from(files).forEach(file => {
+      if (file.size > MAX_FOTO) { toast(`"${file.name}" excede 100 MB`, 'err'); return; }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.evidenciaResolverTemp.push({
+          id: uid(), nombre: file.name, tipo: file.type, data: e.target.result
+        });
+        this.renderEvidenciaResolver();
+      };
+      reader.readAsDataURL(file);
+    });
+    event.target.value = '';
+  },
+
+  renderEvidenciaResolver() {
+    const cont = $('resolverEvidenceList');
+    cont.innerHTML = this.evidenciaResolverTemp.map((ev, i) => {
+      const esImg = ev.tipo && ev.tipo.startsWith('image/');
+      return `
+        <div class="evidence-item">
+          ${esImg ? `<img src="${ev.data}">` : `<div class="ev-file"><i class="bi bi-file-earmark-fill"></i></div>`}
+          <div class="ev-name">${esc(ev.nombre)}</div>
+          <button class="ev-remove" onclick="Incidencias.evidenciaResolverTemp.splice(${i},1);Incidencias.renderEvidenciaResolver();">×</button>
+        </div>
+      `;
+    }).join('');
+  },
+
+  confirmarResolver() {
+    const id = $('resolverId').value;
+    const texto = $('resolverTexto').value.trim();
+    if (!texto) { toast('Describe la solución aplicada', 'err'); return; }
+
+    const incs = DB.getIncidencias();
+    const idx = incs.findIndex(i => i.id === id);
+    if (idx === -1) { toast('Incidencia no encontrada', 'err'); return; }
+
+    const ahora = new Date().toISOString();
+    incs[idx].estado = 'resuelta';
+    incs[idx].fechaResolucion = ahora;
+    incs[idx].solucion = texto;
+    incs[idx].evidenciaSolucion = this.evidenciaResolverTemp.map(e => ({
+      id: e.id, nombre: e.nombre, tipo: e.tipo, data: e.data
+    }));
+    incs[idx].historial = incs[idx].historial || [];
+    incs[idx].historial.push({
+      fecha: ahora,
+      estado: 'resuelta',
+      accion: 'Incidencia resuelta: ' + texto,
+      por: Auth.sesion.nombre
+    });
+
+    DB.saveIncidencias(incs);
+
+    Notificaciones.crear({
+      tipo: 'resuelta',
+      titulo: '✅ Tu incidencia fue resuelta',
+      mensaje: `"${incs[idx].titulo}" ha sido marcada como resuelta.`,
+      incidenciaId: id,
+      paraUsuario: incs[idx].esAnonimo ? incs[idx].userKey : incs[idx].autor
+    });
+
+    toast('Incidencia marcada como resuelta', 'ok');
+    UI.cerrarModal('modalResolver');
+    UI.renderLista();
+    Mapa.refreshMarkers();
+    UI.abrirDetalle(id);
+  },
+
+  cambiarEstado(id, nuevoEstado) {
+    const incs = DB.getIncidencias();
+    const idx = incs.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    const ahora = new Date().toISOString();
+    incs[idx].estado = nuevoEstado;
+    incs[idx].historial = incs[idx].historial || [];
+    incs[idx].historial.push({
+      fecha: ahora,
+      estado: nuevoEstado,
+      accion: 'Estado cambiado a ' + nuevoEstado,
+      por: Auth.sesion.nombre
+    });
+    DB.saveIncidencias(incs);
+
+    Notificaciones.crear({
+      tipo: 'estado',
+      titulo: '🔄 Estado actualizado',
+      mensaje: `"${incs[idx].titulo}" cambió a "${nuevoEstado}".`,
+      incidenciaId: id,
+      paraUsuario: incs[idx].esAnonimo ? incs[idx].userKey : incs[idx].autor
+    });
+
+    toast('Estado actualizado', 'ok');
+    UI.renderLista();
+    Mapa.refreshMarkers();
+    UI.abrirDetalle(id);
+  },
+
+  eliminar(id) {
+    if (!confirm('¿Eliminar esta incidencia? Esta acción no se puede deshacer.')) return;
+    const incs = DB.getIncidencias().filter(i => i.id !== id);
+    DB.saveIncidencias(incs);
+    toast('Incidencia eliminada', 'ok');
+    UI.cerrarDetalle();
+    UI.renderLista();
+    Mapa.refreshMarkers();
+  },
+
+  agregarComentario(id) {
+    const texto = $('nuevoComentario')?.value.trim();
+    if (!texto) { toast('Escribe un comentario', 'err'); return; }
+    const incs = DB.getIncidencias();
+    const idx = incs.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    incs[idx].comentarios = incs[idx].comentarios || [];
+    incs[idx].comentarios.push({
+      fecha: new Date().toISOString(),
+      autor: Auth.sesion.nombre,
+      texto
+    });
+    DB.saveIncidencias(incs);
+    toast('Comentario agregado', 'ok');
+    UI.abrirDetalle(id);
+  }
+};
+
+/* ============================================================
+   UI
+   ============================================================ */
+const UI = {
+  init() {
+    this.renderLista();
+    document.addEventListener('click', (e) => {
+      const panel = $('infoPanel');
+      const btn = e.target.closest('[onclick*="UI.toggleInfoPanel"]');
+      if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !btn) {
+        panel.classList.remove('show');
+      }
+    });
+  },
+
+  toggleInfoPanel(e) {
+    e.stopPropagation();
+    const panel = $('infoPanel');
+    panel.classList.toggle('show');
+    if (panel.classList.contains('show')) $('notifPanel').classList.remove('show');
+  },
+
+  abrirModal(id, nested) {
+    // Los modales "nested" (p. ej. Nuevo concepto, Resolver) se abren
+    // ENCIMA del modal desde el que se invocaron, sin cerrarlo — así no
+    // se pierde lo que el usuario ya había llenado (reporte, filtros, etc).
+    if (!nested) {
+      document.querySelectorAll('.modal-overlay.show').forEach(m => {
+        if (m.id !== id) m.classList.remove('show');
+      });
+    }
+    $(id).classList.toggle('nested', !!nested);
+    $(id).classList.add('show');
+  },
+
+  cerrarModal(id) {
+    $(id).classList.remove('show');
+  },
+
+  renderLista() {
+    const incs = Incidencias.getFiltradas();
+    const cont = $('listaIncidencias');
+    if (!incs.length) {
+      const esCiudadano = Auth.sesion && Auth.sesion.rol === 'anonimo';
+      cont.innerHTML = `<div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <div>${esCiudadano ? 'Aún no has reportado ninguna incidencia' : 'No hay incidencias que mostrar'}</div>
+        <div style="font-size:11.5px;margin-top:6px;">${esCiudadano ? 'Usa el botón + para reportar tu primera incidencia' : 'Prueba ajustar los filtros o reporta una nueva'}</div>
+      </div>`;
+      return;
+    }
+
+    cont.innerHTML = incs.map(inc => {
+      const tipo = Tipos.getTipo(inc.tipoId);
+      const color = Mapa.getColorByEstado(inc);
+      const dias = diasDesde(inc.fecha);
+      const fechaTxt = dias === 0 ? 'Hoy' : (dias === 1 ? 'Ayer' : `Hace ${dias} días`);
+      const autor = inc.esAnonimo ? 'Anónimo' : inc.autorNombre;
+      const estadoLabel = inc.estado === 'resuelta' ? 'Resuelta'
+        : inc.estado === 'en_proceso' ? 'En proceso' : 'Reportada';
+      return `
+        <div class="incidencia-card estado-${color}" onclick="UI.abrirDetalle('${inc.id}')">
+          <div class="inc-head">
+            <span class="inc-icon">${inc.iconoCustom || (tipo ? tipo.icono : '❗')}</span>
+            <div class="inc-title">${esc(inc.titulo)}</div>
+          </div>
+          <div class="inc-desc">${esc(inc.descripcion)}</div>
+          <div class="inc-meta">
+            <span><i class="bi bi-clock"></i> ${fechaTxt}</span>
+            <span class="inc-badge badge-${color}">${estadoLabel}</span>
+          </div>
+          <div class="inc-meta" style="margin-top:4px;">
+            <span><i class="bi bi-person"></i> ${esc(autor)}</span>
+            <span>${esc(tipo ? tipo.nombre : '—')}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  abrirDetalle(id) {
+    const inc = DB.getIncidencias().find(i => i.id === id);
+    if (!inc) { toast('Incidencia no encontrada', 'err'); return; }
+
+    const tipo = Tipos.getTipo(inc.tipoId);
+    const color = Mapa.getColorByEstado(inc);
+    const dias = diasDesde(inc.fecha);
+    const esResuelta = inc.estado === 'resuelta';
+    const puedeEditar = Auth.sesion.rol === 'funcionario' || Auth.sesion.rol === 'admin' ||
+                        (Auth.sesion.username === inc.autor) ||
+                        (inc.esAnonimo && !esResuelta && Auth.sesion.rol === 'anonimo');
+
+    const estadoBadge = {
+      reportada: `<span class="inc-badge badge-${color}">Reportada</span>`,
+      en_proceso: `<span class="inc-badge" style="background:#d1ecf1;color:#0c5460;">En proceso</span>`,
+      resuelta: `<span class="inc-badge badge-verde">Resuelta</span>`
+    }[inc.estado] || '';
+
+    let html = `
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+        <span style="font-size:2.5rem;line-height:1;">${inc.iconoCustom || (tipo ? tipo.icono : '❗')}</span>
+        <div style="flex:1;min-width:0;">
+          <h3 style="font-size:1.15rem;margin-bottom:4px;">${esc(inc.titulo)}</h3>
+          <div style="font-size:12px;color:#718096;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <span>${esc(tipo ? tipo.nombre : '—')}</span>
+            ${estadoBadge}
+            ${!esResuelta ? `<span style="color:#94a3b8;">${dias} día${dias !== 1 ? 's' : ''} activa</span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="label">Descripción</div>
+        <div class="value">${esc(inc.descripcion)}</div>
+      </div>
+      ${inc.indicaciones ? `
+        <div class="detail-row">
+          <div class="label">Indicaciones</div>
+          <div class="value">${esc(inc.indicaciones)}</div>
+        </div>` : ''}
+      <div class="detail-row">
+        <div class="label">Ubicación</div>
+        <div class="value">
+          ${inc.lat?.toFixed(6)}, ${inc.lng?.toFixed(6)}
+          <button class="btn btn-sm btn-outline" style="margin-left:8px;" onclick="Mapa.map.setView([${inc.lat},${inc.lng}],17);UI.cerrarDetalle();">
+            <i class="bi bi-crosshair"></i> Ver en mapa
+          </button>
+        </div>
+      </div>
+      ${inc.zonaNombre ? `
+      <div class="detail-row">
+        <div class="label">Zona</div>
+        <div class="value">
+          <span style="background:${(DB.getZonas(inc.municipioId).find(z=>z.id===inc.zonaId)||{}).color || '#6c757d'};color:#fff;padding:2px 10px;border-radius:12px;font-size:11.5px;font-weight:700;">
+            ${esc(inc.zonaNombre)}
+          </span>
+        </div>
+      </div>` : ''}
+      <div class="detail-row">
+        <div class="label">Reportó</div>
+        <div class="value">${esc(inc.esAnonimo ? 'Anónimo' : inc.autorNombre)}</div>
+      </div>
+      <div class="detail-row">
+        <div class="label">Fecha</div>
+        <div class="value">${fmtFecha(inc.fecha)}</div>
+      </div>
+    `;
+
+    if (inc.evidencia && inc.evidencia.length) {
+      html += `
+        <div class="detail-section">
+          <div class="detail-section-title"><i class="bi bi-images"></i> Evidencia del reporte</div>
+          <div class="evidence-list">
+            ${inc.evidencia.map(e => {
+              const esImg = e.tipo && e.tipo.startsWith('image/');
+              const esVid = e.tipo && e.tipo.startsWith('video/');
+              return `
+                <div class="evidence-item">
+                  ${esImg ? `<img src="${e.data}" onclick="window.open('${e.data}','_blank')" style="cursor:pointer;">`
+                    : esVid ? `<video src="${e.data}" controls muted></video>`
+                    : `<div class="ev-file"><i class="bi bi-file-earmark-fill"></i></div>`}
+                  <div class="ev-name">${esc(e.nombre)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (esResuelta) {
+      html += `
+        <div class="detail-section">
+          <div class="detail-section-title" style="color:var(--verde);">
+            <i class="bi bi-check-circle-fill"></i> Solución aplicada
+          </div>
+          <div style="background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:12px;font-size:13px;">
+            <div style="font-weight:600;color:#155724;margin-bottom:4px;">
+              Resuelta el ${fmtFecha(inc.fechaResolucion)}
+            </div>
+            <div style="color:#1a202c;">${esc(inc.solucion || 'Sin descripción')}</div>
+          </div>
+          ${inc.evidenciaSolucion && inc.evidenciaSolucion.length ? `
+            <div class="evidence-list" style="margin-top:10px;">
+              ${inc.evidenciaSolucion.map(e => {
+                const esImg = e.tipo && e.tipo.startsWith('image/');
+                return `
+                  <div class="evidence-item">
+                    ${esImg ? `<img src="${e.data}" onclick="window.open('${e.data}','_blank')" style="cursor:pointer;">`
+                      : `<div class="ev-file"><i class="bi bi-file-earmark-pdf-fill"></i></div>`}
+                    <div class="ev-name">${esc(e.nombre)}</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>` : ''}
+        </div>
+      `;
+    }
+
+    if (inc.historial && inc.historial.length) {
+      html += `
+        <div class="detail-section">
+          <div class="detail-section-title"><i class="bi bi-clock-history"></i> Historial</div>
+          <div class="status-timeline">
+            ${inc.historial.slice().reverse().map(h => `
+              <div class="timeline-item">
+                <div class="t-dot"></div>
+                <div style="flex:1;">
+                  <div style="font-weight:600;color:#1a202c;">${esc(h.accion)}</div>
+                  <div class="t-time">${fmtFecha(h.fecha)} · ${esc(h.por || '—')}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    html += `
+      <div class="detail-section">
+        <div class="detail-section-title"><i class="bi bi-chat-dots-fill"></i> Comentarios (${(inc.comentarios || []).length})</div>
+        <div class="comment-list" id="commentList">
+          ${(inc.comentarios || []).length
+            ? inc.comentarios.map(c => `
+                <div class="comment-item">
+                  <div class="c-meta">
+                    <span class="c-author">${esc(c.autor)}</span>
+                    <span>${fmtFecha(c.fecha)}</span>
+                  </div>
+                  <div class="c-text">${esc(c.texto)}</div>
+                </div>
+              `).join('')
+            : '<div style="color:#94a3b8;font-size:12px;padding:10px;text-align:center;">Sin comentarios todavía</div>'}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <input type="text" id="nuevoComentario" placeholder="Escribe un comentario…" style="flex:1;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:12.5px;">
+          <button class="btn btn-primary btn-sm" onclick="Incidencias.agregarComentario('${inc.id}')">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    let acciones = '';
+    if (puedeEditar && !esResuelta) {
+      acciones += `<button class="btn btn-outline" onclick="Incidencias.abrirReportar('${inc.id}');UI.cerrarDetalle();">
+        <i class="bi bi-pencil-fill"></i> Editar
+      </button>`;
+    }
+    if ((Auth.sesion.rol === 'funcionario' || Auth.sesion.rol === 'admin') && !esResuelta) {
+      if (inc.estado === 'reportada') {
+        acciones += `<button class="btn btn-warning" onclick="Incidencias.cambiarEstado('${inc.id}','en_proceso')">
+          <i class="bi bi-arrow-repeat"></i> Marcar en proceso
+        </button>`;
+      }
+      acciones += `<button class="btn btn-success" onclick="Incidencias.abrirResolver('${inc.id}')">
+        <i class="bi bi-check-circle-fill"></i> Marcar resuelta
+      </button>`;
+    }
+    if (Auth.sesion.rol === 'admin') {
+      acciones += `<button class="btn btn-danger" onclick="Incidencias.eliminar('${inc.id}')">
+        <i class="bi bi-trash3-fill"></i> Eliminar
+      </button>`;
+    }
+
+    if (acciones) {
+      html += `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:16px;padding-top:16px;border-top:1px solid var(--borde);">
+        ${acciones}
+      </div>`;
+    }
+
+    $('detalleBody').innerHTML = html;
+    UI.abrirModal('modalDetalle');
+  },
+
+  cerrarDetalle() {
+    UI.cerrarModal('modalDetalle');
+  }
+};
+
+/* ============================================================
+   NOTIFICACIONES
+   ============================================================ */
+const Notificaciones = {
+  init() {
+    document.addEventListener('click', (e) => {
+      const panel = $('notifPanel');
+      const btn = e.target.closest('[onclick*="Notificaciones.togglePanel"]');
+      if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !btn) {
+        panel.classList.remove('show');
+      }
+    });
+  },
+
+  getMias() {
+    const all = DB.getNotificaciones();
+    const key = Auth.sesion.esAnonimo ? ('anon_' + (localStorage.getItem('anon_id') || '')) : Auth.sesion.username;
+    return all.filter(n => !n.paraUsuario || n.paraUsuario === key)
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  },
+
+  crear(notif) {
+    const all = DB.getNotificaciones();
+    all.push({
+      id: uid(),
+      fecha: new Date().toISOString(),
+      leida: false,
+      ...notif
+    });
+    DB.saveNotificaciones(all);
+    this.renderizar();
+  },
+
+  marcarLeida(id) {
+    const all = DB.getNotificaciones();
+    const n = all.find(x => x.id === id);
+    if (n) n.leida = true;
+    DB.saveNotificaciones(all);
+    this.renderizar();
+  },
+
+  marcarTodasLeidas() {
+    const all = DB.getNotificaciones();
+    const key = Auth.sesion.esAnonimo ? ('anon_' + (localStorage.getItem('anon_id') || '')) : Auth.sesion.username;
+    all.forEach(n => {
+      if (!n.paraUsuario || n.paraUsuario === key) n.leida = true;
+    });
+    DB.saveNotificaciones(all);
+    this.renderizar();
+    toast('Todas marcadas como leídas', 'ok');
+  },
+
+  eliminar(id) {
+    const all = DB.getNotificaciones().filter(n => n.id !== id);
+    DB.saveNotificaciones(all);
+    this.renderizar();
+  },
+
+  togglePanel(e) {
+    e.stopPropagation();
+    const panel = $('notifPanel');
+    panel.classList.toggle('show');
+    if (panel.classList.contains('show')) { this.renderLista(); $('infoPanel').classList.remove('show'); }
+  },
+
+  renderizar() {
+    const mias = this.getMias();
+    const noLeidas = mias.filter(n => !n.leida).length;
+    const badge = $('notif-badge');
+    if (noLeidas > 0) {
+      badge.textContent = noLeidas > 99 ? '99+' : noLeidas;
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  },
+
+  renderLista() {
+    const cont = $('notifList');
+    const mias = this.getMias();
+    if (!mias.length) {
+      cont.innerHTML = '<div class="notif-empty"><i class="bi bi-bell-slash" style="font-size:2rem;display:block;margin-bottom:8px;"></i>Sin notificaciones</div>';
+      return;
+    }
+    const iconos = { reporte: '✅', resuelta: '🎉', estado: '🔄', alerta: '⚠️', comentario: '💬' };
+    cont.innerHTML = mias.map(n => `
+      <div class="notif-item ${n.leida ? '' : 'unread'}" onclick="Notificaciones.marcarLeida('${n.id}')">
+        <div class="n-icon">${iconos[n.tipo] || '🔔'}</div>
+        <div class="n-content">
+          <div class="n-title">${esc(n.titulo)}</div>
+          <div class="n-msg">${esc(n.mensaje)}</div>
+          <div class="n-time">${fmtFecha(n.fecha)}</div>
+        </div>
+        <button class="modal-close" style="font-size:1rem;padding:0 4px;" onclick="event.stopPropagation();Notificaciones.eliminar('${n.id}')">×</button>
+      </div>
+    `).join('');
+  }
+};
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+const Sidebar = {
+  toggle() {
+    $('sidebar').classList.toggle('collapsed');
+    // El mapa de Leaflet mide su contenedor solo cuando se crea; si el
+    // panel lateral cambia de tamaño (se oculta/muestra) hay que avisarle
+    // con invalidateSize() o el mapa deja una franja en blanco donde
+    // antes estaba el sidebar. Se llama varias veces para cubrir toda
+    // la transición CSS (.25s) del panel.
+    if (Mapa.map) {
+      requestAnimationFrame(() => Mapa.map.invalidateSize());
+      setTimeout(() => Mapa.map.invalidateSize(), 130);
+      setTimeout(() => Mapa.map.invalidateSize(), 270);
+    }
+  }
+};
+
+/* ============================================================
+   ADMIN
+   ============================================================ */
+const Admin = {
+  abrir() {
+    if (Auth.sesion.rol !== 'funcionario' && Auth.sesion.rol !== 'admin') {
+      toast('No tienes permiso para acceder al panel', 'err');
+      return;
+    }
+    this.renderStats();
+    this.renderTablaIncidencias();
+    this.renderTipos();
+    this.renderMunicipios();
+    this.renderUsuarios();
+    UI.abrirModal('modalAdmin');
+  },
+
+  cerrar() { UI.cerrarModal('modalAdmin'); },
+
+  tab(name, btn) {
+    document.querySelectorAll('#modalAdmin .admin-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('#modalAdmin .admin-tab').forEach(t => t.classList.remove('active'));
+    $('panel-' + name).classList.add('active');
+    if (btn) btn.classList.add('active');
+    if (name === 'stats') this.renderStats();
+    if (name === 'incidencias') this.renderTablaIncidencias();
+    if (name === 'tipos') this.renderTipos();
+    if (name === 'municipios') this.renderMunicipios();
+    if (name === 'zonas') this.renderZonas();
+    if (name === 'usuarios') this.renderUsuarios();
+  },
+
+  renderZonas() {
+    const mun = App.municipioActivo;
+    const zonas = DB.getZonas(mun.id);
+    const incs = DB.getIncidencias().filter(i => i.municipioId === mun.id);
+    $('zonasLista').innerHTML = `
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Color</th><th>Zona</th><th>Tipo</th><th>Reportes</th><th>Pendientes</th><th>Resueltos</th></tr>
+          </thead>
+          <tbody>
+            ${zonas.map(z => {
+              const deZona = incs.filter(i => i.zonaId === z.id);
+              const resueltas = deZona.filter(i => i.estado === 'resuelta').length;
+              return `<tr>
+                <td><span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:${z.color};"></span></td>
+                <td>${esc(z.nombre)}</td>
+                <td style="text-transform:capitalize;">${esc(z.tipo)}</td>
+                <td><strong>${deZona.length}</strong></td>
+                <td>${deZona.length - resueltas}</td>
+                <td>${resueltas}</td>
+              </tr>`;
+            }).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;">Sin zonas definidas para este municipio</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  renderStats() {
+    const incs = DB.getIncidencias();
+    const total = incs.length;
+    const reportadas = incs.filter(i => i.estado === 'reportada').length;
+    const enProceso = incs.filter(i => i.estado === 'en_proceso').length;
+    const resueltas = incs.filter(i => i.estado === 'resuelta').length;
+    const criticas = incs.filter(i => Mapa.getColorByEstado(i) === 'rojo').length;
+    const amarillas = incs.filter(i => Mapa.getColorByEstado(i) === 'amarillo').length;
+    const naranjas = incs.filter(i => Mapa.getColorByEstado(i) === 'naranja').length;
+
+    $('statsGrid').innerHTML = `
+      <div class="stat-card"><div class="stat-num">${total}</div><div class="stat-label">Total</div></div>
+      <div class="stat-card amarillo"><div class="stat-num">${reportadas}</div><div class="stat-label">Reportadas</div></div>
+      <div class="stat-card"><div class="stat-num">${enProceso}</div><div class="stat-label">En proceso</div></div>
+      <div class="stat-card verde"><div class="stat-num">${resueltas}</div><div class="stat-label">Resueltas</div></div>
+      <div class="stat-card rojo"><div class="stat-num">${criticas}</div><div class="stat-label">&gt;30 días</div></div>
+      <div class="stat-card naranja"><div class="stat-num">${naranjas}</div><div class="stat-label">15–30 días</div></div>
+      <div class="stat-card amarillo"><div class="stat-num">${amarillas}</div><div class="stat-label">&lt;15 días</div></div>
+    `;
+
+    const porTipo = {};
+    incs.forEach(i => {
+      porTipo[i.tipoId] = porTipo[i.tipoId] || { total: 0, resueltas: 0, pendientes: 0 };
+      porTipo[i.tipoId].total++;
+      if (i.estado === 'resuelta') porTipo[i.tipoId].resueltas++;
+      else porTipo[i.tipoId].pendientes++;
+    });
+
+    const tipos = DB.getTipos();
+    $('statsByTipo').innerHTML = Object.entries(porTipo)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([tid, data]) => {
+        const t = tipos.find(x => x.id === tid);
+        const pct = total > 0 ? ((data.total / total) * 100).toFixed(1) : 0;
+        return `
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+              <span>${t ? t.icono + ' ' + esc(t.nombre) : esc(tid)}</span>
+              <span><strong>${data.total}</strong> (${pct}%)</span>
+            </div>
+            <div style="height:8px;background:#f0f4f8;border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--primario),var(--primario-claro));"></div>
+            </div>
+          </div>
+        `;
+      }).join('') || '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px;">Sin datos</div>';
+  },
+
+  renderTablaIncidencias() {
+    const q = ($('adminBuscar')?.value || '').toLowerCase();
+    let incs = DB.getIncidencias();
+    if (q) incs = incs.filter(i => (i.titulo || '').toLowerCase().includes(q));
+
+    const tbody = $('adminIncidenciasBody');
+    if (!incs.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px;">Sin incidencias</td></tr>';
+      return;
+    }
+
+    const tipos = DB.getTipos();
+    tbody.innerHTML = incs.sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).map(i => {
+      const t = tipos.find(x => x.id === i.tipoId);
+      const color = Mapa.getColorByEstado(i);
+      const dias = diasDesde(i.fecha);
+      return `
+        <tr>
+          <td><code style="font-size:10.5px;">${i.id.slice(-6)}</code></td>
+          <td><strong>${esc(i.titulo)}</strong></td>
+          <td>${t ? t.icono + ' ' + esc(t.nombre) : '—'}</td>
+          <td><span class="inc-badge badge-${color}">${i.estado}</span></td>
+          <td>${i.estado === 'resuelta' ? '—' : dias + 'd'}</td>
+          <td>${esc(i.esAnonimo ? 'Anónimo' : i.autorNombre)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="Admin.cerrar();UI.abrirDetalle('${i.id}')">
+              <i class="bi bi-eye"></i>
+            </button>
+            ${Auth.sesion.rol === 'admin' ? `
+              <button class="btn btn-sm btn-danger" onclick="Incidencias.eliminar('${i.id}');Admin.renderTablaIncidencias();Admin.renderStats();">
+                <i class="bi bi-trash3"></i>
+              </button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  renderTipos() {
+    const tipos = DB.getTipos();
+    $('tiposLista').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Icono</th><th>Nombre</th><th>ID</th><th>Acciones</th></tr></thead>
+        <tbody>
+          ${tipos.map(t => `
+            <tr>
+              <td style="font-size:1.5rem;">${t.icono}</td>
+              <td><strong>${esc(t.nombre)}</strong>${t.custom ? ' <span style="font-size:10px;color:#006657;">(personalizado)</span>' : ''}</td>
+              <td><code style="font-size:10.5px;">${esc(t.id)}</code></td>
+              <td>${t.custom ? `<button class="btn btn-sm btn-danger" onclick="Tipos.deleteTipo('${t.id}');Admin.renderTipos();Admin.renderStats();">
+                <i class="bi bi-trash3"></i>
+              </button>` : '<span style="font-size:11px;color:#94a3b8;">Predefinido</span>'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+
+  renderMunicipios() {
+    const muns = DB.getMunicipios();
+    const activoId = App.municipioActivo.id;
+    $('municipioSelect').innerHTML = muns.map(m =>
+      `<option value="${m.id}" ${m.id === activoId ? 'selected' : ''}>${esc(m.nombre)}, ${esc(m.estado)}</option>`
+    ).join('');
+
+    $('municipiosLista').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Municipio</th><th>Estado</th><th>Clave de acceso</th><th>Centro</th></tr></thead>
+        <tbody>
+          ${muns.map(m => `
+            <tr>
+              <td><strong>${esc(m.nombre)}</strong>${m.id === activoId ? ' <span style="font-size:10px;background:#e8f5f2;color:#006657;padding:2px 8px;border-radius:10px;">ACTIVO</span>' : ''}</td>
+              <td>${esc(m.estado)}</td>
+              <td><code style="font-size:11px;">${esc(m.clave)}</code></td>
+              <td>${m.center[0].toFixed(4)}, ${m.center[1].toFixed(4)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+
+  cambiarMunicipio() {
+    const nuevoId = $('municipioSelect').value;
+    const clave = prompt('Ingresa la clave de acceso del municipio:');
+    if (!clave) return;
+    const muns = DB.getMunicipios();
+    const mun = muns.find(m => m.id === nuevoId);
+    if (!mun) return;
+    if (mun.clave.toUpperCase() !== clave.trim().toUpperCase()) {
+      toast('Clave incorrecta', 'err');
+      return;
+    }
+    App.municipioActivo = mun;
+    Auth.sesion.municipioId = mun.id;
+    localStorage.setItem(STORAGE.SESION, JSON.stringify(Auth.sesion));
+    $('topbar-muni').textContent = `${mun.nombre}, ${mun.estado}`;
+    Mapa.resetMunicipio(mun);
+    UI.renderLista();
+    Mapa.refreshMarkers();
+    toast(`Municipio cambiado a ${mun.nombre}`, 'ok');
+    this.renderMunicipios();
+    this.renderZonas();
+  },
+
+  renderUsuarios() {
+    const users = DB.getUsuarios();
+    const muns = DB.getMunicipios();
+    $('usuariosLista').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Municipio</th><th>Activo</th></tr></thead>
+        <tbody>
+          ${users.map(u => {
+            const m = muns.find(x => x.id === u.municipioId);
+            return `
+              <tr>
+                <td><code>${esc(u.username)}</code></td>
+                <td>${esc(u.nombre)}</td>
+                <td><span style="background:#e8f5f2;color:#006657;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${esc(u.rol)}</span></td>
+                <td>${m ? esc(m.nombre) : '—'}</td>
+                <td>${u.activo !== false ? '✅' : '❌'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+};
+
+/* ============================================================
+   REPORTES
+   ============================================================ */
+const Reportes = {
+  abrir() {
+    if (Auth.sesion.rol !== 'funcionario' && Auth.sesion.rol !== 'admin') {
+      toast('Los informes solo están disponibles para funcionarios y administradores', 'err');
+      return;
+    }
+    this.renderStats();
+    this.renderTabla();
+    UI.abrirModal('modalReportes');
+  },
+
+  cerrar() { UI.cerrarModal('modalReportes'); },
+
+  renderStats() {
+    const incs = DB.getIncidencias();
+    const total = incs.length;
+    const resueltas = incs.filter(i => i.estado === 'resuelta').length;
+    const pendientes = total - resueltas;
+    const criticas = incs.filter(i => Mapa.getColorByEstado(i) === 'rojo').length;
+    const tasa = total > 0 ? ((resueltas / total) * 100).toFixed(1) : 0;
+
+    $('reporteStats').innerHTML = `
+      <div class="stat-card"><div class="stat-num">${total}</div><div class="stat-label">Total</div></div>
+      <div class="stat-card verde"><div class="stat-num">${resueltas}</div><div class="stat-label">Resueltas</div></div>
+      <div class="stat-card naranja"><div class="stat-num">${pendientes}</div><div class="stat-label">Pendientes</div></div>
+      <div class="stat-card rojo"><div class="stat-num">${criticas}</div><div class="stat-label">Críticas</div></div>
+      <div class="stat-card"><div class="stat-num">${tasa}%</div><div class="stat-label">Tasa resolución</div></div>
+    `;
+  },
+
+  renderTabla() {
+    const incs = DB.getIncidencias();
+    const tipos = DB.getTipos();
+    const porTipo = {};
+    incs.forEach(i => {
+      const t = i.tipoId;
+      porTipo[t] = porTipo[t] || { total: 0, resueltas: 0, pendientes: 0, dias: [] };
+      porTipo[t].total++;
+      if (i.estado === 'resuelta') porTipo[t].resueltas++;
+      else porTipo[t].pendientes++;
+      porTipo[t].dias.push(diasDesde(i.fecha));
+    });
+
+    $('reporteTablaBody').innerHTML = Object.entries(porTipo).map(([tid, data]) => {
+      const t = tipos.find(x => x.id === tid);
+      const prom = data.dias.length > 0 ? (data.dias.reduce((a,b) => a+b, 0) / data.dias.length).toFixed(1) : 0;
+      return `
+        <tr>
+          <td>${t ? t.icono + ' ' + esc(t.nombre) : esc(tid)}</td>
+          <td><strong>${data.total}</strong></td>
+          <td>${data.resueltas}</td>
+          <td>${data.pendientes}</td>
+          <td>${prom}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">Sin datos</td></tr>';
+  },
+
+  exportarCSV() {
+    const incs = DB.getIncidencias();
+    if (!incs.length) { toast('No hay incidencias para exportar', 'err'); return; }
+    const tipos = DB.getTipos();
+    const encabezado = ['ID', 'Tipo', 'Título', 'Descripción', 'Estado', 'Latitud', 'Longitud', 'Zona', 'Fecha', 'Días activa', 'Reportó', 'Municipio'];
+    const filas = incs.map(i => {
+      const t = tipos.find(x => x.id === i.tipoId);
+      const mun = DB.getMunicipios().find(m => m.id === i.municipioId);
+      return [
+        i.id,
+        t ? t.nombre : i.tipoId,
+        i.titulo,
+        i.descripcion,
+        i.estado,
+        i.lat, i.lng,
+        i.zonaNombre || '',
+        i.fecha,
+        i.estado === 'resuelta' ? '' : diasDesde(i.fecha),
+        i.esAnonimo ? 'Anónimo' : i.autorNombre,
+        mun ? mun.nombre : ''
+      ].map(v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`).join(',');
+    });
+    const csv = '\uFEFF' + [encabezado.join(','), ...filas].join('\n');
+    this.descargar(csv, 'incidencias_' + new Date().toISOString().slice(0,10) + '.csv', 'text/csv;charset=utf-8');
+    toast('CSV descargado', 'ok');
+  },
+
+  exportarJSON() {
+    const data = {
+      exportado: new Date().toISOString(),
+      incidencias: DB.getIncidencias(),
+      tipos: DB.getTipos(),
+      municipios: DB.getMunicipios(),
+      usuarios: DB.getUsuarios().map(u => ({ ...u, password: '***' }))
+    };
+    this.descargar(JSON.stringify(data, null, 2), 'respaldo_' + new Date().toISOString().slice(0,10) + '.json', 'application/json');
+    toast('Respaldo JSON descargado', 'ok');
+  },
+
+  descargar(contenido, nombre, mime) {
+    const blob = new Blob([contenido], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  generarReporteImprimible() {
+    const incs = DB.getIncidencias();
+    const tipos = DB.getTipos();
+    const mun = App.municipioActivo;
+    const fecha = new Date().toLocaleString('es-MX');
+
+    const total = incs.length;
+    const resueltas = incs.filter(i => i.estado === 'resuelta').length;
+    const pendientes = total - resueltas;
+
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Reporte de Incidencias — ${mun.nombre}</title>
+      <style>
+        body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; padding: 30px; color: #1a202c; font-size: 12px; }
+        h1 { color: #006657; font-size: 22px; margin-bottom: 4px; }
+        .meta { color: #718096; margin-bottom: 20px; }
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+        .stat { background: #f0faf8; border: 1px solid #b2dfdb; padding: 12px; border-radius: 8px; text-align: center; }
+        .stat-num { font-size: 22px; font-weight: 800; color: #006657; }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: #4a5568; letter-spacing: .4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 16px; }
+        th, td { border: 1px solid #cbd5e0; padding: 6px 8px; text-align: left; }
+        th { background: #e8f5f2; color: #006657; font-size: 10px; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+        .badge-verde { background: #d4edda; color: #155724; }
+        .badge-amarillo { background: #fff3cd; color: #856404; }
+        .badge-naranja { background: #ffe5d0; color: #8a3d00; }
+        .badge-rojo { background: #f8d7da; color: #721c24; }
+        .footer { margin-top: 30px; text-align: center; color: #94a3b8; font-size: 10px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+        @media print { body { padding: 15px; } }
+      </style>
+      </head><body>
+      <h1>📋 Reporte de Incidencias Municipales</h1>
+      <div class="meta">${mun.nombre}, ${mun.estado} · Generado: ${fecha}</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-num">${total}</div><div class="stat-label">Total</div></div>
+        <div class="stat"><div class="stat-num">${resueltas}</div><div class="stat-label">Resueltas</div></div>
+        <div class="stat"><div class="stat-num">${pendientes}</div><div class="stat-label">Pendientes</div></div>
+        <div class="stat"><div class="stat-num">${total > 0 ? ((resueltas/total)*100).toFixed(1) : 0}%</div><div class="stat-label">Resolución</div></div>
+      </div>
+      <h2 style="font-size:15px;color:#006657;margin-bottom:8px;">Detalle de incidencias</h2>
+      <table>
+        <thead><tr><th>#</th><th>Tipo</th><th>Título</th><th>Estado</th><th>Días</th><th>Reportó</th></tr></thead>
+        <tbody>
+          ${incs.map((i, idx) => {
+            const t = tipos.find(x => x.id === i.tipoId);
+            const color = Mapa.getColorByEstado(i);
+            return `<tr>
+              <td>${idx + 1}</td>
+              <td>${t ? t.icono + ' ' + esc(t.nombre) : '—'}</td>
+              <td>${esc(i.titulo)}</td>
+              <td><span class="badge badge-${color}">${i.estado}</span></td>
+              <td>${i.estado === 'resuelta' ? '—' : diasDesde(i.fecha)}</td>
+              <td>${esc(i.esAnonimo ? 'Anónimo' : i.autorNombre)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <div class="footer">Sistema de Incidencias Municipales · ${mun.nombre}, ${mun.estado}</div>
+      <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
+      </body></html>
+    `);
+    win.document.close();
+  },
+
+  limpiarTodo() {
+    if (!confirm('⚠️ ¿Eliminar TODAS las incidencias? Esta acción no se puede deshacer.')) return;
+    if (!confirm('¿Estás completamente seguro? Se borrarán todos los reportes, notificaciones y evidencia.')) return;
+    localStorage.removeItem(STORAGE.INCIDENCIAS);
+    localStorage.removeItem(STORAGE.NOTIFICACIONES);
+    toast('Datos eliminados correctamente', 'ok');
+    UI.renderLista();
+    Mapa.refreshMarkers();
+    Notificaciones.renderizar();
+    this.renderStats();
+    this.renderTabla();
+  }
+};
+
+/* ============================================================
+   INICIALIZACIÓN
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!localStorage.getItem('anon_id')) localStorage.setItem('anon_id', uid());
+
+  document.querySelectorAll('.login-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  ['func-user','func-pass','func-code'].forEach(id => {
+    $(id)?.addEventListener('keypress', e => { if (e.key === 'Enter') Auth.loginFuncionario(); });
+  });
+  ['admin-user','admin-pass'].forEach(id => {
+    $(id)?.addEventListener('keypress', e => { if (e.key === 'Enter') Auth.loginAdmin(); });
+  });
+
+  Auth.init();
+
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => {
+      if (e.target === m) {
+        if (m.id === 'modalIncidencia' && Mapa.modoElegir) return;
+        m.classList.remove('show');
+      }
+    });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show'));
+      if ($('notifPanel').classList.contains('show')) $('notifPanel').classList.remove('show');
+    }
+  });
+});
+</script>
+</body>
+</html>

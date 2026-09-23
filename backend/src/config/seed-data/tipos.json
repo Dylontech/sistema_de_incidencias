@@ -1,0 +1,82 @@
+[
+  {
+    "id": "bache",
+    "nombre": "Bache",
+    "icono": "🕳️"
+  },
+  {
+    "id": "banqueta",
+    "nombre": "Banqueta dañada",
+    "icono": "🚧"
+  },
+  {
+    "id": "fuga",
+    "nombre": "Fuga de agua",
+    "icono": "💧"
+  },
+  {
+    "id": "luminaria",
+    "nombre": "Luminaria dañada",
+    "icono": "💡"
+  },
+  {
+    "id": "agua_contaminada",
+    "nombre": "Contaminación del agua",
+    "icono": "🌊"
+  },
+  {
+    "id": "basura",
+    "nombre": "Zona con basura",
+    "icono": "🗑️"
+  },
+  {
+    "id": "drenaje",
+    "nombre": "Drenaje obstruido",
+    "icono": "🚰"
+  },
+  {
+    "id": "pavimento",
+    "nombre": "Pavimento en mal estado",
+    "icono": "🛣️"
+  },
+  {
+    "id": "arbol",
+    "nombre": "Árbol caído o riesgoso",
+    "icono": "🌳"
+  },
+  {
+    "id": "semaforo",
+    "nombre": "Semáforo descompuesto",
+    "icono": "🚦"
+  },
+  {
+    "id": "cableado",
+    "nombre": "Cableado peligroso",
+    "icono": "⚡"
+  },
+  {
+    "id": "parque",
+    "nombre": "Parque en mal estado",
+    "icono": "🏞️"
+  },
+  {
+    "id": "senal",
+    "nombre": "Señalización dañada",
+    "icono": "🚏"
+  },
+  {
+    "id": "grafiti",
+    "nombre": "Grafiti / vandalismo",
+    "icono": "🎨"
+  },
+  {
+    "id": "animal",
+    "nombre": "Animal callejero",
+    "icono": "🐕"
+  },
+  {
+    "id": "otro",
+    "nombre": "Otro",
+    "icono": "❗"
+  }
+]

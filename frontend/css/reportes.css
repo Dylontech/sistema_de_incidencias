@@ -1,0 +1,70 @@
+/* ============================================================
+   INFORMES IMPRIMIBLES
+   Reglas aplicadas cuando se imprime desde el navegador
+   (el informe detallado se genera aparte, en una ventana nueva).
+   ============================================================ */
+@media print {
+  body {
+    overflow: visible;
+    height: auto;
+    background: #fff;
+  }
+
+  /* Fuera del papel la interfaz de la aplicación */
+  .topbar,
+  .sidebar,
+  .sidebar-toggle,
+  .floating-btns,
+  .legend-box,
+  .modal-head .modal-close,
+  .modal-foot,
+  .admin-tabs,
+  .notif-panel,
+  .toast,
+  .loading-overlay {
+    display: none !important;
+  }
+
+  .modal-overlay {
+    position: static;
+    display: block !important;
+    opacity: 1;
+    visibility: visible;
+    background: none;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .modal-overlay:not(.show) {
+    display: none !important;
+  }
+
+  .modal-box {
+    box-shadow: none;
+    max-height: none;
+    max-width: 100% !important;
+    transform: none;
+  }
+
+  .modal-body {
+    overflow: visible;
+    padding: 0;
+  }
+
+  .data-table {
+    page-break-inside: auto;
+  }
+
+  .data-table tr {
+    page-break-inside: avoid;
+  }
+
+  .stat-card {
+    break-inside: avoid;
+  }
+
+  #map,
+  .map-container {
+    display: none;
+  }
+}

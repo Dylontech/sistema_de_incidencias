@@ -1,0 +1,58 @@
+/* Estilos del Sistema de Incidencias Municipales.
+   Extraídos del monolito original (legacy/) sin cambios. */
+
+/* ============================================================
+   PANEL DE ADMINISTRACIÓN: pestañas, tarjetas y tablas
+   ============================================================ */
+/* Admin panel */
+.admin-tabs {
+  display: flex; gap: 0; border-bottom: 2px solid var(--borde);
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.admin-tab {
+  padding: 10px 16px; border: none; background: transparent;
+  font-size: 13px; font-weight: 600; color: var(--gris);
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.admin-tab.active { color: var(--primario); border-bottom-color: var(--primario); }
+.admin-panel { display: none; }
+.admin-panel.active { display: block; }
+
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.stat-card {
+  background: #fff; border: 1px solid var(--borde);
+  border-radius: 10px; padding: 14px 12px; text-align: center;
+}
+.stat-card .stat-num {
+  font-size: 1.6rem; font-weight: 800;
+  color: var(--primario); line-height: 1.1;
+}
+.stat-card .stat-label {
+  font-size: 10px; color: var(--gris);
+  text-transform: uppercase; letter-spacing: .4px;
+  margin-top: 4px;
+}
+.stat-card.verde .stat-num { color: var(--verde); }
+.stat-card.rojo .stat-num { color: var(--rojo); }
+.stat-card.naranja .stat-num { color: var(--naranja); }
+.stat-card.amarillo .stat-num { color: var(--amarillo); }
+
+.data-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  background: #fff; border-radius: 10px; overflow: hidden;
+}
+.data-table th {
+  background: #f8f9fc; padding: 10px 12px;
+  text-align: left; font-size: 10.5px; font-weight: 700;
+  color: #4a5568; text-transform: uppercase;
+  letter-spacing: .4px; border-bottom: 2px solid var(--borde);
+}
+.data-table td {
+  padding: 9px 12px; border-bottom: 1px solid #f0f4f8;
+  vertical-align: middle;
+}
+.data-table tbody tr:hover { background: #f8f9fc; }

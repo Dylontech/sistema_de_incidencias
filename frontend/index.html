@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Incidencias Municipales — Maravatío, Michoacán</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/componentes.css">
+<link rel="stylesheet" href="css/admin.css">
+<link rel="stylesheet" href="css/reportes.css">
+</head>
+<body>
+
+<!-- ============================================================
+     LOGIN
+     ============================================================ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <h1><i class="bi bi-geo-alt-fill"></i> Sistema de Incidencias</h1>
+    <p class="sub" id="loginSubtitulo">Municipio de Maravatío, Michoacán</p>
+
+    <div class="login-tabs">
+      <button class="login-tab active" data-action="auth:tab" data-valor="anon">Ciudadano</button>
+      <button class="login-tab" data-action="auth:tab" data-valor="func">Funcionario</button>
+      <button class="login-tab" data-action="auth:tab" data-valor="admin">Administrador</button>
+    </div>
+
+    <!-- ANÓNIMO -->
+    <div class="login-panel active" id="panel-anon">
+      <p style="font-size:12.5px;color:#4a5568;margin-bottom:14px;line-height:1.5;">
+        Puedes reportar incidencias de forma <strong>anónima</strong> sin necesidad de cuenta.
+      </p>
+      <button class="btn btn-primary btn-block" data-action="auth:entrarAnonimo">
+        <i class="bi bi-person-fill"></i> Entrar como ciudadano anónimo
+      </button>
+      <p style="font-size:11px;color:#94a3b8;margin-top:12px;text-align:center;">
+        <i class="bi bi-info-circle"></i> Los reportes anónimos no recopilan datos personales.
+      </p>
+    </div>
+
+    <!-- FUNCIONARIO -->
+    <div class="login-panel" id="panel-func">
+      <form data-submit="auth:entrarFuncionario">
+        <div class="form-group">
+          <label for="func-user">Usuario</label>
+          <input type="text" id="func-user" name="username" placeholder="ej. jlopez" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="func-pass">Contraseña</label>
+          <input type="password" id="func-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label for="func-code">Clave de municipio</label>
+          <input type="text" id="func-code" name="claveMunicipio" placeholder="Ej. MARAVATIO-2024" style="text-transform:uppercase;">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">
+          <i class="bi bi-shield-lock-fill"></i> Iniciar sesión
+        </button>
+      </form>
+      <div id="notaDemoFunc" style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
+        <strong>Demo:</strong> usuario <code>funcionario</code> · contraseña <code>func123</code> · clave <code>MARAVATIO-2024</code>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="login-panel" id="panel-admin">
+      <form data-submit="auth:entrarAdmin">
+        <div class="form-group">
+          <label for="admin-user">Usuario</label>
+          <input type="text" id="admin-user" name="username" placeholder="admin" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="admin-pass">Contraseña</label>
+          <input type="password" id="admin-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">
+          <i class="bi bi-shield-fill-check"></i> Iniciar sesión
+        </button>
+      </form>
+      <div id="notaDemoAdmin" style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
+        <strong>Demo:</strong> usuario <code>admin</code> · contraseña <code>admin123</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     APP
+     ============================================================ -->
+<div class="app" id="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="notif-btn" style="background:rgba(255,255,255,0.1);" data-action="sidebar:toggle" title="Menú">
+      <i class="bi bi-list"></i>
+    </button>
+    <div class="brand">
+      <i class="bi bi-geo-alt-fill"></i>
+      <div>
+        <div>Incidencias Municipales</div>
+        <div class="muni-name" id="topbar-muni">—</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+
+    <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" data-action="admin:abrir" id="btn-admin" title="Panel de administración">
+      <i class="bi bi-speedometer2"></i> <span>Panel</span>
+    </button>
+    <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" data-action="reportes:abrir" id="btn-informes" title="Informes">
+      <i class="bi bi-file-earmark-bar-graph"></i> <span>Informes</span>
+    </button>
+
+    <button class="notif-btn" data-action="notificaciones:toggle" title="Notificaciones">
+      <i class="bi bi-bell-fill"></i>
+      <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+    </button>
+
+    <div class="user-info" id="userInfo">
+      <i class="bi bi-person-circle"></i>
+      <span id="userName">Anónimo</span>
+    </div>
+    <button class="notif-btn" data-action="auth:salir" title="Cerrar sesión">
+      <i class="bi bi-box-arrow-right"></i>
+    </button>
+
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-header">
+        <span>Notificaciones</span>
+        <button class="btn btn-sm btn-outline" data-action="notificaciones:marcarTodas">Marcar leídas</button>
+      </div>
+      <div id="notifList"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div id="visibilidadNota" style="display:none;font-size:11px;color:#8a5a00;background:#fff8e6;border:1px solid #ffe4a3;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;">
+          <i class="bi bi-shield-lock"></i> Por privacidad, solo ves <strong>tus propios reportes</strong>. El listado completo es visible únicamente para funcionarios y administradores.
+        </div>
+        <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
+        <div class="filters">
+          <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
+          <div class="filter-row">
+            <select class="filter-select" id="filterEstado" data-change="lista:filtrar">
+              <option value="todos">Todos los estados</option>
+              <option value="reportada">Reportadas</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="resuelta">Resueltas</option>
+            </select>
+            <select class="filter-select" id="filterTipo" data-change="lista:filtrar">
+              <option value="todos">Todos los tipos</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <select class="filter-select" id="filterColor" data-change="lista:filtrar">
+              <option value="todos">Todos los colores</option>
+              <option value="verde">🟢 Resueltas</option>
+              <option value="amarillo">🟡 &lt; 15 días</option>
+              <option value="naranja">🟠 &gt; 15 días</option>
+              <option value="rojo">🔴 &gt; 30 días</option>
+            </select>
+            <select class="filter-select" id="filterOrden" data-change="lista:filtrar">
+              <option value="reciente">Más recientes</option>
+              <option value="antigua">Más antiguas</option>
+              <option value="prioridad">Prioridad</option>
+            </select>
+          </div>
+          <div class="filter-row">
+            <select class="filter-select" id="filterZona" data-change="lista:filtrar">
+              <option value="todos">Todas las zonas</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="list-container" id="listaIncidencias"></div>
+    </aside>
+
+    <!-- MAPA -->
+    <div class="map-container">
+      <div id="map"></div>
+      <button class="sidebar-toggle" data-action="sidebar:toggle" title="Mostrar/ocultar panel">
+        <i class="bi bi-layout-sidebar-inset"></i>
+      </button>
+
+      <div class="floating-btns">
+        <button class="fab primary" data-action="incidencias:reportar" title="Reportar incidencia">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+        <button class="fab" data-action="mapa:centrarUsuario" title="Mi ubicación">
+          <i class="bi bi-crosshair"></i>
+        </button>
+        <button class="fab" data-action="mapa:centrarMunicipio" title="Centrar municipio">
+          <i class="bi bi-geo-alt"></i>
+        </button>
+        <button class="fab" data-action="mapa:zonas" title="Mostrar/ocultar zonas">
+          <i class="bi bi-bounding-box-circles"></i>
+        </button>
+      </div>
+
+      <div class="legend-box">
+        <div class="leg-title">Estado por antigüedad</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--verde);"></div> Resuelta</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--amarillo);"></div> &lt; 15 días</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--naranja);"></div> 15–30 días</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--rojo);"></div> &gt; 30 días</div>
+        <div class="leg-title" style="margin-top:8px;">Zonas de responsabilidad</div>
+        <div id="legendZonas" style="max-height:120px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: REPORTAR / EDITAR INCIDENCIA
+     ============================================================ -->
+<div class="modal-overlay" id="modalIncidencia">
+  <div class="modal-box lg">
+    <div class="modal-head">
+      <h3><i class="bi bi-plus-circle-fill"></i> <span id="modalIncTitle">Reportar incidencia</span></h3>
+      <button class="modal-close" data-action="incidencias:cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form data-submit="incidencias:guardar">
+        <div class="form-group">
+          <label for="incTipo">Tipo de incidencia *</label>
+          <select id="incTipo" data-change="incidencias:cambioTipo"></select>
+          <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;" data-action="tipos:abrir">
+            <i class="bi bi-plus-circle"></i> Agregar nuevo concepto
+          </button>
+        </div>
+
+        <div id="ejemploTipoBox" style="display:none;background:#f0faf8;border:1px dashed #8ecdc0;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <div style="font-size:11.5px;font-weight:700;color:var(--primario);text-transform:uppercase;letter-spacing:.4px;">
+              <i class="bi bi-lightbulb-fill"></i> Ejemplo para este tipo
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" data-action="incidencias:usarEjemplo">
+              <i class="bi bi-magic"></i> Usar este ejemplo
+            </button>
+          </div>
+          <div style="font-size:12.5px;color:#1a202c;font-weight:600;margin-top:6px;" id="ejemploTitulo"></div>
+          <div style="font-size:12px;color:#4a5568;margin-top:2px;line-height:1.45;" id="ejemploDescripcion"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Icono *</label>
+          <div class="icon-picker" id="iconPicker"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="incTitulo">Título breve *</label>
+          <input type="text" id="incTitulo" maxlength="80" placeholder="Ej. Bache grande en Av. Juárez">
+        </div>
+
+        <div class="form-group">
+          <label for="incDescripcion">Descripción *</label>
+          <textarea id="incDescripcion" rows="3" maxlength="600" placeholder="Describe el problema con el mayor detalle posible…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="incIndicaciones">Indicaciones / Referencias para llegar</label>
+          <textarea id="incIndicaciones" rows="2" maxlength="400" placeholder="Ej. Frente a la tienda, junto al poste, color de la fachada…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Ubicación *</label>
+          <p style="font-size:11.5px;color:#718096;margin-bottom:6px;line-height:1.4;">
+            <i class="bi bi-info-circle"></i> Solo se aceptan ubicaciones dentro de las zonas (colonias/tenencias) marcadas en el mapa.
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button type="button" class="btn btn-outline btn-sm" data-action="incidencias:miUbicacion">
+              <i class="bi bi-crosshair"></i> Usar mi ubicación
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" data-action="incidencias:elegirMapa">
+              <i class="bi bi-map"></i> Elegir en el mapa
+            </button>
+            <span id="incZonaBadge" style="display:none;align-items:center;gap:5px;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;"></span>
+          </div>
+          <div class="loc-status" id="locStatus" style="display:none;"></div>
+          <input type="text" id="incCoordsTexto" placeholder="O pega coordenadas (lat, lng)" data-change="incidencias:coords" style="margin-top:8px;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:12.5px;width:100%;">
+        </div>
+
+        <div class="form-group">
+          <label>Evidencia (fotos hasta 100 MB · video hasta 1 GB o 5 min)</label>
+          <div class="evidence-drop" data-action="incidencias:elegirArchivos">
+            <i class="bi bi-cloud-arrow-up-fill"></i>
+            <p>Haz clic o arrastra archivos aquí</p>
+            <small>JPG, PNG, MP4, MOV</small>
+          </div>
+          <input type="file" id="incEvidencia" multiple accept="image/*,video/*" style="display:none;" data-change="incidencias:archivos">
+          <div class="evidence-list" id="evidenceList"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="incidencias:cerrar">Cancelar</button>
+      <button class="btn btn-primary" data-action="incidencias:guardar">
+        <i class="bi bi-send-fill"></i> <span id="incGuardarTexto">Enviar reporte</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DETALLE INCIDENCIA
+     ============================================================ -->
+<div class="modal-overlay" id="modalDetalle">
+  <div class="modal-box lg">
+    <div class="modal-head">
+      <h3><i class="bi bi-info-circle-fill"></i> Detalle de incidencia</h3>
+      <button class="modal-close" data-action="detalle:cerrar">&times;</button>
+    </div>
+    <div class="modal-body" id="detalleBody"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: ADMIN PANEL
+     ============================================================ -->
+<div class="modal-overlay" id="modalAdmin">
+  <div class="modal-box lg" style="max-width:1000px;">
+    <div class="modal-head">
+      <h3><i class="bi bi-speedometer2"></i> Panel de control</h3>
+      <button class="modal-close" data-action="admin:cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-action="admin:tab" data-valor="stats"><i class="bi bi-bar-chart-fill"></i> Estadísticas</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="incidencias"><i class="bi bi-list-ul"></i> Incidencias</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="tipos"><i class="bi bi-tags-fill"></i> Tipos</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="municipios"><i class="bi bi-geo-fill"></i> Municipios</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="zonas"><i class="bi bi-bounding-box-circles"></i> Zonas</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="usuarios"><i class="bi bi-people-fill"></i> Usuarios</button>
+      </div>
+
+      <div class="admin-panel active" id="panel-stats">
+        <div class="stats-grid" id="statsGrid"></div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:12px;color:var(--primario);">
+            <i class="bi bi-pie-chart-fill"></i> Incidencias por tipo
+          </h4>
+          <div id="statsByTipo"></div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panel-incidencias">
+        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" class="filter-input" id="adminBuscar" placeholder="Buscar…" data-input="admin:buscar" style="max-width:280px;">
+          <button class="btn btn-outline btn-sm" data-action="reportes:csv"><i class="bi bi-file-earmark-spreadsheet"></i> CSV</button>
+          <button class="btn btn-outline btn-sm" data-action="reportes:imprimir"><i class="bi bi-printer"></i> Imprimir</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Título</th><th>Tipo</th><th>Estado</th>
+                <th>Días</th><th>Reportó</th><th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="adminIncidenciasBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panel-tipos">
+        <button class="btn btn-primary btn-sm" data-action="tipos:abrir" style="margin-bottom:12px;">
+          <i class="bi bi-plus-circle"></i> Nuevo tipo
+        </button>
+        <div id="tiposLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-municipios">
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;margin-bottom:12px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-pin-map-fill"></i> Municipio activo
+          </h4>
+          <p style="font-size:12.5px;color:var(--gris);margin-bottom:10px;">
+            Selecciona el municipio que deseas monitorear. Necesitas la clave de acceso correspondiente.
+          </p>
+          <select class="filter-select" id="municipioSelect" style="max-width:400px;margin-bottom:10px;"></select>
+          <br>
+          <button class="btn btn-primary btn-sm" data-action="admin:cambiarMunicipio">
+            <i class="bi bi-arrow-repeat"></i> Cambiar municipio
+          </button>
+        </div>
+        <div id="municipiosLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-zonas">
+        <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;">
+          Zonas de responsabilidad (colonias/tenencias) del municipio activo. Los reportes ciudadanos solo se permiten dentro de estas áreas.
+        </p>
+        <div id="zonasLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-usuarios">
+        <div id="usuariosLista"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: REPORTES
+     ============================================================ -->
+<div class="modal-overlay" id="modalReportes">
+  <div class="modal-box lg" style="max-width:900px;">
+    <div class="modal-head">
+      <h3><i class="bi bi-file-earmark-bar-graph-fill"></i> Informes y reportes</h3>
+      <button class="modal-close" data-action="reportes:cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="stats-grid" id="reporteStats"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-filetype-csv"></i> Exportar CSV
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Descarga todas las incidencias en formato compatible con Excel.
+          </p>
+          <button class="btn btn-primary btn-block" data-action="reportes:csv">
+            <i class="bi bi-download"></i> Descargar CSV
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-filetype-json"></i> Respaldo JSON
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Descarga un respaldo completo de los datos.
+          </p>
+          <button class="btn btn-primary btn-block" data-action="reportes:json">
+            <i class="bi bi-download"></i> Descargar JSON
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-printer-fill"></i> Reporte imprimible
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Genera un reporte imprimible con estadísticas y detalle.
+          </p>
+          <button class="btn btn-primary btn-block" data-action="reportes:imprimible">
+            <i class="bi bi-file-pdf"></i> Ver reporte
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-trash3-fill"></i> Restablecer datos
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Borra todas las incidencias (irreversible).
+          </p>
+          <button class="btn btn-danger btn-block" data-action="reportes:limpiar">
+            <i class="bi bi-exclamation-triangle"></i> Borrar todo
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+            <i class="bi bi-box-arrow-in-down"></i> Importar respaldo anterior
+          </h4>
+          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+            Trae los datos del sistema anterior (JSON exportado) y convierte su evidencia en archivos.
+          </p>
+          <button class="btn btn-outline btn-block" data-action="reportes:abrirImportar">
+            <i class="bi bi-upload"></i> Importar JSON
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
+        <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+          <i class="bi bi-table"></i> Resumen por tipo
+        </h4>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead><tr><th>Tipo</th><th>Total</th><th>Resueltas</th><th>Pendientes</th><th>Promedio días</th></tr></thead>
+            <tbody id="reporteTablaBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: NUEVO TIPO
+     ============================================================ -->
+<div class="modal-overlay" id="modalNuevoTipo">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-tag-fill"></i> Nuevo concepto de incidencia</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalNuevoTipo">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form data-submit="tipos:guardar">
+        <div class="form-group">
+          <label for="nuevoTipoNombre">Nombre del concepto *</label>
+          <input type="text" id="nuevoTipoNombre" maxlength="60" placeholder="Ej. Semáforo descompuesto">
+        </div>
+        <div class="form-group">
+          <label>Icono *</label>
+          <div class="icon-picker" id="iconPickerNuevo"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalNuevoTipo">Cancelar</button>
+      <button class="btn btn-primary" data-action="tipos:guardar">
+        <i class="bi bi-check-circle"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: RESOLVER INCIDENCIA
+     ============================================================ -->
+<div class="modal-overlay" id="modalResolver">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-check-circle-fill" style="color:var(--verde);"></i> Marcar como resuelta</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalResolver">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form data-submit="incidencias:resolver">
+        <input type="hidden" id="resolverId">
+        <div class="form-group">
+          <label for="resolverTexto">Descripción de la solución *</label>
+          <textarea id="resolverTexto" rows="3" placeholder="Describe brevemente cómo se resolvió la incidencia…"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Evidencia de la solución (oficio, foto, etc.)</label>
+          <div class="evidence-drop" data-action="incidencias:elegirArchivosResolucion">
+            <i class="bi bi-cloud-arrow-up-fill"></i>
+            <p>Haz clic o arrastra archivos aquí</p>
+          </div>
+          <input type="file" id="resolverEvidencia" multiple accept="image/*,video/*,application/pdf" style="display:none;" data-change="incidencias:archivosResolucion">
+          <div class="evidence-list" id="resolverEvidenceList"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalResolver">Cancelar</button>
+      <button class="btn btn-success" data-action="incidencias:resolver">
+        <i class="bi bi-check2-circle"></i> Confirmar resolución
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: IMPORTAR RESPALDO DEL SISTEMA ANTERIOR
+     ============================================================ -->
+<div class="modal-overlay" id="modalImportar">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-box-arrow-in-down"></i> Importar respaldo anterior</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalImportar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:#4a5568;line-height:1.5;margin-bottom:12px;">
+        Selecciona el archivo JSON que exportaba el sistema anterior (<em>Informes → Respaldo JSON</em>).
+        La evidencia en base64 se convertirá en archivos y se descartará el campo obsoleto <code>colorAuto</code>.
+      </p>
+      <div class="form-group">
+        <label>Archivo de respaldo (.json)</label>
+        <input type="file" id="archivoRespaldo" accept="application/json,.json">
+      </div>
+      <p style="font-size:11.5px;color:#94a3b8;">
+        <i class="bi bi-shield-lock"></i> Solo un administrador puede importar, y siempre se pide confirmación.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalImportar">Cancelar</button>
+      <button class="btn btn-primary" data-action="reportes:importar">
+        <i class="bi bi-upload"></i> Importar respaldo
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loading">
+  <div style="text-align:center;">
+    <div class="spinner"></div>
+    <div id="loadingText">Procesando…</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

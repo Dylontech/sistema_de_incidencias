@@ -1,0 +1,211 @@
+/** Pruebas de alcance por rol/municipio, estadísticas, exportación e importación. */
+import test, { after, before, describe } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { prepararBaseDeDatos, prepararEntorno } from './helpers/entorno.js';
+import { Api, PUNTO_MARAVATIO, PUNTO_MORELIA, incidenciaValida } from './helpers/api.js';
+
+const entorno = prepararEntorno();
+await prepararBaseDeDatos(entorno);
+const { crearApp } = await import('../src/app.js');
+
+/** PNG 1x1 para probar la conversión de base64 de los respaldos viejos. */
+const PNG_BASE64 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+
+let app;
+before(() => {
+  app = crearApp();
+});
+after(() => entorno.limpiar());
+
+describe('Alcance por municipio y rol', () => {
+  test('el funcionario solo ve su municipio; el admin sin municipio ve todos', async () => {
+    const admin = await Api.admin(app); // sin municipio activo → alcance global
+    const funcionario = await Api.funcionario(app); // Maravatío
+    const anon = await Api.anonimo(app, 'ciudadanoAlcance');
+
+    const deMaravatio = await anon.post('/api/incidencias', incidenciaValida());
+    assert.equal(deMaravatio.status, 201);
+    assert.equal(deMaravatio.body.incidencia.municipioId, 'maravatio');
+
+    // El admin crea una de Morelia (sus zonas permiten ese punto).
+    const deMorelia = await admin.post(
+      '/api/incidencias',
+      incidenciaValida({ titulo: 'Bache en Morelia centro', ...PUNTO_MORELIA })
+    );
+    assert.equal(deMorelia.status, 201);
+    assert.equal(deMorelia.body.incidencia.municipioId, 'morelia');
+
+    const vistaFuncionario = await funcionario.get('/api/incidencias');
+    assert.equal(vistaFuncionario.body.incidencias.length, 1);
+    assert.equal(vistaFuncionario.body.incidencias[0].municipioId, 'maravatio');
+
+    const vistaAdmin = await admin.get('/api/incidencias');
+    assert.equal(vistaAdmin.body.incidencias.length, 2);
+
+    // El funcionario de Maravatío no puede ver la incidencia de Morelia.
+    const detalleAjeno = await funcionario.get(`/api/incidencias/${deMorelia.body.incidencia.id}`);
+    assert.equal(detalleAjeno.status, 403);
+  });
+
+  test('el admin puede limitarse a un municipio activo', async () => {
+    const admin = await Api.admin(app);
+    const conMunicipio = await admin.post('/api/auth/municipio-activo', {
+      municipioId: 'morelia',
+      clave: 'MORELIA-2024'
+    });
+
+    const acotado = new Api(app, conMunicipio.body.token);
+    const vista = await acotado.get('/api/incidencias');
+    assert.ok(vista.body.incidencias.length >= 1);
+    assert.ok(vista.body.incidencias.every((i) => i.municipioId === 'morelia'));
+
+    const zonas = await acotado.get('/api/municipios/morelia/zonas');
+    assert.equal(zonas.body.zonas.length, 4);
+    assert.equal(zonas.body.zonas[0].municipioId, 'morelia');
+  });
+
+  test('los informes y el resumen de zonas son solo para empleados', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoStats');
+    const funcionario = await Api.funcionario(app);
+
+    assert.equal((await anon.get('/api/stats/panel')).status, 403);
+    assert.equal((await anon.get('/api/exportacion')).status, 403);
+    assert.equal((await anon.get('/api/municipios/maravatio/zonas/resumen')).status, 403);
+
+    const zonas = await funcionario.get('/api/municipios/maravatio/zonas/resumen');
+    assert.equal(zonas.status, 200);
+    assert.equal(zonas.body.zonas.length, 12); // 8 tenencias + 4 colonias
+    assert.ok(zonas.body.zonas[0].reportes >= 0);
+    assert.ok('pendientes' in zonas.body.zonas[0]);
+  });
+});
+
+describe('Estadísticas y exportación', () => {
+  test('el panel y los informes agregan por tipo', async () => {
+    const funcionario = await Api.funcionario(app);
+
+    const panel = await funcionario.get('/api/stats/panel');
+    assert.equal(panel.status, 200);
+    assert.ok(panel.body.total >= 1);
+    assert.ok(typeof panel.body.tasaResolucion === 'number');
+    assert.ok(panel.body.porTipo.every((f) => f.total > 0));
+
+    const informes = await funcionario.get('/api/stats/informes');
+    assert.equal(informes.status, 200);
+    assert.ok(informes.body.porTipo.every((f) => typeof f.promedioDias === 'number'));
+
+    const exportacion = await funcionario.get('/api/exportacion');
+    assert.equal(exportacion.status, 200);
+    assert.ok(Array.isArray(exportacion.body.incidencias));
+    assert.ok(Array.isArray(exportacion.body.tipos));
+    // Nunca se exportan hashes de contraseña ni claves de municipio.
+    assert.equal(exportacion.body.usuarios[0].passwordHash, undefined);
+    assert.equal(exportacion.body.municipios[0].clave, undefined);
+  });
+
+  test('el catálogo de apoyo trae iconos, ejemplos y límites', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoCat');
+    const catalogos = await anon.get('/api/catalogos');
+    assert.equal(catalogos.status, 200);
+    assert.equal(catalogos.body.iconos.length, 32);
+    assert.equal(Object.keys(catalogos.body.ejemplos).length, 16);
+    assert.deepEqual(catalogos.body.diasLimites, { amarillo: 15, naranja: 30 });
+    assert.equal(catalogos.body.limites.maxVideoSegundos, 300);
+  });
+});
+
+describe('Administración de datos', () => {
+  test('la importación de un respaldo del monolito convierte la evidencia base64', async () => {
+    const admin = await Api.admin(app);
+
+    const respaldo = {
+      exportado: new Date().toISOString(),
+      incidencias: [
+        {
+          id: 'legacy-1',
+          tipoId: 'bache',
+          iconoCustom: '',
+          titulo: 'Reporte importado del sistema anterior',
+          descripcion: 'Viene del respaldo JSON con evidencia en base64.',
+          indicaciones: '',
+          lat: PUNTO_MARAVATIO.lat,
+          lng: PUNTO_MARAVATIO.lng,
+          fecha: new Date(Date.now() - 45 * 86400000).toISOString(),
+          estado: 'reportada',
+          colorAuto: 'rojo', // campo obsoleto: debe descartarse
+          esAnonimo: true,
+          autor: 'Anónimo',
+          autorNombre: 'Anónimo',
+          userKey: 'anon_viejo',
+          municipioId: 'maravatio',
+          zonaId: 'col_centro',
+          zonaNombre: 'Centro',
+          evidencia: [
+            { id: 'e1', nombre: 'foto.png', tipo: 'image/png', tamano: 70, data: PNG_BASE64 }
+          ]
+        }
+      ],
+      tipos: [{ id: 'custom_viejo', nombre: 'Tipo viejo', icono: '⚠️', custom: true }]
+    };
+
+    const r = await admin.post('/api/admin/importar', respaldo);
+    assert.equal(r.status, 201);
+    assert.equal(r.body.incidencias, 1);
+    assert.equal(r.body.archivos, 1);
+    assert.equal(r.body.tipos, 1);
+
+    const detalle = await admin.get('/api/incidencias/legacy-1');
+    assert.equal(detalle.status, 200);
+    assert.equal(detalle.body.incidencia.color, 'rojo'); // derivado, no persistido
+    assert.match(detalle.body.incidencia.evidencia[0].url, /^\/uploads\//);
+    assert.equal(detalle.body.incidencia.evidencia[0].data, undefined);
+
+    const tipos = await admin.get('/api/tipos');
+    const personalizado = tipos.body.tipos.find((t) => t.id === 'custom_viejo');
+    assert.equal(personalizado.nombre, 'Tipo viejo');
+    assert.equal(personalizado.custom, true);
+  });
+
+  test('los tipos personalizados se crean y se eliminan; los base están protegidos', async () => {
+    const funcionario = await Api.funcionario(app);
+    const anon = await Api.anonimo(app, 'ciudadanoTipos');
+
+    assert.equal((await anon.post('/api/tipos', { nombre: 'X', icono: '❗' })).status, 403);
+
+    const creado = await funcionario.post('/api/tipos', {
+      nombre: 'Semáforo intermitente',
+      icono: '🚦'
+    });
+    assert.equal(creado.status, 201);
+    assert.match(creado.body.tipo.id, /^custom_/);
+
+    const repetido = await funcionario.post('/api/tipos', {
+      nombre: 'semáforo intermitente',
+      icono: '🚦'
+    });
+    assert.equal(repetido.status, 409);
+
+    const borrado = await funcionario.delete(`/api/tipos/${creado.body.tipo.id}`);
+    assert.equal(borrado.status, 200);
+
+    const base = await funcionario.delete('/api/tipos/bache');
+    assert.equal(base.status, 400);
+    assert.match(base.body.error, /personalizados/);
+  });
+
+  test('restablecer datos borra incidencias y notificaciones, y es solo para admin', async () => {
+    const funcionario = await Api.funcionario(app);
+    const admin = await Api.admin(app);
+
+    assert.equal((await funcionario.post('/api/admin/limpiar')).status, 403);
+
+    const r = await admin.post('/api/admin/limpiar');
+    assert.equal(r.status, 200);
+    assert.ok(r.body.incidencias >= 1);
+
+    const listado = await admin.get('/api/incidencias');
+    assert.equal(listado.body.incidencias.length, 0);
+  });
+});

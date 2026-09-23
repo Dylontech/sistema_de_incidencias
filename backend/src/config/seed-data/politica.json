@@ -1,0 +1,9 @@
+{
+  "DIAS_LIMITES": {
+    "amarillo": 15,
+    "naranja": 30
+  },
+  "MAX_FOTO": 104857600,
+  "MAX_VIDEO": 1073741824,
+  "MAX_VIDEO_SEG": 300
+}
