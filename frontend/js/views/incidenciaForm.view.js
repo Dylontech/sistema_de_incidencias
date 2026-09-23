@@ -65,18 +65,27 @@ export function leerFormulario() {
 }
 
 /** Refleja la ubicación elegida y el resultado de la geocerca. */
-export function aplicarUbicacion({ lat, lng, zona }) {
+export function aplicarUbicacion({ lat, lng, zona, dentro = true }) {
   const texto = $('incCoordsTexto');
   if (texto && lat != null) texto.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  if (!zona) {
+
+  if (!dentro) {
     mostrarLocStatus(
-      'Ubicación fuera de las zonas autorizadas (colonias/tenencias) del municipio. Elige un punto dentro del área marcada en el mapa.',
+      'Ubicación fuera del municipio activo. Elige un punto dentro del área marcada en el mapa.',
       'error'
     );
     renderZonaBadge(null);
     return;
   }
-  mostrarLocStatus(`Ubicación válida · zona: ${zona.nombre}`, 'ok');
+
+  // La comunidad es opcional: las localidades del INEGI cubren las áreas
+  // pobladas, así que un punto puede ser válido sin pertenecer a ninguna.
+  mostrarLocStatus(
+    zona
+      ? `Ubicación válida · comunidad: ${zona.nombre}`
+      : 'Ubicación válida dentro del municipio (sin comunidad asignada)',
+    'ok'
+  );
   renderZonaBadge(zona);
 }
 

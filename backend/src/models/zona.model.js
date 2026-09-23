@@ -16,7 +16,12 @@ import {
 
 export { bboxDePoligono, centroDePoligono, poligonoValido };
 
-export const TIPOS_ZONA = ['colonia', 'tenencia', 'zona'];
+/**
+ * Tipos de zona admitidos: `localidad` es el nombre que usa el INEGI para las
+ * comunidades (cabecera, tenencias, ranchos, colonias rurales) y `municipio`
+ * se usa como zona única cuando un municipio no tiene localidades con polígono.
+ */
+export const TIPOS_ZONA = ['localidad', 'colonia', 'tenencia', 'zona', 'municipio'];
 
 export function publica(zona) {
   if (!zona) return null;
@@ -25,6 +30,9 @@ export function publica(zona) {
     municipioId: zona.municipioId,
     nombre: zona.nombre,
     tipo: zona.tipo,
+    ambito: zona.ambito || null,
+    clave: zona.clave || null,
+    poblacion: Number(zona.poblacion) || 0,
     color: zona.color,
     poligono: zona.poligono
   };

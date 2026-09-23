@@ -41,7 +41,7 @@ export class Api {
     const cuerpo = {
       username: 'funcionario',
       password: 'func123',
-      claveMunicipio: 'MARAVATIO-2024',
+      claveMunicipio: CLAVE_MARAVATIO,
       ...credenciales
     };
     const r = await request(app).post('/api/auth/funcionario').send(cuerpo);
@@ -57,14 +57,22 @@ export class Api {
 }
 
 /**
- * Punto dentro de la zona col_guadalupe de Maravatío.
- * Con la geometría nueva (polígonos reales) este punto cae en Guadalupe.
+ * Catálogo geoestadístico del INEGI: Maravatío es el municipio 16050 y sus
+ * comunidades son localidades (`loc_<cvegeo de la localidad>`).
  */
-export const PUNTO_MARAVATIO = { lat: 19.92, lng: -100.42 };
-/** Zona que contiene PUNTO_MARAVATIO. */
-export const ZONA_MARAVATIO = 'col_guadalupe';
-/** Punto dentro del polígono municipal pero fuera de toda zona (hueco de la partición). */
-export const PUNTO_SIN_ZONA = { lat: 19.95, lng: -100.595 };
+export const MUNICIPIO_MARAVATIO = '16050';
+/** Clave de acceso de funcionarios: es la clave geoestadística del municipio. */
+export const CLAVE_MARAVATIO = '16050';
+/** Cabecera municipal: comunidad "Maravatío de Ocampo". */
+export const ZONA_MARAVATIO = 'loc_160500001';
+/** Punto en la cabecera municipal (dentro de la comunidad y del municipio). */
+export const PUNTO_MARAVATIO = { lat: 19.8916736, lng: -100.4416672 };
+/**
+ * Punto dentro del polígono municipal pero fuera de toda comunidad.
+ * Las localidades del INEGI cubren las áreas pobladas, así que el resto del
+ * término municipal no pertenece a ninguna.
+ */
+export const PUNTO_SIN_ZONA = { lat: 19.92, lng: -100.42 };
 /** Punto fuera del polígono municipal. */
 export const PUNTO_FUERA = { lat: 19.7, lng: -100.44 };
 
@@ -73,6 +81,7 @@ export function incidenciaValida(extra = {}) {
     tipoId: 'bache',
     titulo: 'Bache grande en la avenida',
     descripcion: 'Bache de 60 cm frente al mercado, sobre el carril derecho.',
+    municipioId: MUNICIPIO_MARAVATIO,
     ...PUNTO_MARAVATIO,
     ...extra
   };

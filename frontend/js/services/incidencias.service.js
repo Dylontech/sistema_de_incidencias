@@ -13,6 +13,7 @@ function cadenaDeFiltros(filtros = {}) {
   agregar('tipo', filtros.tipo);
   agregar('color', filtros.color);
   agregar('zona', filtros.zona);
+  agregar('municipio', filtros.municipio);
   agregar('orden', filtros.orden);
   const cadena = parametros.toString();
   return cadena ? `?${cadena}` : '';

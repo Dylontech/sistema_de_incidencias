@@ -42,7 +42,8 @@ export const PRECISION_DUPLICADO = 0.0002;
 /** Tipos de notificación soportados. */
 export const TIPOS_NOTIFICACION = ['reporte', 'resuelta', 'estado', 'alerta', 'comentario'];
 
-export const MUNICIPIO_DEFAULT = 'maravatio';
+/** Municipio que se muestra cuando la aplicación acaba de arrancar (Maravatío). */
+export const MUNICIPIO_DEFAULT = '16050';
 
 /** Límites de evidencia (paridad con MAX_FOTO / MAX_VIDEO / MAX_VIDEO_SEG). */
 export const EVIDENCIA_POLITICA = {

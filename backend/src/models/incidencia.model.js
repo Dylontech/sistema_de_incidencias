@@ -70,6 +70,13 @@ export function validarEntrada(datos = {}, { parcial = false, exigirUbicacion = 
     salida.evidencia = normalizarEvidencia(datos.evidencia, v);
   }
 
+  // Municipio activo elegido en la interfaz (el selector es público). Con él se
+  // busca la zona del reporte; no se guarda tal cual, la incidencia hereda el
+  // municipio de la zona encontrada.
+  if (tiene('municipioId')) {
+    salida.municipioId = v.texto(datos.municipioId, 'municipioId', { max: 64 });
+  }
+
   v.terminar();
   return salida;
 }

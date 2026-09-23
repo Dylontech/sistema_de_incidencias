@@ -3,7 +3,12 @@ import { asyncHandler } from '../utils/AppError.js';
 import * as municipios from '../services/municipios.service.js';
 
 export const listar = asyncHandler(async (req, res) => {
-  res.json({ municipios: await municipios.listar(req.repositorio, req.usuario) });
+  const incluirPoligono = req.query.poligono === '1' || req.query.poligono === 'true';
+  res.json({ municipios: await municipios.listar(req.repositorio, req.usuario, { incluirPoligono }) });
+});
+
+export const detalle = asyncHandler(async (req, res) => {
+  res.json({ municipio: await municipios.detalle(req.repositorio, req.usuario, req.params.id) });
 });
 
 export const zonas = asyncHandler(async (req, res) => {

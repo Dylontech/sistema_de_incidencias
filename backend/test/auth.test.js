@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 
 import { prepararBaseDeDatos, prepararEntorno } from './helpers/entorno.js';
-import { Api } from './helpers/api.js';
+import { Api, CLAVE_MARAVATIO, MUNICIPIO_MARAVATIO } from './helpers/api.js';
 
 const entorno = prepararEntorno();
 await prepararBaseDeDatos(entorno);
@@ -28,7 +28,7 @@ describe('Autenticación', () => {
     assert.equal(r.body.usuario.userKey, 'anon_ciudadano0001');
     assert.equal(r.body.usuario.esAnonimo, true);
     assert.equal(r.body.anonId, 'ciudadano0001');
-    assert.equal(r.body.municipioActivo.id, 'maravatio');
+    assert.equal(r.body.municipioActivo.id, MUNICIPIO_MARAVATIO);
     // La clave del municipio nunca debe salir en la respuesta.
     assert.equal(r.body.municipioActivo.clave, undefined);
   });
@@ -43,20 +43,31 @@ describe('Autenticación', () => {
     const r = await request(app).post('/api/auth/funcionario').send({
       username: 'funcionario',
       password: 'func123',
-      claveMunicipio: 'maravatio-2024' // la clave no distingue mayúsculas
+      claveMunicipio: CLAVE_MARAVATIO
     });
 
     assert.equal(r.status, 200);
     assert.equal(r.body.usuario.rol, 'funcionario');
-    assert.equal(r.body.usuario.municipioId, 'maravatio');
+    assert.equal(r.body.usuario.municipioId, MUNICIPIO_MARAVATIO);
     assert.equal(r.body.municipioActivo.nombre, 'Maravatío');
+  });
+
+  test('un funcionario no puede entrar con la clave de otro municipio', async () => {
+    // Ahora sí se puede probar: el catálogo tiene los 113 municipios del estado.
+    const r = await request(app).post('/api/auth/funcionario').send({
+      username: 'funcionario',
+      password: 'func123',
+      claveMunicipio: '16053' // Morelia
+    });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.error, 'No tienes acceso a este municipio');
   });
 
   test('rechaza contraseña incorrecta y clave de municipio incorrecta', async () => {
     const malaPassword = await request(app).post('/api/auth/funcionario').send({
       username: 'funcionario',
       password: 'incorrecta',
-      claveMunicipio: 'MARAVATIO-2024'
+      claveMunicipio: CLAVE_MARAVATIO
     });
     assert.equal(malaPassword.status, 401);
     assert.equal(malaPassword.body.error, 'Credenciales incorrectas');
@@ -74,10 +85,6 @@ describe('Autenticación', () => {
       .send({ username: 'funcionario' });
     assert.equal(sinCampos.status, 400);
     assert.equal(sinCampos.body.error, 'Completa todos los campos');
-
-    // Nota: el caso «funcionario asignado a otro municipio» (403) solo puede
-    // probarse cuando exista un segundo municipio; hoy el sistema solo tiene
-    // Maravatío, por lo que esa comprobación vive en auth.service.js.
   });
 
   test('el administrador entra sin municipio forzado y ve la clave de los municipios', async () => {
@@ -86,16 +93,30 @@ describe('Autenticación', () => {
     const yo = await admin.get('/api/auth/me');
     assert.equal(yo.status, 200);
     assert.equal(yo.body.usuario.rol, 'admin');
-    assert.equal(yo.body.usuario.municipioId, null); // ya no se fuerza 'maravatio'
+    assert.equal(yo.body.usuario.municipioId, null); // ya no se fuerza un municipio
 
     const municipios = await admin.get('/api/municipios');
     assert.equal(municipios.status, 200);
-    assert.equal(municipios.body.municipios.length, 1);
-    assert.equal(municipios.body.municipios[0].id, 'maravatio');
-    assert.equal(municipios.body.municipios[0].clave, 'MARAVATIO-2024');
-    // El límite municipal es un polígono real, ya no un rectángulo `bbox`.
-    assert.ok(municipios.body.municipios[0].poligono.length >= 3);
-    assert.equal(municipios.body.municipios[0].bbox, undefined);
+    // Todo el estado de Michoacán, ordenado por nombre y sin los polígonos
+    // (el listado ligero no los lleva: el detalle sí).
+    assert.equal(municipios.body.municipios.length, 113);
+    assert.equal(municipios.body.municipios[0].nombre, 'Acuitzio');
+
+    const maravatio = municipios.body.municipios.find((m) => m.id === MUNICIPIO_MARAVATIO);
+    assert.ok(maravatio, 'Maravatío debe estar en el catálogo');
+    assert.equal(maravatio.clave, CLAVE_MARAVATIO);
+    assert.equal(maravatio.poligono, undefined);
+    assert.equal(maravatio.bbox, undefined);
+
+    // El límite municipal (polígono real, ya no un rectángulo) se pide aparte.
+    const detalle = await admin.get(`/api/municipios/${MUNICIPIO_MARAVATIO}`);
+    assert.equal(detalle.status, 200);
+    assert.ok(detalle.body.municipio.poligono.length >= 3);
+    assert.ok(Number(detalle.body.municipio.poblacion) > 0);
+    assert.equal(detalle.body.municipio.estado, 'Michoacán');
+
+    const inexistente = await admin.get('/api/municipios/99999');
+    assert.equal(inexistente.status, 404);
   });
 
   test('el funcionario no recibe las claves de acceso de otros municipios', async () => {
@@ -125,30 +146,30 @@ describe('Autenticación', () => {
     assert.equal(inexistente.status, 404);
 
     const claveMala = await admin.post('/api/auth/municipio-activo', {
-      municipioId: 'maravatio',
+      municipioId: MUNICIPIO_MARAVATIO,
       clave: 'NO-ES'
     });
     assert.equal(claveMala.status, 400);
     assert.equal(claveMala.body.error, 'Clave incorrecta');
 
     const ok = await admin.post('/api/auth/municipio-activo', {
-      municipioId: 'maravatio',
-      clave: 'MARAVATIO-2024'
+      municipioId: MUNICIPIO_MARAVATIO,
+      clave: CLAVE_MARAVATIO
     });
     assert.equal(ok.status, 200);
-    assert.equal(ok.body.usuario.municipioId, 'maravatio');
+    assert.equal(ok.body.usuario.municipioId, MUNICIPIO_MARAVATIO);
     assert.equal(ok.body.municipioActivo.nombre, 'Maravatío');
 
     const nuevo = new Api(app, ok.body.token);
     const yo = await nuevo.get('/api/auth/me');
-    assert.equal(yo.body.usuario.municipioId, 'maravatio');
+    assert.equal(yo.body.usuario.municipioId, MUNICIPIO_MARAVATIO);
   });
 
   test('un ciudadano anónimo no puede cambiar de municipio', async () => {
     const anon = await Api.anonimo(app, 'ciudadano0002');
     const r = await anon.post('/api/auth/municipio-activo', {
-      municipioId: 'maravatio',
-      clave: 'MARAVATIO-2024'
+      municipioId: MUNICIPIO_MARAVATIO,
+      clave: CLAVE_MARAVATIO
     });
     assert.equal(r.status, 403);
   });

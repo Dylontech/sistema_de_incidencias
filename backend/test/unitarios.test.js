@@ -8,8 +8,9 @@ import {
   dentroDelMunicipio,
   parsearCoordenadas
 } from '../src/services/geocerca.service.js';
-import { bboxDePoligono } from '../src/utils/geometria.js';
-import { municipiosSemilla } from '../src/config/semilla.js';
+import { bboxDePoligono, anillosDe, centroDePoligono, areaDeAnillo, simplificarAnillo } from '../src/utils/geometria.js';
+import { municipiosSemilla, zonasSemilla } from '../src/config/semilla.js';
+import { MUNICIPIO_MARAVATIO, PUNTO_FUERA, PUNTO_MARAVATIO } from './helpers/api.js';
 import { colorPorAntiguedad, contarPorEstado, filtrarPorColor, ordenarPorPrioridad } from '../src/services/estado.service.js';
 import { coincideUbicacion, esDuplicado, validarEntrada } from '../src/models/incidencia.model.js';
 import { poligonoValido } from '../src/models/zona.model.js';
@@ -23,7 +24,15 @@ const CUADRADO = [
   [19.95, -100.44]
 ];
 
-const ZONA = { id: 'z1', municipioId: 'maravatio', nombre: 'Centro', poligono: CUADRADO };
+const ZONA = { id: 'z1', municipioId: MUNICIPIO_MARAVATIO, nombre: 'Centro', poligono: CUADRADO };
+
+/** Segundo anillo lejano, para probar los multipolígonos del INEGI. */
+const ANILLO_LEJANO = [
+  [20.0, -101.0],
+  [20.0, -100.95],
+  [20.05, -100.95],
+  [20.05, -101.0]
+];
 
 describe('Geocerca', () => {
   test('puntoEnPoligono distingue dentro, fuera y bordes', () => {
@@ -40,20 +49,72 @@ describe('Geocerca', () => {
   });
 
   test('dentroDelMunicipio usa el polígono real del municipio', () => {
-    const municipio = municipiosSemilla[0];
+    const municipio = municipiosSemilla.find((m) => m.id === MUNICIPIO_MARAVATIO);
+    assert.ok(municipio, 'Maravatío debe estar en el catálogo del INEGI');
 
-    assert.equal(dentroDelMunicipio(19.92, -100.42, municipio), true);
-    assert.equal(dentroDelMunicipio(19.7, -100.44, municipio), false);
+    assert.equal(dentroDelMunicipio(PUNTO_MARAVATIO.lat, PUNTO_MARAVATIO.lng, municipio), true);
+    assert.equal(dentroDelMunicipio(PUNTO_FUERA.lat, PUNTO_FUERA.lng, municipio), false);
     assert.equal(dentroDelMunicipio(19.92, -100.42, null), false);
 
     // La envolvente sirve de filtro rápido y encuadra el municipio completo.
     const [[latMin, lngMin], [latMax, lngMax]] = bboxDePoligono(municipio.poligono);
-    assert.ok(latMin < 19.75 && latMax > 20.0);
-    assert.ok(lngMin < -100.6 && lngMax > -100.3);
+    assert.ok(latMax - latMin > 0.1, 'el municipio abarca una extensión real');
+    assert.ok(lngMax - lngMin > 0.1);
+    assert.ok(dentroDelMunicipio((latMin + latMax) / 2, (lngMin + lngMax) / 2, municipio) !== null);
 
     // El modelo ya no usa el rectángulo `bbox`.
     assert.equal(municipio.bbox, undefined);
     assert.ok(municipio.poligono.length >= 3);
+  });
+
+  test('los multipolígonos del INEGI se leen con todos sus anillos', () => {
+    const multipoligono = [CUADRADO, ANILLO_LEJANO];
+
+    // anillosDe distingue un anillo suelto de una lista de anillos.
+    assert.equal(anillosDe(CUADRADO).length, 1);
+    assert.equal(anillosDe(multipoligono).length, 2);
+    assert.deepEqual(anillosDe([]), []);
+
+    assert.equal(poligonoValido(multipoligono), true);
+    // Un anillo roto invalida el conjunto.
+    assert.equal(poligonoValido([CUADRADO, [[19.9, -100.4], [19.95, -100.3]]]), false);
+
+    // El punto vale si cae en cualquiera de los anillos.
+    assert.equal(puntoEnPoligono(19.92, -100.41, multipoligono), true);
+    assert.equal(puntoEnPoligono(20.02, -100.97, multipoligono), true);
+    assert.equal(puntoEnPoligono(19.99, -100.5, multipoligono), false);
+
+    // El centro es el del anillo más extenso, no el promedio de todos.
+    const centro = centroDePoligono(multipoligono);
+    assert.ok(Math.abs(centro[0] - 19.92) < 0.02 && Math.abs(centro[1] - (-100.41)) < 0.02);
+
+    // La envolvente cubre los dos anillos.
+    const [[latMin, lngMin], [latMax, lngMax]] = bboxDePoligono(multipoligono);
+    assert.ok(latMin === 19.89 && latMax === 20.05 && lngMin === -101 && lngMax === -100.38);
+
+    // El municipio puede tener varios anillos (islas y exclaves).
+    assert.equal(dentroDelMunicipio(20.02, -100.97, { poligono: multipoligono }), true);
+  });
+
+  test('simplificarAnillo conserva la forma y nunca deja menos de un triángulo', () => {
+    const circulo = [];
+    for (let i = 0; i < 720; i++) {
+      const angulo = (i / 720) * Math.PI * 2;
+      circulo.push([19 + 0.01 * Math.sin(angulo), -100 + 0.01 * Math.cos(angulo)]);
+    }
+
+    const simplificado = simplificarAnillo(circulo, 0.0002);
+    assert.ok(simplificado.length < circulo.length / 10, 'reduce mucho el número de vértices');
+    assert.ok(simplificado.length >= 3);
+    // El área no se desvía más de un 10 %.
+    const desvio = Math.abs(areaDeAnillo(simplificado) - areaDeAnillo(circulo)) / areaDeAnillo(circulo);
+    assert.ok(desvio < 0.1, `desvío de área ${(desvio * 100).toFixed(1)}%`);
+
+    // Un anillo ya mínimo se devuelve tal cual.
+    assert.equal(simplificarAnillo(CUADRADO, 0.0002).length, 4);
+    // Un triángulo nunca se reduce a una recta.
+    const triangulo = [[19.89, -100.44], [19.89, -100.38], [19.95, -100.41]];
+    assert.ok(simplificarAnillo(triangulo, 1).length >= 3);
   });
 
   test('parsearCoordenadas acepta los formatos que usaba el monolito', () => {
@@ -68,6 +129,32 @@ describe('Geocerca', () => {
     assert.equal(poligonoValido(CUADRADO), true);
     assert.equal(poligonoValido([[19.9, -100.4], [19.95, -100.3]]), false);
     assert.equal(poligonoValido('nada'), false);
+    assert.equal(poligonoValido([]), false);
+  });
+
+  test('el catálogo del INEGI cubre el estado y sus comunidades', () => {
+    // Michoacán tiene 113 municipios y todos traen al menos una comunidad.
+    assert.equal(municipiosSemilla.length, 113);
+    assert.ok(municipiosSemilla.every((m) => poligonoValido(m.poligono)));
+    assert.ok(municipiosSemilla.every((m) => m.clave && m.nombre && m.estado));
+
+    const porMunicipio = new Map();
+    for (const zona of zonasSemilla) {
+      porMunicipio.set(zona.municipioId, (porMunicipio.get(zona.municipioId) || 0) + 1);
+    }
+    assert.equal(porMunicipio.size, 113);
+    assert.ok([...porMunicipio.values()].every((n) => n > 0));
+
+    // Las comunidades son las localidades del INEGI y traen su clave.
+    const maravatio = zonasSemilla.filter((z) => z.municipioId === MUNICIPIO_MARAVATIO);
+    assert.equal(maravatio.length, 62);
+    assert.ok(maravatio.every((z) => z.tipo === 'localidad'));
+    assert.ok(maravatio.every((z) => String(z.clave).startsWith(MUNICIPIO_MARAVATIO)));
+    assert.equal(maravatio[0].nombre, 'Maravatío de Ocampo'); // la cabecera, primero
+
+    // Ningún identificador de zona se repite.
+    const ids = new Set(zonasSemilla.map((z) => z.id));
+    assert.equal(ids.size, zonasSemilla.length);
   });
 });
 
@@ -151,15 +238,25 @@ describe('Modelo de incidencia', () => {
 
 describe('Otros modelos', () => {
   test('la clave del municipio se compara sin distinguir mayúsculas', () => {
-    const municipio = { id: 'maravatio', clave: 'MARAVATIO-2024' };
-    assert.equal(coincideClave(municipio, 'maravatio-2024'), true);
+    const municipio = { id: MUNICIPIO_MARAVATIO, clave: 'MICH-16050' };
+    assert.equal(coincideClave(municipio, 'mich-16050'), true);
     assert.equal(coincideClave(municipio, ' otra '), false);
   });
 
   test('la vista pública del municipio oculta la clave salvo para admin', () => {
-    const municipio = { id: 'maravatio', nombre: 'Maravatío', clave: 'MARAVATIO-2024' };
+    const municipio = {
+      id: MUNICIPIO_MARAVATIO,
+      nombre: 'Maravatío',
+      clave: '16050',
+      poblacion: 89311,
+      poligono: CUADRADO
+    };
     assert.equal(municipioPublico(municipio).clave, undefined);
-    assert.equal(municipioPublico(municipio, { incluirClave: true }).clave, 'MARAVATIO-2024');
+    assert.equal(municipioPublico(municipio, { incluirClave: true }).clave, '16050');
+    assert.equal(municipioPublico(municipio).poblacion, 89311);
+    // El listado ligero omite el polígono; el detalle lo incluye.
+    assert.ok(Array.isArray(municipioPublico(municipio).poligono));
+    assert.equal(municipioPublico(municipio, { incluirPoligono: false }).poligono, undefined);
   });
 
   test('solo los tipos personalizados se pueden eliminar', () => {

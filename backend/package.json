@@ -13,6 +13,8 @@
     "dev": "node --watch src/server.js",
     "test": "node --test test/*.test.js",
     "extraer-semilla": "node scripts/extraer-semilla.mjs",
+    "importar-inegi": "node scripts/importar-inegi.mjs",
+    "migrar-catalogo": "node scripts/migrar-catalogo.mjs",
     "importar-legacy": "node scripts/importar-legacy.mjs",
     "limpiar-bases-prueba": "node scripts/limpiar-bases-prueba.mjs",
     "migrate": "knex --knexfile knexfile.js migrate:latest",

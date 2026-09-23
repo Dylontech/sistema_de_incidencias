@@ -6,7 +6,6 @@ import { debounce } from '../core/utils.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { incidenciasService } from '../services/incidencias.service.js';
-import { authService } from '../services/auth.service.js';
 import * as aplicacion from '../core/aplicacion.js';
 import * as adminView from '../views/admin.view.js';
 import * as detalleController from './incidencias.controller.js';
@@ -100,20 +99,17 @@ export function registrar() {
       }),
 
     /** Cambio de municipio activo: exige la clave, como en el monolito. */
+    // El municipio activo se cambia desde el mismo flujo público (sin clave
+    // de acceso): el alcance de un administrador no está restringido.
     'admin:cambiarMunicipio': () =>
       intentar(async () => {
         const municipioId = adminView.valorMunicipioSeleccionado();
         if (!municipioId) return;
-        const clave = window.prompt('Ingresa la clave de acceso del municipio:');
-        if (!clave) return;
 
         loading(true, 'Cambiando de municipio…');
         try {
-          const respuesta = await authService.cambiarMunicipio({ municipioId, clave });
-          sesion.guardar(respuesta);
-          await aplicacion.aplicarMunicipio(respuesta.municipioActivo);
-          adminView.renderMunicipios(store.estado.municipios || [], respuesta.municipioActivo?.id);
-          toast(`Municipio cambiado a ${respuesta.municipioActivo?.nombre}`, 'ok');
+          const municipio = await aplicacion.cambiarMunicipio(municipioId);
+          toast(`Municipio cambiado a ${municipio?.nombre || municipioId}`, 'ok');
         } finally {
           loading(false);
         }

@@ -3,10 +3,11 @@ import { api } from '../core/api.js';
 import { sesion } from '../core/session.js';
 
 export const authService = {
-  entrarAnonimo() {
+  /** Entrada ciudadana. El municipio elegido se conserva entre visitas. */
+  entrarAnonimo({ municipioId } = {}) {
     return api.post('/auth/anonimo', {
       anonId: sesion.anonId(),
-      municipioId: sesion.municipioActivo?.id
+      municipioId: municipioId ?? sesion.municipioActivo?.id
     });
   },
 

@@ -13,7 +13,7 @@ export function renderizarFiltros({ tipos = [], zonas = [], filtros = {} }) {
   const selectZona = $('filterZona');
   if (selectZona) {
     selectZona.innerHTML =
-      '<option value="todos">Todas las zonas</option>' +
+      '<option value="todos">Todas las comunidades</option>' +
       zonas.map((z) => `<option value="${esc(z.id)}">${esc(z.nombre)}</option>`).join('');
     selectZona.value = zonas.some((z) => z.id === filtros.zona) ? filtros.zona : 'todos';
   }

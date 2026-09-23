@@ -5,7 +5,7 @@ import { intentar, mensajeDeError } from '../core/errores.js';
 import { debounce } from '../core/utils.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
-import { zonaDePunto, parsearCoordenadas } from '../core/geocerca.js';
+import { zonaDePunto, dentroDelMunicipio, parsearCoordenadas } from '../core/geocerca.js';
 import { incidenciasService } from '../services/incidencias.service.js';
 import * as aplicacion from '../core/aplicacion.js';
 import * as formView from '../views/incidenciaForm.view.js';
@@ -71,15 +71,20 @@ function cerrarFormulario() {
 
 /** Valida la ubicación contra las zonas del municipio activo (feedback local). */
 function aplicarUbicacion(lat, lng, { moverMapa = true } = {}) {
-  const zona = zonaDePunto(lat, lng, store.estado.zonas);
+  const municipio = store.estado.municipioActivo;
+  const dentro = dentroDelMunicipio(lat, lng, municipio);
+  // La comunidad es opcional: las localidades del INEGI cubren las áreas
+  // pobladas, no todo el término municipal.
+  const zona = dentro ? zonaDePunto(lat, lng, store.estado.zonas) : null;
+
   store.actualizarSeccion(
     'formulario',
-    { ubicacion: zona ? { lat, lng } : null, zona: zona || null },
+    { ubicacion: dentro ? { lat, lng } : null, zona: zona || null },
     'formulario'
   );
-  formView.aplicarUbicacion({ lat, lng, zona });
+  formView.aplicarUbicacion({ lat, lng, zona, dentro });
   if (moverMapa) mapa.fijarVista(lat, lng, 16);
-  if (!zona) toast('Esa ubicación está fuera de las zonas permitidas', 'err');
+  if (!dentro) toast('Esa ubicación está fuera del municipio activo', 'err');
   return zona;
 }
 
@@ -161,9 +166,8 @@ async function guardarIncidencia() {
   if (!datos.titulo) return toast('Escribe un título breve', 'err');
   if (!datos.descripcion) return toast('Escribe una descripción', 'err');
   if (!ubicacion) {
-    return toast('Selecciona una ubicación válida dentro de una zona autorizada', 'err');
+    return toast('Selecciona una ubicación dentro del municipio activo', 'err');
   }
-  if (!zona) return toast('No se pudo determinar la zona de la ubicación', 'err');
 
   const carga = {
     tipoId: datos.tipoId,
@@ -173,6 +177,8 @@ async function guardarIncidencia() {
     iconoCustom: datos.iconoCustom,
     lat: ubicacion.lat,
     lng: ubicacion.lng,
+    // El municipio activo decide contra qué límite se valida la ubicación.
+    municipioId: store.estado.municipioActivo?.id || null,
     evidencia
   };
 

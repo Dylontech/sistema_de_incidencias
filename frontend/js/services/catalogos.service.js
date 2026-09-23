@@ -8,6 +8,10 @@ export const catalogosService = {
   municipios() {
     return api.get('/municipios');
   },
+  /** Municipio concreto con su contorno (el listado llega sin polígonos). */
+  municipio(id) {
+    return api.get(`/municipios/${id}`);
+  },
   zonas(municipioId) {
     return api.get(`/municipios/${municipioId}/zonas`);
   },

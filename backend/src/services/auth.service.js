@@ -11,6 +11,7 @@ import { firmarToken } from '../utils/jwt.js';
 import { nuevoId } from '../utils/ids.js';
 import { verificarPassword } from '../models/usuario.model.js';
 import { coincideClave } from '../models/municipio.model.js';
+import { MUNICIPIO_DEFAULT } from '../config/constantes.js';
 
 const PATRON_ANON = /^[a-zA-Z0-9_-]{6,64}$/;
 
@@ -41,14 +42,18 @@ function sesion({ usuario, municipioActivo = null }) {
   };
 }
 
-/** Municipio que se propone para centrar el mapa según la sesión. */
+/**
+ * Municipio que se propone para centrar el mapa según la sesión.
+ * El catálogo ya no empieza por Maravatío (ahora está ordenado por nombre y
+ * arranca en Acuitzio), así que el valor por omisión se declara en constantes.
+ */
 async function municipioSugerido(repositorio, usuario) {
   if (usuario.municipioId) {
     const propio = await repositorio.municipioPorId(usuario.municipioId);
     if (propio) return propio;
   }
   const municipios = await repositorio.todosMunicipios();
-  return municipios[0] || null;
+  return municipios.find((m) => m.id === MUNICIPIO_DEFAULT) || municipios[0] || null;
 }
 
 /**
@@ -59,7 +64,11 @@ async function municipioSugerido(repositorio, usuario) {
 export async function entrarAnonimo(repositorio, { anonId, municipioId } = {}) {
   const id = PATRON_ANON.test(String(anonId || '')) ? String(anonId) : nuevoId();
   const municipios = await repositorio.todosMunicipios();
-  const elegido = municipios.find((m) => m.id === municipioId) || municipios[0] || null;
+  const elegido =
+    municipios.find((m) => m.id === municipioId) ||
+    municipios.find((m) => m.id === MUNICIPIO_DEFAULT) ||
+    municipios[0] ||
+    null;
 
   const usuario = {
     username: `anonimo_${id}`,

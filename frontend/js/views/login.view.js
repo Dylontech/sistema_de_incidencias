@@ -1,5 +1,5 @@
 /** Vista de login y del armazón de la aplicación. */
-import { $, $$ } from '../core/utils.js';
+import { $, $$, esc } from '../core/utils.js';
 
 export function mostrarPanel(nombre) {
   $$('.login-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.valor === nombre));
@@ -40,15 +40,54 @@ export function mostrarApp({ usuario, municipioActivo }) {
 
   $('userName').textContent = usuario.nombre;
   actualizarMunicipioTitulo(municipioActivo);
+
+  // El funcionario está atado a su municipio: el selector se queda fijo.
+  fijarSelectorMunicipio({
+    bloqueado: usuario.rol === 'funcionario',
+    motivo:
+      usuario.rol === 'funcionario'
+        ? 'Tu municipio asignado no se puede cambiar'
+        : 'Municipio activo (catálogo del INEGI)'
+  });
 }
 
 export function actualizarMunicipioTitulo(municipio) {
   const elemento = $('topbar-muni');
-  if (!elemento) return;
-  elemento.textContent = municipio ? `${municipio.nombre}, ${municipio.estado}` : '—';
+  if (elemento) elemento.textContent = municipio ? `${municipio.nombre}, ${municipio.estado}` : '—';
+
+  const selector = $('municipioActivoSelect');
+  if (selector && municipio) selector.value = municipio.id;
+
   $('loginSubtitulo').textContent = municipio
     ? `Municipio de ${municipio.nombre}, ${municipio.estado}`
     : 'Sistema de Incidencias Municipales';
+}
+
+/**
+ * Rellena el selector de municipio de la barra superior.
+ *
+ * El listado del catálogo llega sin polígonos y ordenado por nombre, así que
+ * el selector se puede usar con los 113 municipios del estado sin traer
+ * megabytes de contornos. Un funcionario ve su municipio y no puede cambiarlo
+ * (el servidor ignora cualquier otro: su alcance no se decide en el navegador).
+ */
+export function renderMunicipios(municipios = [], activoId = null) {
+  const selector = $('municipioActivoSelect');
+  if (!selector) return;
+
+  const opciones = municipios
+    .map((m) => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`)
+    .join('');
+  selector.innerHTML = opciones || '<option value="">Sin municipios</option>';
+  if (activoId) selector.value = activoId;
+}
+
+/** Bloquea el selector para quien no puede cambiar de municipio. */
+export function fijarSelectorMunicipio({ bloqueado = false, motivo = '' } = {}) {
+  const selector = $('municipioActivoSelect');
+  if (!selector) return;
+  selector.disabled = bloqueado;
+  selector.title = motivo || 'Municipio activo';
 }
 
 export function valoresFuncionario() {

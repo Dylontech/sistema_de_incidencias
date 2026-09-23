@@ -5,6 +5,7 @@ import * as incidencias from '../services/incidencias.service.js';
 /** Traduce la query string a los filtros del servicio. */
 function filtrosDeQuery(query = {}) {
   return {
+    municipioId: query.municipio || null,
     texto: query.texto || '',
     estado: query.estado || 'todos',
     tipoId: query.tipo || 'todos',

@@ -90,17 +90,53 @@ const semilla = {
   }
 };
 
-/** Usuarios demo: viven dentro de DB.getUsuarios() como `const defaults = [...]`. */
+/**
+ * Usuarios demo: viven dentro de DB.getUsuarios() como `const defaults = [...]`.
+ *
+ * El municipio del monolito era un nombre corto (`maravatio`); ahora el
+ * catálogo usa la clave geoestadística del INEGI (`16050`), así que se traduce
+ * emparejando por nombre con el catálogo vigente.
+ */
+const leerJson = (archivo, porDefecto) => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(outDir, archivo), 'utf8'));
+  } catch {
+    return porDefecto;
+  }
+};
+
+const catalogoActual = leerJson('municipios.json', []);
+const normalizar = (texto) =>
+  String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const municipioVigente = (idLegacy) => {
+  const viejo = (semilla['municipios.json'] || []).find((m) => m.id === idLegacy);
+  const candidatos = [viejo?.nombre, idLegacy].filter(Boolean).map(normalizar);
+  return catalogoActual.find((m) => candidatos.includes(normalizar(m.nombre)))?.id || idLegacy;
+};
+
 const usuariosLegacy = extraerLiteral('defaults').map((u) => ({
   id: u.id,
   username: u.username,
   nombre: u.nombre,
   rol: u.rol,
-  municipioId: u.municipioId,
+  municipioId: u.municipioId ? municipioVigente(u.municipioId) : u.municipioId,
   activo: u.activo !== false,
   passwordInicial: u.password
 }));
 semilla['usuarios.json'] = usuariosLegacy;
+
+// La geografía ya no sale del monolito: la genera `importar-inegi.mjs` con los
+// polígonos oficiales del INEGI. Escribirla aquí borraría ese catálogo, así que
+// queda detrás de una bandera para quien quiera el original como referencia.
+if (!process.argv.includes('--geografia')) {
+  delete semilla['municipios.json'];
+  delete semilla['zonas.json'];
+}
 
 fs.mkdirSync(outDir, { recursive: true });
 for (const [archivo, contenido] of Object.entries(semilla)) {
@@ -115,6 +151,12 @@ const resumen = Object.entries(semilla)
   .join('\n');
 
 console.log('Datos semilla extraídos desde legacy/sistema_de_incidencias.html:\n' + resumen);
+if (!process.argv.includes('--geografia')) {
+  console.log(
+    '  (municipios.json y zonas.json se conservan: los genera scripts/importar-inegi.mjs con los polígonos del INEGI.\n' +
+      '   Usa --geografia para extraer también los del monolito.)'
+  );
+}
 
 // Verificación de integridad de los emojis (evita el bug de U+FFFD al escribir).
 const tipos = semilla['tipos.json'];

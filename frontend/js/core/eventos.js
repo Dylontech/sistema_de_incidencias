@@ -32,7 +32,8 @@ function ejecutar(nombre, evento, elemento) {
     evento,
     elemento,
     id: elemento.dataset.id || null,
-    valor: elemento.dataset.valor || null
+    // `data-valor` manda; si no, se usa el valor del control (selects, inputs).
+    valor: elemento.dataset.valor ?? elemento.value ?? null
   };
   const resultado = manejador(contexto);
   // Si el manejador devuelve una promesa, los fallos no deben perderse.

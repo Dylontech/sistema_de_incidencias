@@ -97,7 +97,9 @@ Dentro de `backend/`:
 
 | Comando | Qué hace |
 |---|---|
-| `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/`. |
+| `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/` (ya no la geografía). |
+| `npm run importar-inegi` | Genera el catálogo de municipios y comunidades con los polígonos del INEGI. |
+| `npm run migrar-catalogo` | Pasa los datos existentes a las claves geoestadísticas (ver más abajo). |
 | `npm run importar-legacy -- respaldo.json` | Importa un respaldo del sistema anterior. |
 | `npm run limpiar-bases-prueba` | Borra las bases `incidencias_test_*` de las pruebas. |
 
@@ -138,7 +140,8 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | Método | Ruta | Rol |
 |---|---|---|
 | GET | `/api/catalogos` | público (iconos, ejemplos guía, límites) |
-| GET | `/api/municipios` | sesión (la clave solo se incluye al admin) |
+| GET | `/api/municipios` | sesión (sin polígonos; la clave solo se incluye al admin) |
+| GET | `/api/municipios/:id` | sesión (municipio con su contorno) |
 | GET | `/api/municipios/:id/zonas` | sesión |
 | GET | `/api/municipios/:id/zonas/resumen` | empleado |
 | GET / POST / DELETE | `/api/tipos`, `/api/tipos/:id` | sesión / empleado / empleado |
@@ -175,6 +178,83 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | Ciudadano anónimo | Solo sus propios reportes, dentro de su municipio. |
 | Funcionario | Todo su municipio. |
 | Administrador | Todos los municipios, o solo el que tenga activo. |
+
+---
+
+## Catálogo geográfico (INEGI)
+
+Los límites y las comunidades no se dibujan a mano: se generan desde el **Marco
+Geoestadístico del INEGI**.
+
+| Capa del INEGI | Archivo | En la aplicación |
+|---|---|---|
+| Municipios del estado | `AGEM_<estado>.geojson` | `seed-data/municipios.json` (límite, centro, zoom, población) |
+| Localidades | `AGLOC_<cvegeo>.geojson` | `seed-data/zonas.json` (una comunidad por localidad) |
+
+Por omisión se importa **Michoacán (`16`)**: 113 municipios y 2 708 comunidades.
+
+```bash
+npm run importar-inegi                                # Michoacán completo
+npm run importar-inegi -- --municipios=16050,16053    # sólo Maravatío y Morelia
+npm run importar-inegi -- --estado=15                 # otro estado
+npm run importar-inegi -- --min-poblacion=50          # sólo comunidades habitadas
+```
+
+| Opción | Por defecto | Para qué |
+|---|---|---|
+| `--estado=<clave>` | `16` | Entidad federativa (clave de dos dígitos del INEGI). |
+| `--municipios=todos` | `todos` | Lista de claves (`16050,16053`) o todos los del estado. |
+| `--tolerancia-municipio` | `0.0002` | Simplificación del municipio (~22 m). |
+| `--tolerancia-zona` | `0.0001` | Máximo de simplificación de una comunidad (~11 m); se escala a 1.5 % de su extensión con un mínimo de 5 m. |
+| `--min-poblacion` | `0` | Descarta comunidades por debajo de esa población. |
+| `--min-area-anillo` | `1e-10` | Descarta anillos diminutos (islas de unos metros). |
+| `--decimales` | `5` | Decimales de las coordenadas (~1 m). |
+| `--base` / `--cache` / `--salida` | espejo en GitHub / `backend/.cache-inegi` / `seed-data` | Fuente, caché de descargas y destino. |
+
+Detalles de la conversión:
+
+- Las coordenadas del INEGI llegan como `[lng, lat]` y 8 decimales; se guardan como
+  `[lat, lng]` (formato de Leaflet y de la geocerca), simplificadas con
+  Douglas-Peucker y redondeadas a 5 decimales.
+- Los **multipolígonos se conservan completos** (exclaves, islas y localidades
+  partidas): 246 de las 2 708 comunidades tienen más de un anillo.
+- Identificadores: `municipio.id` es la clave geoestadística (`16050`), que también
+  sirve de `clave` para el login de funcionarios; `zona.id` es `loc_<cvegeo>`.
+- Tamaño resultante: `municipios.json` ≈ 1.2 MB y `zonas.json` ≈ 2.7 MB.
+
+### Regla de ubicación de los reportes
+
+- El punto debe caer **dentro del municipio activo** (la zona que el mapa no
+  sombrea).
+- La **comunidad es opcional**: las localidades del INEGI cubren las áreas
+  pobladas, no todo el término municipal, así que un reporte puede quedarse sin
+  comunidad (`zonaId: null`) y sigue siendo válido.
+- Algunas comunidades del INEGI **cruzan el límite municipal** (4 de las 2 708):
+  manda el contorno del municipio para aceptar y la localidad sólo se registra.
+- Un municipio sin localidades usa su propio polígono como única zona.
+
+### Cambiar de municipio
+
+El selector de la barra superior es público: cualquier ciudadano puede elegir
+entre los 113 municipios del estado y la elección **persiste** en su sesión. Un
+funcionario sigue atado al municipio que tiene asignado (el servidor ignora
+cualquier otro: su alcance no se decide en el navegador).
+
+`GET /api/municipios` devuelve el catálogo **sin polígonos** (los 113 contornos
+suman más de un megabyte); el del municipio activo se pide con
+`GET /api/municipios/:id` y con él se dibujan el límite y la máscara del mapa.
+
+### Pasar los datos existentes al catálogo del INEGI
+
+```bash
+npm run migrar-catalogo -- --seco   # simulación
+npm run migrar-catalogo             # aplica
+```
+
+Traduce el municipio de incidencias y usuarios del identificador antiguo
+(`maravatio`) a la clave geoestadística (`16050`) y recoloca cada reporte en la
+comunidad que contiene sus coordenadas. Antes de escribir deja copias
+`<archivo>.antes.json` en `backend/data/`.
 
 ---
 
@@ -215,22 +295,33 @@ exactamente con las del driver JSON.
 
 ### Actualizar una instalación existente
 
-- **Driver JSON (por defecto)**: el catálogo geográfico —`municipios` y `zonas`— se compara
-  con los datos semilla en cada arranque y se reescribe si difiere, así que un cambio de
-  contorno municipal o de partición de zonas se aplica solo. Las incidencias, notificaciones,
-  tipos y usuarios se conservan intactos.
-- **MySQL / MariaDB**: la tabla `municipios` cambia su columna `bbox` por `poligono`
-  (`json`). Reaplica el esquema:
+- **Catálogo geográfico (INEGI)**: los municipios y las comunidades estrenan identificador
+  (`maravatio` → `16050`, `col_centro` → `loc_160500001`). Después de actualizar el código:
 
   ```bash
-  npm run migrate:rollback
+  npm run migrar-catalogo -- --seco    # simulación (no escribe nada)
+  npm run migrar-catalogo              # aplica; deja copias .antes.json
+  npm run migrate && npm run seed      # sólo con MySQL/MariaDB
+  ```
+
+  La migración pasa el municipio de incidencias y usuarios a la clave geoestadística y
+  recoloca cada reporte en la comunidad que contiene sus coordenadas (los que caen entre
+  comunidades se conservan sin comunidad asignada).
+- **Driver JSON (por defecto)**: el catálogo geográfico —`municipios` y `zonas`— se compara
+  con los datos semilla en cada arranque y se reescribe si difiere, así que un cambio de
+  contorno municipal o de comunidades se aplica solo. Las incidencias, notificaciones,
+  tipos y usuarios se conservan intactos.
+- **MySQL / MariaDB**: aplica la migración `004_localidades_inegi` (población y cabecera del
+  municipio; ámbito, clave y población de la comunidad) y recarga el catálogo:
+
+  ```bash
   npm run migrate
   npm run seed
   ```
 
-  El `rollback` elimina las tablas, así que si tienes reportes que conservar, expórtalos
-  antes (**Informes → Respaldo JSON**) y reimpórtalos después (**Informes → Importar
-  respaldo anterior**).
+  Si vienes de una versión anterior con `bbox`, el `migrate:rollback` elimina las tablas:
+  exporta los reportes antes (**Informes → Respaldo JSON**) y reimpórtalos después
+  (**Informes → Importar respaldo anterior**).
 
 ---
 
@@ -286,7 +377,8 @@ y esta aplicación se sincronizó con ella. Lo que cambió y cómo queda aquí:
 | **Panel de leyenda** en la barra superior (icono de exclamación) | `#infoPanel` con los estados por antigüedad y las zonas; es excluyente con el panel de notificaciones. |
 | **Modales anidados**: se abren encima del modal que los invoca sin cerrarlo | `abrirModal(id, { nested: true })` para «Nuevo concepto» y «Resolver». |
 | El panel lateral avisa a Leaflet con `invalidateSize()` | `mapa.invalidarTamano()` invocado desde `aplicacion.alternarSidebar()`. |
-| El error de ubicación distingue «fuera del municipio» | `incidencias.service.crear` usa `dentroDelMunicipio()` para elegir el mensaje. |
+| El error de ubicación distingue «fuera del municipio» | `incidencias.service.crear` comprueba el contorno municipal y guarda la comunidad cuando el punto cae en una localidad del INEGI. |
+| La geografía ya no se extrae del monolito | `scripts/extraer-semilla.mjs` conserva `municipios.json` y `zonas.json`: los genera `scripts/importar-inegi.mjs` con los polígonos del INEGI (`--geografia` recupera los del monolito). |
 
 ## Diferencias con el sistema anterior
 
@@ -309,6 +401,15 @@ defectos del monolito:
    servidor (antes el rol vivía en el navegador y era manipulable).
 8. **Código muerto eliminado**: `tipoIdTemp`, `esImagen`, `esPDF`, `existente`,
    `capaActual`, `incLat`/`incLng` y el `esc()` ausente en los `onclick` interpolados.
+9. **Catálogo geográfico oficial**: los municipios y sus comunidades ya no son polígonos
+   dibujados a mano (un municipio y 12 zonas de cuadrícula), sino los 113 municipios de
+   Michoacán y sus 2 708 localidades tomados del Marco Geoestadístico del INEGI
+   (ver [Catálogo geográfico](#catálogo-geográfico-inegi)).
+10. **Ubicación de los reportes**: el punto debe caer dentro del municipio activo (lo que la
+    máscara del mapa deja elegir) y la comunidad se registra cuando cae en una localidad,
+    en lugar de exigir una zona de la cuadrícula antigua.
+11. **Cambio de municipio público**: el ciudadano puede recorrer el estado con el selector
+    de la barra superior; antes el municipio estaba fijo en Maravatío.
 
 ---
 

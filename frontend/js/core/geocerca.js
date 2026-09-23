@@ -7,18 +7,35 @@
  */
 
 export function puntoEnPoligono(lat, lng, poligono) {
-  if (!Array.isArray(poligono) || poligono.length < 3) return false;
+  return anillosDe(poligono).some((anillo) => puntoEnAnillo(lat, lng, anillo));
+}
+
+/** Ray-casting sobre un anillo suelto. */
+export function puntoEnAnillo(lat, lng, anillo) {
+  if (!Array.isArray(anillo) || anillo.length < 3) return false;
   let dentro = false;
-  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
-    const yi = Number(poligono[i][0]);
-    const xi = Number(poligono[i][1]);
-    const yj = Number(poligono[j][0]);
-    const xj = Number(poligono[j][1]);
+  for (let i = 0, j = anillo.length - 1; i < anillo.length; j = i++) {
+    const yi = Number(anillo[i][0]);
+    const xi = Number(anillo[i][1]);
+    const yj = Number(anillo[j][0]);
+    const xj = Number(anillo[j][1]);
     const interseca =
       (yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (interseca) dentro = !dentro;
   }
   return dentro;
+}
+
+/**
+ * Normaliza a una lista de anillos.
+ * Los municipios y las localidades del INEGI pueden tener varios (islas,
+ * exclaves, barrios separados); el formato antiguo era un solo anillo.
+ */
+export function anillosDe(poligono) {
+  if (!Array.isArray(poligono) || poligono.length === 0) return [];
+  const primero = poligono[0];
+  if (Array.isArray(primero) && Array.isArray(primero[0])) return poligono;
+  return [poligono];
 }
 
 export function zonaDePunto(lat, lng, zonas = []) {
@@ -30,8 +47,10 @@ export function zonaDePunto(lat, lng, zonas = []) {
  * Equivale a `bboxDePoligono` del backend.
  */
 export function boundsDePoligono(poligono = []) {
-  const lats = poligono.map((v) => Number(v[0]));
-  const lngs = poligono.map((v) => Number(v[1]));
+  const vertices = anillosDe(poligono).flat();
+  if (!vertices.length) return null;
+  const lats = vertices.map((v) => Number(v[0]));
+  const lngs = vertices.map((v) => Number(v[1]));
   return [
     [Math.min(...lats), Math.min(...lngs)],
     [Math.max(...lats), Math.max(...lngs)]
@@ -40,8 +59,9 @@ export function boundsDePoligono(poligono = []) {
 
 /** Centroide simple (promedio de vértices), para centrar vistas. */
 export function centroDePoligono(poligono = []) {
-  const n = poligono.length || 1;
-  const suma = poligono.reduce(
+  const vertices = anillosDe(poligono).flat();
+  const n = vertices.length || 1;
+  const suma = vertices.reduce(
     (acc, v) => [acc[0] + Number(v[0]), acc[1] + Number(v[1])],
     [0, 0]
   );

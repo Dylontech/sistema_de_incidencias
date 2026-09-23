@@ -11,6 +11,7 @@ const router = Router();
 router.get('/catalogos', municipios.catalogos);
 
 router.get('/municipios', requiereSesion, municipios.listar);
+router.get('/municipios/:id', requiereSesion, municipios.detalle);
 router.get('/municipios/:id/zonas', requiereSesion, municipios.zonas);
 router.get('/municipios/:id/zonas/resumen', requiereEmpleado, municipios.resumenZonas);
 

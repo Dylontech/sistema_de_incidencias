@@ -13,7 +13,7 @@
     "username": "funcionario",
     "nombre": "Juan López",
     "rol": "funcionario",
-    "municipioId": "maravatio",
+    "municipioId": "16050",
     "activo": true,
     "passwordInicial": "func123"
   },
@@ -22,7 +22,7 @@
     "username": "funcionario2",
     "nombre": "María Ramírez",
     "rol": "funcionario",
-    "municipioId": "maravatio",
+    "municipioId": "16050",
     "activo": true,
     "passwordInicial": "func123"
   }

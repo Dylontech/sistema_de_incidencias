@@ -26,7 +26,13 @@ import {
   filtrarPorColor,
   ordenarPorPrioridad
 } from './estado.service.js';
-import { esAdmin, esEmpleado, filtrosDeAlcance, exigirVisibilidad } from './alcance.service.js';
+import {
+  esAdmin,
+  esEmpleado,
+  filtrosDeAlcance,
+  municipioDeRegistro,
+  exigirVisibilidad
+} from './alcance.service.js';
 
 /** Permisos que el frontend usa para decidir qué botones mostrar. */
 export function permisosDe(incidencia, usuario) {
@@ -44,6 +50,7 @@ export async function listar(repositorio, usuario, filtros = {}) {
   const { color, orden, ...resto } = filtros;
 
   const consulta = filtrosDeAlcance(usuario, {
+    municipioId: resto.municipioId || null,
     texto: resto.texto || '',
     estado: resto.estado || 'todos',
     tipoId: resto.tipoId || 'todos',
@@ -64,10 +71,10 @@ export async function obtener(repositorio, usuario, id) {
   return { ...enriquecer(incidencia), permisos: permisosDe(incidencia, usuario) };
 }
 
-/** Zonas donde el usuario puede ubicar un reporte (su municipio o todos). */
-async function zonasDisponibles(repositorio, usuario) {
-  return usuario.municipioId
-    ? repositorio.zonasPorMunicipio(usuario.municipioId)
+/** Zonas donde el usuario puede ubicar un reporte (las del municipio activo). */
+async function zonasDisponibles(repositorio, municipioId) {
+  return municipioId
+    ? repositorio.zonasPorMunicipio(municipioId)
     : repositorio.todasLasZonas();
 }
 
@@ -79,28 +86,37 @@ export async function crear(repositorio, usuario, datos) {
     throw AppError.solicitudInvalida('Selecciona un tipo de incidencia válido');
   }
 
-  const { zona, municipioId } = localizarZona(
+  // El municipio activo lo elige el usuario en el selector; el funcionario
+  // sigue atado al suyo.
+  const municipioObjetivo = municipioDeRegistro(usuario, entrada.municipioId);
+  const municipio = municipioObjetivo
+    ? await repositorio.municipioPorId(municipioObjetivo)
+    : null;
+
+  // La comunidad se busca entre las zonas del municipio activo.
+  const { zona } = localizarZona(
     entrada.lat,
     entrada.lng,
-    await zonasDisponibles(repositorio, usuario)
+    await zonasDisponibles(repositorio, municipioObjetivo)
   );
-  if (!zona) {
-    // Mensaje más preciso: distinguir "fuera del municipio" (lo que la máscara
-    // del mapa oscurece) de "dentro del municipio pero fuera de toda zona".
-    const municipio = usuario.municipioId
-      ? await repositorio.municipioPorId(usuario.municipioId)
-      : null;
-    const fueraDelMunicipio =
-      municipio != null && !dentroDelMunicipio(entrada.lat, entrada.lng, municipio);
 
+  // Manda el límite municipal: es lo que la máscara del mapa deja elegir. La
+  // comunidad (localidad del INEGI) se registra cuando el punto cae en una,
+  // pero las localidades solo cubren las áreas pobladas, no todo el término
+  // municipal, así que un reporte puede quedarse sin comunidad.
+  if (municipio) {
+    if (!dentroDelMunicipio(entrada.lat, entrada.lng, municipio)) {
+      throw AppError.solicitudInvalida('La ubicación está fuera del municipio');
+    }
+  } else if (!zona) {
+    // Sin municipio identificado (cliente antiguo) se mantiene la regla
+    // estricta de la versión anterior: el punto debe caer en una zona.
     throw AppError.solicitudInvalida(
-      fueraDelMunicipio
-        ? 'La ubicación está fuera del municipio'
-        : 'La ubicación está fuera de las zonas autorizadas (colonias/tenencias) del municipio'
+      'La ubicación está fuera de las zonas autorizadas (comunidades/localidades) del municipio'
     );
   }
 
-  const municipioFinal = usuario.municipioId || municipioId;
+  const municipioFinal = municipioObjetivo || zona?.municipioId || null;
 
   // Anti-duplicados: mismo usuario + mismo tipo + misma ubicación (±0.0002°).
   const previas = await repositorio.buscarIncidencias({
@@ -153,20 +169,26 @@ export async function actualizar(repositorio, usuario, id, datos) {
     if (!tipo) throw AppError.solicitudInvalida('Tipo de incidencia inválido');
   }
 
-  // Si cambia la ubicación hay que recalcular la zona (geocerca).
+  // Si cambia la ubicación hay que recalcular la zona (geocerca). Se aplica la
+  // misma regla que al crear: manda el límite municipal y la comunidad se
+  // guarda cuando el punto cae dentro de una.
   if (entrada.lat !== undefined && entrada.lng !== undefined) {
+    const municipio = await repositorio.municipioPorId(actual.municipioId);
     const { zona } = localizarZona(
       entrada.lat,
       entrada.lng,
       await repositorio.zonasPorMunicipio(actual.municipioId)
     );
-    if (!zona) {
+    if (!zona && municipio && !dentroDelMunicipio(entrada.lat, entrada.lng, municipio)) {
+      throw AppError.solicitudInvalida('La ubicación está fuera del municipio');
+    }
+    if (!municipio && !zona) {
       throw AppError.solicitudInvalida(
         'La ubicación está fuera de las zonas autorizadas del municipio'
       );
     }
-    entrada.zonaId = zona.id;
-    entrada.zonaNombre = zona.nombre;
+    entrada.zonaId = zona ? zona.id : null;
+    entrada.zonaNombre = zona ? zona.nombre : null;
   }
 
   const editada = aplicarEdicion(actual, entrada);

@@ -2,6 +2,7 @@
 import { asyncHandler } from '../utils/AppError.js';
 import * as auth from '../services/auth.service.js';
 import { publico } from '../models/municipio.model.js';
+import { MUNICIPIO_DEFAULT } from '../config/constantes.js';
 
 export const entrarAnonimo = asyncHandler(async (req, res) => {
   const sesion = await auth.entrarAnonimo(req.repositorio, {
@@ -34,7 +35,10 @@ export const yo = asyncHandler(async (req, res) => {
   const propio = req.usuario.municipioId
     ? municipios.find((m) => m.id === req.usuario.municipioId)
     : null;
-  const municipioActivo = propio || municipios[0] || null;
+  // Si el token apunta a un municipio que ya no existe (catálogo anterior) se
+  // cae al municipio por defecto, no al primero del listado.
+  const municipioActivo =
+    propio || municipios.find((m) => m.id === MUNICIPIO_DEFAULT) || municipios[0] || null;
   res.json({ usuario: req.usuario, municipioActivo: publico(municipioActivo) });
 });
 

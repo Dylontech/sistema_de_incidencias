@@ -10,6 +10,9 @@ backend/data/
 backend/uploads/*
 !backend/uploads/.gitkeep
 
+# Caché de los GeoJSON del INEGI (se vuelven a descargar con importar-inegi)
+backend/.cache-inegi/
+
 # Logs
 *.log
 npm-debug.log*

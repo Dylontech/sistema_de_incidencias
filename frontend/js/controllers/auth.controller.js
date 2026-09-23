@@ -36,7 +36,9 @@ async function entrar(operacion, { silencioso = false } = {}) {
  * Con `silencioso` no muestra el aviso de bienvenida (arranque automático).
  */
 export async function entrarComoCiudadano({ silencioso = false } = {}) {
-  return entrar(() => authService.entrarAnonimo(), { silencioso });
+  // Si el ciudadano ya eligió un municipio, se conserva al volver a entrar.
+  const municipioId = sesion.datos?.municipioActivo?.id || null;
+  return entrar(() => authService.entrarAnonimo({ municipioId }), { silencioso });
 }
 
 export function registrar() {
@@ -75,6 +77,26 @@ export function registrar() {
     },
 
     'sidebar:toggle': () => aplicacion.alternarSidebar(),
+
+    /**
+     * Cambio de municipio activo desde la barra superior.
+     * Es público: el ciudadano anónimo recorre el catálogo del estado para
+     * reportar en el municipio que le corresponde. El funcionario no puede
+     * cambiar (su alcance lo fija el servidor), así que su selector va
+     * deshabilitado.
+     */
+    'municipio:cambiar': ({ valor }) =>
+      intentar(async () => {
+        const municipioId = valor || $('municipioActivoSelect')?.value;
+        if (!municipioId) return;
+        loading(true, 'Cambiando de municipio…');
+        try {
+          const municipio = await aplicacion.cambiarMunicipio(municipioId);
+          toast(`Ahora ves ${municipio?.nombre || 'el municipio elegido'}`, 'ok');
+        } finally {
+          loading(false);
+        }
+      }),
 
     'notificaciones:toggle': async ({ evento }) => {
       evento?.stopPropagation();

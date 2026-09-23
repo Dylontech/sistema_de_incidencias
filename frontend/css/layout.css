@@ -22,6 +22,23 @@
 }
 .topbar .brand i { font-size: 1.4rem; }
 .topbar .muni-name { font-size: 11px; opacity: 0.85; font-weight: 400; }
+
+/* Selector del municipio activo (catálogo del INEGI). Se ve como una pastilla
+   más de la barra, pero despliega los 113 municipios del estado. */
+.topbar .muni-picker {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 12px;
+}
+.topbar .muni-picker select {
+  background: transparent; border: none; color: #fff;
+  font-size: 12px; font-family: inherit; cursor: pointer;
+  max-width: 190px; padding: 2px 0;
+}
+.topbar .muni-picker select:focus { outline: none; }
+.topbar .muni-picker select:disabled { cursor: not-allowed; opacity: 0.65; }
+.topbar .muni-picker select option { color: #1a202c; background: #fff; }
 .topbar .spacer { flex: 1; }
 .topbar .user-info {
   font-size: 12px; background: rgba(255,255,255,0.15);

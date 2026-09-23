@@ -19,11 +19,18 @@ export function coincideClave(municipio, clave) {
   return !!municipio && normalizarClave(municipio.clave) === normalizarClave(clave);
 }
 
-/** Vista pública del municipio. `incluirClave` solo para admin. */
-export function publico(municipio, { incluirClave = false } = {}) {
+/**
+ * Vista pública del municipio.
+ *
+ * `incluirPoligono` se desactiva en el listado: con 113 municipios del estado
+ * los límites suman más de un megabyte y el selector solo necesita nombre,
+ * centro y zoom. El polígono se pide aparte para el municipio activo.
+ */
+export function publico(municipio, { incluirClave = false, incluirPoligono = true } = {}) {
   if (!municipio) return null;
-  const { clave, ...resto } = municipio;
-  return incluirClave ? { ...resto, clave } : resto;
+  const { clave, poligono, ...resto } = municipio;
+  const salida = incluirPoligono ? { ...resto, poligono } : resto;
+  return incluirClave ? { ...salida, clave } : salida;
 }
 
 /** Envolvente del municipio, usada para encuadrar el mapa y filtrar rápido. */

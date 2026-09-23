@@ -23,6 +23,13 @@ import * as mapa from '../map/mapa.js';
 const INTERVALO_REFRESCO_MS = 60000;
 let temporizador = null;
 
+/**
+ * Municipio con el que arranca la interfaz cuando la sesión guardada apunta a
+ * uno que ya no existe en el catálogo. Espeja `MUNICIPIO_DEFAULT` del backend
+ * (Maravatío, clave geoestadística 16050).
+ */
+const MUNICIPIO_POR_DEFECTO = '16050';
+
 /* ------------------------------ sesión ------------------------------ */
 
 /** Prepara toda la interfaz tras un login correcto. */
@@ -49,8 +56,17 @@ export async function arrancar({ usuario, municipioActivo }) {
   adminView.renderTipos(tipos.tipos, { puedeEliminar: sesion.esEmpleado() });
   adminView.renderMunicipios(municipios.municipios, municipioActivo?.id);
 
-  montarMapa(municipioActivo);
-  await Promise.all([cargarZonas(municipioActivo?.id), recargarIncidencias()]);
+  // El listado llega sin polígonos: el del municipio activo se pide aparte para
+  // poder dibujar el límite y la máscara del mapa. Si la sesión guardada apunta
+  // a un municipio que ya no existe, se usa el que propuso el servidor.
+  const activo =
+    (await municipioCompleto(municipioActivo)) ||
+    (await municipioCompleto(municipios.municipios.find((m) => m.id === MUNICIPIO_POR_DEFECTO))) ||
+    null;
+  loginView.renderMunicipios(municipios.municipios, activo?.id);
+
+  montarMapa(activo);
+  await Promise.all([cargarZonas(activo?.id), recargarIncidencias()]);
   await recargarNotificaciones();
 
   if (sesion.esEmpleado()) {
@@ -103,7 +119,8 @@ export async function cargarZonas(municipioId) {
 /* ------------------------------ datos ------------------------------- */
 
 export async function recargarIncidencias() {
-  const { incidencias } = await incidenciasService.listar(store.estado.filtros);
+  const filtros = { ...store.estado.filtros, municipio: store.estado.municipioActivo?.id };
+  const { incidencias } = await incidenciasService.listar(filtros);
   store.actualizar({ incidencias }, 'incidencias');
   listaView.renderizar(incidencias, {
     tipos: store.estado.tipos,
@@ -136,7 +153,11 @@ export async function cargarTipos() {
 }
 
 export async function cargarEstadisticas() {
-  const [panel, informes] = await Promise.all([statsService.panel(), statsService.informes()]);
+  const municipioId = store.estado.municipioActivo?.id;
+  const [panel, informes] = await Promise.all([
+    statsService.panel(municipioId),
+    statsService.informes(municipioId)
+  ]);
   store.actualizar({ estadisticas: { panel, informes } }, 'estadisticas');
   adminView.renderStats(panel);
   adminView.renderTablaIncidencias(store.estado.incidencias, {
@@ -182,11 +203,56 @@ function detenerTemporizador() {
   temporizador = null;
 }
 
-/** Aplica un nuevo municipio activo (tras `Admin.cambiarMunicipio`). */
+/**
+ * Municipio con su contorno. El listado llega sin polígonos (113 municipios
+ * con sus límites suman más de un megabyte), así que se pide el detalle.
+ * Si el municipio guardado en la sesión ya no existe (catálogo anterior) se
+ * devuelve null para que quien llame use el municipio por defecto.
+ */
+async function municipioCompleto(municipio) {
+  if (!municipio) return null;
+  const enCatalogo = (id) => (store.estado.municipios || []).some((m) => m.id === id);
+  if (municipio.poligono && !store.estado.municipios?.length) return municipio;
+  if (municipio.poligono && enCatalogo(municipio.id)) return municipio;
+  try {
+    const { municipio: detalle } = await catalogosService.municipio(municipio.id);
+    return detalle || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cambia el municipio activo desde el selector público.
+ * Cualquiera puede hacerlo (el ciudadano anónimo y el admin); un funcionario
+ * está atado al suyo, así que el servidor ignorará el cambio.
+ */
+export async function cambiarMunicipio(municipioId) {
+  const actual = store.estado.municipioActivo;
+  if (!municipioId || municipioId === actual?.id) return actual;
+
+  const { municipio: detalle } = await catalogosService.municipio(municipioId);
+  if (!detalle) return actual;
+
+  await aplicarMunicipio(detalle);
+  return detalle;
+}
+
+/** Aplica un nuevo municipio activo (selector público o panel de admin). */
 export async function aplicarMunicipio(municipio) {
-  store.actualizar({ municipioActivo: municipio, municipio }, 'municipio');
-  loginView.actualizarMunicipioTitulo(municipio);
-  mapa.reiniciarMunicipio(municipio);
-  await Promise.all([cargarZonas(municipio.id), recargarIncidencias()]);
+  const completo = await municipioCompleto(municipio);
+  if (!completo) return;
+
+  store.actualizar({ municipioActivo: completo, municipio: completo }, 'municipio');
+  // El filtro de comunidades es del municipio anterior: se reinicia.
+  store.actualizar({ filtros: { ...store.estado.filtros, zona: 'todos' } }, 'filtros');
+
+  loginView.actualizarMunicipioTitulo(completo);
+  loginView.renderMunicipios(store.estado.municipios || [], completo.id);
+  sesion.actualizarMunicipio(completo);
+  adminView.renderMunicipios(store.estado.municipios || [], completo.id);
+
+  mapa.reiniciarMunicipio(completo);
+  await Promise.all([cargarZonas(completo.id), recargarIncidencias()]);
   if (sesion.esEmpleado()) await cargarEstadisticas();
 }

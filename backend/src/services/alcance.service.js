@@ -13,6 +13,11 @@ import { ROLES_EMPLEADO } from '../config/constantes.js';
 import { puedeVer } from '../models/incidencia.model.js';
 import { AppError } from '../utils/AppError.js';
 
+/** Roles que pueden cambiar de municipio desde la interfaz. */
+function puedeElegirMunicipio(usuario) {
+  return usuario.rol === 'admin' || usuario.rol === 'anonimo';
+}
+
 export function esEmpleado(usuario) {
   return !!usuario && ROLES_EMPLEADO.includes(usuario.rol);
 }
@@ -21,21 +26,40 @@ export function esAdmin(usuario) {
   return !!usuario && usuario.rol === 'admin';
 }
 
-/** Filtros de consulta que garantizan que nadie vea más de lo que le toca. */
+/**
+ * Filtros de consulta que garantizan que nadie vea más de lo que le toca.
+ *
+ * El municipio activo lo elige el usuario en el selector (que es público),
+ * así que la consulta puede pedir cualquiera. La excepción es el funcionario:
+ * sigue atado al municipio que tiene asignado, porque su alcance no puede
+ * depender de lo que envíe el navegador.
+ */
 export function filtrosDeAlcance(usuario, extra = {}) {
   if (!usuario) {
     throw AppError.noAutenticado();
   }
 
-  // anónimo y funcionario quedan atados a su municipio; el admin solo si tiene
-  // uno activo (null = todos los municipios).
-  const filtros = { ...extra, municipioId: usuario.municipioId || null };
+  const { municipioId, ...resto } = extra;
+  const solicitado = municipioId && municipioId !== 'todos' ? municipioId : null;
+  const atado = !puedeElegirMunicipio(usuario) && usuario.municipioId;
+  const efectivo = atado || solicitado || usuario.municipioId || null;
+
+  const filtros = { ...resto, municipioId: efectivo };
 
   if (usuario.rol === 'anonimo') {
     filtros.userKey = usuario.userKey;
   }
 
   return filtros;
+}
+
+/**
+ * Municipio en el que se va a registrar un reporte: el que envió el cliente si
+ * el rol puede elegirlo (ciudadano o admin) y, si no, el asignado al usuario.
+ */
+export function municipioDeRegistro(usuario, solicitado) {
+  if (puedeElegirMunicipio(usuario)) return solicitado || usuario.municipioId || null;
+  return usuario.municipioId || null;
 }
 
 /** Verifica que el usuario pueda operar sobre una incidencia concreta. */

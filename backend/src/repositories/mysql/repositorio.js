@@ -76,6 +76,8 @@ export class RepositorioMysql {
       nombre: fila.nombre,
       estado: fila.estado,
       clave: fila.clave,
+      poblacion: Number(fila.poblacion) || 0,
+      cabecera: fila.cabecera || null,
       center: [Number(fila.center_lat), Number(fila.center_lng)],
       zoom: Number(fila.zoom),
       poligono: typeof fila.poligono === 'string' ? JSON.parse(fila.poligono) : fila.poligono
@@ -108,6 +110,9 @@ export class RepositorioMysql {
       municipioId: fila.municipio_id,
       nombre: fila.nombre,
       tipo: fila.tipo,
+      ambito: fila.ambito || null,
+      clave: fila.clave || null,
+      poblacion: Number(fila.poblacion) || 0,
       color: fila.color,
       poligono: typeof fila.poligono === 'string' ? JSON.parse(fila.poligono) : fila.poligono
     };

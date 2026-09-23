@@ -9,18 +9,18 @@ import { listar } from './incidencias.service.js';
 import { contarPorEstado } from './estado.service.js';
 import { diasDesde } from '../utils/fechas.js';
 
-async function base(repositorio, usuario) {
+async function base(repositorio, usuario, municipioId = null) {
   if (!esEmpleado(usuario)) {
     throw AppError.prohibido('Los informes solo están disponibles para funcionarios y administradores');
   }
-  const incidencias = await listar(repositorio, usuario, {});
+  const incidencias = await listar(repositorio, usuario, { municipioId });
   const tipos = await repositorio.todosLosTipos();
   return { incidencias, tipos };
 }
 
 /** Tarjetas del panel de administración. */
-export async function panelAdmin(repositorio, usuario) {
-  const { incidencias, tipos } = await base(repositorio, usuario);
+export async function panelAdmin(repositorio, usuario, municipioId = null) {
+  const { incidencias, tipos } = await base(repositorio, usuario, municipioId);
   const conteo = contarPorEstado(incidencias);
 
   const porTipo = tipos
@@ -44,8 +44,8 @@ export async function panelAdmin(repositorio, usuario) {
 }
 
 /** Tarjetas y tabla resumen del modal de informes. */
-export async function informes(repositorio, usuario) {
-  const { incidencias, tipos } = await base(repositorio, usuario);
+export async function informes(repositorio, usuario, municipioId = null) {
+  const { incidencias, tipos } = await base(repositorio, usuario, municipioId);
   const conteo = contarPorEstado(incidencias);
 
   const porTipo = tipos
@@ -73,8 +73,8 @@ export async function informes(repositorio, usuario) {
  * Datos para exportar (CSV/JSON/imprimible los formatea el frontend,
  * igual que en el monolito).
  */
-export async function exportacion(repositorio, usuario) {
-  const { incidencias, tipos } = await base(repositorio, usuario);
+export async function exportacion(repositorio, usuario, municipioId = null) {
+  const { incidencias, tipos } = await base(repositorio, usuario, municipioId);
   const municipios = await repositorio.todosMunicipios();
   const usuarios = await repositorio.todosLosUsuarios();
   const zonas = await repositorio.todasLasZonas();

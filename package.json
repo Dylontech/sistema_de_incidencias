@@ -10,6 +10,8 @@
     "test": "npm --prefix backend test",
     "migrate": "npm --prefix backend run migrate",
     "migrate:rollback": "npm --prefix backend run migrate:rollback",
-    "seed": "npm --prefix backend run seed"
+    "seed": "npm --prefix backend run seed",
+  "importar-inegi": "npm --prefix backend run importar-inegi",
+  "migrar-catalogo": "npm --prefix backend run migrar-catalogo"
   }
 }

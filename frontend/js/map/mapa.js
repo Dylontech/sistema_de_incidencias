@@ -9,7 +9,7 @@
  *  - las zonas (colonias/tenencias) se dibujan como polígonos de geocerca.
  */
 import { $, esc, fmtFechaCorta, textoAntiguedad, colorHex, etiquetaEstado } from '../core/utils.js';
-import { boundsDePoligono } from '../core/geocerca.js';
+import { anillosDe, boundsDePoligono } from '../core/geocerca.js';
 
 let mapa = null;
 let marcadores = {};
@@ -23,13 +23,17 @@ let modoElegir = false;
 let alElegirUbicacion = null;
 
 /**
- * Envolvente de Leaflet a partir del polígono [[lat,lng], …].
- * Devuelve null si el municipio no trae polígono (datos antiguos con `bbox`),
- * para poder degradar a `center`/`zoom` en lugar de romper el mapa.
+ * Envolvente de Leaflet a partir del polígono [[lat,lng], …] o de un
+ * multipolígono [[[lat,lng], …], …] (los municipios y localidades del INEGI
+ * pueden tener varios anillos). Devuelve null si no hay polígono utilizable
+ * (datos antiguos con `bbox`), para degradar a `center`/`zoom`.
  */
 function boundsDe(poligono) {
-  if (!Array.isArray(poligono) || poligono.length < 3) return null;
-  const [[latMin, lngMin], [latMax, lngMax]] = boundsDePoligono(poligono);
+  const anillos = anillosDe(poligono).filter((a) => a.length >= 3);
+  if (!anillos.length) return null;
+  const caja = boundsDePoligono(poligono);
+  if (!caja) return null;
+  const [[latMin, lngMin], [latMax, lngMax]] = caja;
   if (![latMin, lngMin, latMax, lngMax].every(Number.isFinite)) return null;
   return L.latLngBounds([latMin, lngMin], [latMax, lngMax]);
 }
@@ -121,7 +125,10 @@ function dibujarLimiteMunicipio(municipio) {
   if (capaMunicipio) mapa.removeLayer(capaMunicipio);
   if (capaMascara) mapa.removeLayer(capaMascara);
 
-  capaMunicipio = L.polygon(municipio.poligono, {
+  // Un municipio puede tener varios anillos (exclaves): se dibujan todos.
+  const anillos = anillosDe(municipio.poligono);
+
+  capaMunicipio = L.polygon(anillos, {
     color: '#006657',
     weight: 2.5,
     opacity: 0.9,
@@ -137,7 +144,7 @@ function dibujarLimiteMunicipio(municipio) {
     [89, 179],
     [89, -179]
   ];
-  capaMascara = L.polygon([mundo, municipio.poligono], {
+  capaMascara = L.polygon([mundo, ...anillos], {
     stroke: false,
     fillColor: '#0b1f1c',
     fillOpacity: 0.45,
@@ -153,7 +160,7 @@ export function dibujarZonas(zonas = []) {
   capasZonas = [];
 
   zonas.forEach((zona) => {
-    const poligono = L.polygon(zona.poligono, {
+    const poligono = L.polygon(anillosDe(zona.poligono), {
       color: zona.color,
       weight: 2,
       opacity: 0.85,

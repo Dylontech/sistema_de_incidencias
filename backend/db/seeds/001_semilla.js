@@ -10,6 +10,7 @@ import {
   tiposSemilla,
   usuariosSemilla
 } from '../../src/config/semilla.js';
+import { TIPOS_ZONA } from '../../src/models/zona.model.js';
 import { hashearPassword } from '../../src/models/usuario.model.js';
 
 export async function seed(knex) {
@@ -33,6 +34,8 @@ export async function seed(knex) {
       center_lat: m.center[0],
       center_lng: m.center[1],
       zoom: m.zoom,
+      poblacion: Number(m.poblacion) || 0,
+      cabecera: m.cabecera || null,
       poligono: JSON.stringify(m.poligono)
     }))
   );
@@ -42,7 +45,10 @@ export async function seed(knex) {
       id: z.id,
       municipio_id: z.municipioId,
       nombre: z.nombre,
-      tipo: z.tipo === 'colonia' || z.tipo === 'tenencia' ? z.tipo : 'zona',
+      tipo: TIPOS_ZONA.includes(z.tipo) ? z.tipo : 'localidad',
+      ambito: z.ambito || null,
+      clave: z.clave || null,
+      poblacion: Number(z.poblacion) || 0,
       color: z.color,
       poligono: JSON.stringify(z.poligono)
     }))

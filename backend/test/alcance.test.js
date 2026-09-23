@@ -3,7 +3,7 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { prepararBaseDeDatos, prepararEntorno } from './helpers/entorno.js';
-import { Api, PUNTO_MARAVATIO, incidenciaValida } from './helpers/api.js';
+import { Api, CLAVE_MARAVATIO, MUNICIPIO_MARAVATIO, PUNTO_MARAVATIO, incidenciaValida } from './helpers/api.js';
 
 const entorno = prepararEntorno();
 await prepararBaseDeDatos(entorno);
@@ -24,8 +24,8 @@ after(() => entorno.limpiar());
 
 /**
  * Inserta directamente una incidencia de OTRO municipio.
- * El sistema solo tiene Maravatío, pero el alcance por municipio debe seguir
- * filtrando: sirve para comprobar que un funcionario no la ve y el admin sí.
+ * Ahora el catálogo tiene los 113 municipios del estado, así que se usa
+ * Morelia (16053) para comprobar que un funcionario de Maravatío no la ve.
  */
 async function insertarDeOtroMunicipio() {
   const fecha = new Date().toISOString();
@@ -45,9 +45,9 @@ async function insertarDeOtroMunicipio() {
     autor: 'Anónimo',
     autorNombre: 'Anónimo',
     userKey: 'anon_otro_municipio',
-    municipioId: 'morelia',
-    zonaId: 'mor_centro',
-    zonaNombre: 'Centro',
+    municipioId: '16053',
+    zonaId: 'loc_160530001',
+    zonaNombre: 'Morelia',
     evidencia: [],
     historial: [],
     comentarios: [],
@@ -67,13 +67,13 @@ describe('Alcance por municipio y rol', () => {
 
     const propia = await anon.post('/api/incidencias', incidenciaValida());
     assert.equal(propia.status, 201);
-    assert.equal(propia.body.incidencia.municipioId, 'maravatio');
+    assert.equal(propia.body.incidencia.municipioId, MUNICIPIO_MARAVATIO);
 
     const ajena = await insertarDeOtroMunicipio();
 
     const vistaFuncionario = await funcionario.get('/api/incidencias');
     assert.equal(vistaFuncionario.body.incidencias.length, 1);
-    assert.equal(vistaFuncionario.body.incidencias[0].municipioId, 'maravatio');
+    assert.equal(vistaFuncionario.body.incidencias[0].municipioId, MUNICIPIO_MARAVATIO);
 
     const vistaAdmin = await admin.get('/api/incidencias');
     assert.equal(vistaAdmin.body.incidencias.length, 2);
@@ -85,25 +85,28 @@ describe('Alcance por municipio y rol', () => {
     // El admin sin municipio activo sí la ve.
     const detalleAdmin = await admin.get(`/api/incidencias/${ajena.id}`);
     assert.equal(detalleAdmin.status, 200);
-    assert.equal(detalleAdmin.body.incidencia.municipioId, 'morelia');
+    assert.equal(detalleAdmin.body.incidencia.municipioId, '16053');
   });
 
   test('el admin puede limitarse a un municipio activo', async () => {
     const admin = await Api.admin(app);
     const conMunicipio = await admin.post('/api/auth/municipio-activo', {
-      municipioId: 'maravatio',
-      clave: 'MARAVATIO-2024'
+      municipioId: MUNICIPIO_MARAVATIO,
+      clave: CLAVE_MARAVATIO
     });
     assert.equal(conMunicipio.status, 200);
 
     const acotado = new Api(app, conMunicipio.body.token);
     const vista = await acotado.get('/api/incidencias');
     assert.ok(vista.body.incidencias.length >= 1);
-    assert.ok(vista.body.incidencias.every((i) => i.municipioId === 'maravatio'));
+    assert.ok(vista.body.incidencias.every((i) => i.municipioId === MUNICIPIO_MARAVATIO));
 
-    const zonas = await acotado.get('/api/municipios/maravatio/zonas');
-    assert.equal(zonas.body.zonas.length, 12);
-    assert.equal(zonas.body.zonas[0].municipioId, 'maravatio');
+    const zonas = await acotado.get(`/api/municipios/${MUNICIPIO_MARAVATIO}/zonas`);
+    assert.ok(zonas.body.zonas.length > 1);
+    assert.equal(zonas.body.zonas[0].municipioId, MUNICIPIO_MARAVATIO);
+    // Las comunidades vienen del INEGI y traen su clave geoestadística.
+    assert.ok(zonas.body.zonas.every((z) => z.tipo === 'localidad'));
+    assert.ok(zonas.body.zonas.every((z) => z.clave && z.clave.startsWith(MUNICIPIO_MARAVATIO)));
   });
 
   test('los informes y el resumen de zonas son solo para empleados', async () => {
@@ -112,11 +115,15 @@ describe('Alcance por municipio y rol', () => {
 
     assert.equal((await anon.get('/api/stats/panel')).status, 403);
     assert.equal((await anon.get('/api/exportacion')).status, 403);
-    assert.equal((await anon.get('/api/municipios/maravatio/zonas/resumen')).status, 403);
+    assert.equal(
+      (await anon.get(`/api/municipios/${MUNICIPIO_MARAVATIO}/zonas/resumen`)).status,
+      403
+    );
 
-    const zonas = await funcionario.get('/api/municipios/maravatio/zonas/resumen');
+    const zonas = await funcionario.get(`/api/municipios/${MUNICIPIO_MARAVATIO}/zonas/resumen`);
     assert.equal(zonas.status, 200);
-    assert.equal(zonas.body.zonas.length, 12); // 8 tenencias + 4 colonias
+    // Una entrada por comunidad del municipio.
+    assert.ok(zonas.body.zonas.length > 1);
     assert.ok(zonas.body.zonas[0].reportes >= 0);
     assert.ok('pendientes' in zonas.body.zonas[0]);
   });
@@ -179,9 +186,9 @@ describe('Administración de datos', () => {
           autor: 'Anónimo',
           autorNombre: 'Anónimo',
           userKey: 'anon_viejo',
-          municipioId: 'maravatio',
-          zonaId: 'col_centro',
-          zonaNombre: 'Centro',
+          municipioId: MUNICIPIO_MARAVATIO,
+          zonaId: 'loc_160500001',
+          zonaNombre: 'Maravatío de Ocampo',
           evidencia: [
             { id: 'e1', nombre: 'foto.png', tipo: 'image/png', tamano: 70, data: PNG_BASE64 }
           ]
