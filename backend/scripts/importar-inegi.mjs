@@ -12,9 +12,10 @@
  * que el catálogo quepa en el repositorio.
  *
  * Uso:
- *   node scripts/importar-inegi.mjs                       # Michoacán completo (113)
- *   node scripts/importar-inegi.mjs --municipios=16050,16053
- *   node scripts/importar-inegi.mjs --estado=15           # otro estado
+ *   node scripts/importar-inegi.mjs                       # Michoacán, Guanajuato y CDMX
+ *   node scripts/importar-inegi.mjs --estado=16           # sólo Michoacán
+ *   node scripts/importar-inegi.mjs --estado=16,11,09     # los tres (por omisión)
+ *   node scripts/importar-inegi.mjs --municipios=16050,11001
  *   node scripts/importar-inegi.mjs --tolerancia-zona=0   # sin simplificar
  *
  * Fuente por defecto: espejo en GitHub de los datos del INEGI
@@ -31,6 +32,12 @@ const RAIZ = path.resolve(AQUI, '..');
 
 const FUENTE_POR_DEFECTO =
   'https://raw.githubusercontent.com/MacWilliXD/INEGI-geojson/main/geojson_descargas';
+
+/**
+ * Estados que trae el catálogo por omisión: Michoacán, Guanajuato y Ciudad de
+ * México (en la CDMX el INEGI codifica las alcaldías como municipios).
+ */
+const ESTADOS_POR_DEFECTO = ['16', '11', '09'];
 
 /** Nombres oficiales abreviados de las 32 entidades federativas. */
 const ESTADOS = {
@@ -91,7 +98,8 @@ const ANCHO_UTIL_PX = 900;
 
 function leerArgumentos(argumentos) {
   const opciones = {
-    estado: '16',
+    // Estados que cubre la aplicación (claves del INEGI).
+    estados: ESTADOS_POR_DEFECTO,
     municipios: 'todos',
     base: FUENTE_POR_DEFECTO,
     cache: path.join(RAIZ, '.cache-inegi'),
@@ -118,8 +126,12 @@ function leerArgumentos(argumentos) {
       console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0]);
       process.exit(0);
     }
-    if (clave === 'estado') opciones.estado = String(valor).padStart(2, '0');
-    else if (clave === 'municipios') opciones.municipios = valor;
+    if (clave === 'estado' || clave === 'estados') {
+      opciones.estados = String(valor)
+        .split(',')
+        .map((codigo) => codigo.trim().padStart(2, '0'))
+        .filter(Boolean);
+    } else if (clave === 'municipios') opciones.municipios = valor;
     else if (clave === 'base') opciones.base = valor.replace(/\/$/, '');
     else if (clave === 'cache') opciones.cache = path.resolve(valor);
     else if (clave === 'salida') opciones.salida = path.resolve(valor);
@@ -291,99 +303,117 @@ function escribirJsonCompacto(ruta, datos) {
 
 /* --------------------------------- principal ------------------------------- */
 
-const nombreEstado = ESTADOS[opciones.estado] || `Estado ${opciones.estado}`;
-
-console.log(`Estado: ${opciones.estado} (${nombreEstado})`);
+console.log(
+  `Estados: ${opciones.estados.map((c) => `${c} (${ESTADOS[c] || 'desconocido'})`).join(', ')}`
+);
 console.log(`Fuente: ${opciones.base}`);
 
-const agem = await traer(`AGEM_${opciones.estado}.geojson`);
-const disponibles = (agem.features || []).filter((f) => f.geometry);
-const seleccion =
+/** Claves de municipio pedidas con --municipios (o null para todos). */
+const municipiosPedidos =
   opciones.municipios === 'todos'
-    ? disponibles
-    : disponibles.filter((f) =>
-        opciones.municipios
-          .split(',')
-          .map((s) => s.trim().padStart(opciones.estado.length === 2 ? 5 : 5, '0'))
-          .includes(String(f.properties.cvegeo))
-      );
-
-if (!seleccion.length) {
-  console.error('No se seleccionó ningún municipio. Revisa --municipios.');
-  process.exit(1);
-}
-
-console.log(`Municipios con geometría: ${disponibles.length} · a importar: ${seleccion.length}`);
+    ? null
+    : new Set(opciones.municipios.split(',').map((c) => c.trim().padStart(5, '0')));
 
 const municipios = [];
 const zonasPorMunicipio = {};
+const sinLocalidades = [];
 let zonasTotales = 0;
 let verticesTotales = 0;
-const sinLocalidades = [];
 
-for (const [indice, feature] of seleccion.entries()) {
-  const props = feature.properties || {};
-  const cvegeo = String(props.cvegeo);
-  const nombre = limpiarNombre(props.nom_agem) || `Municipio ${cvegeo}`;
-  const poligono = aPoligono(feature.geometry, opciones.toleranciaMunicipio);
-  if (!poligono) {
-    console.warn(`  ! ${nombre} (${cvegeo}): geometría no aprovechable, se omite`);
-    continue;
+/** Trae un estado completo y acumula sus municipios y comunidades. */
+async function importarEstado(codigo) {
+  const nombreEstado = ESTADOS[codigo] || `Estado ${codigo}`;
+  const agem = await traer(`AGEM_${codigo}.geojson`);
+  const disponibles = (agem.features || []).filter((f) => f.geometry);
+  const seleccion = municipiosPedidos
+    ? disponibles.filter((f) => municipiosPedidos.has(String(f.properties.cvegeo)))
+    : disponibles;
+
+  if (!seleccion.length) {
+    console.warn(`  ! ${codigo} (${nombreEstado}): ningún municipio coincide con --municipios`);
+    return;
   }
 
-  let zonas = [];
-  try {
-    const agloc = await traer(`AGLOC_${cvegeo}.geojson`);
-    zonas = aZonas({ cvegeo }, agloc);
-  } catch (error) {
-    console.warn(`  ! ${nombre} (${cvegeo}): sin localidades (${error.message})`);
-  }
+  console.log(
+    `\n${codigo} · ${nombreEstado}: ${disponibles.length} municipios con geometría · a importar: ${seleccion.length}`
+  );
 
-  // Municipio sin localidades: se usa el propio municipio como única zona para
-  // que se puedan seguir recibiendo reportes.
-  if (!zonas.length) {
-    sinLocalidades.push(nombre);
-    zonas = [
-      {
-        id: `mun_${cvegeo}`,
-        nombre: `${nombre} (todo el municipio)`,
-        tipo: 'municipio',
-        ambito: 'rural',
-        clave: cvegeo,
-        poblacion: Number(props.pob) || 0,
-        color: PALETA[0],
-        poligono
-      }
-    ];
-  }
+  for (const [indice, feature] of seleccion.entries()) {
+    const props = feature.properties || {};
+    const cvegeo = String(props.cvegeo);
+    const nombre = limpiarNombre(props.nom_agem) || `Municipio ${cvegeo}`;
+    const poligono = aPoligono(feature.geometry, opciones.toleranciaMunicipio);
+    if (!poligono) {
+      console.warn(`  ! ${nombre} (${cvegeo}): geometría no aprovechable, se omite`);
+      continue;
+    }
 
-  municipios.push({
-    id: cvegeo,
-    nombre,
-    estado: nombreEstado,
-    clave: cvegeo,
-    poblacion: Number(props.pob) || 0,
-    cabecera: zonas[0]?.nombre || null,
-    center: centroDePoligono(poligono).map(redondear),
-    zoom: zoomDe(poligono),
-    poligono
-  });
+    let zonas = [];
+    try {
+      const agloc = await traer(`AGLOC_${cvegeo}.geojson`);
+      zonas = aZonas({ cvegeo }, agloc);
+    } catch (error) {
+      console.warn(`  ! ${nombre} (${cvegeo}): sin localidades (${error.message})`);
+    }
 
-  zonasPorMunicipio[cvegeo] = zonas;
-  zonasTotales += zonas.length;
-  verticesTotales +=
-    (Array.isArray(poligono[0][0]) ? poligono.flat() : poligono).length +
-    zonas.reduce(
-      (suma, z) => suma + (Array.isArray(z.poligono[0][0]) ? z.poligono.flat() : z.poligono).length,
-      0
-    );
+    // Municipio sin localidades: se usa el propio municipio como única zona para
+    // que se puedan seguir recibiendo reportes.
+    if (!zonas.length) {
+      sinLocalidades.push(`${nombre} (${cvegeo})`);
+      zonas = [
+        {
+          id: `mun_${cvegeo}`,
+          nombre: `${nombre} (todo el municipio)`,
+          tipo: 'municipio',
+          ambito: 'rural',
+          clave: cvegeo,
+          poblacion: Number(props.pob) || 0,
+          color: PALETA[0],
+          poligono
+        }
+      ];
+    }
 
-  if ((indice + 1) % 20 === 0) {
-    console.log(`  … ${indice + 1}/${seleccion.length} municipios procesados`);
+    municipios.push({
+      id: cvegeo,
+      nombre,
+      estado: nombreEstado,
+      clave: cvegeo,
+      poblacion: Number(props.pob) || 0,
+      cabecera: zonas[0]?.nombre || null,
+      center: centroDePoligono(poligono).map(redondear),
+      zoom: zoomDe(poligono),
+      poligono
+    });
+
+    zonasPorMunicipio[cvegeo] = zonas;
+    zonasTotales += zonas.length;
+    verticesTotales +=
+      (Array.isArray(poligono[0][0]) ? poligono.flat() : poligono).length +
+      zonas.reduce(
+        (suma, z) => suma + (Array.isArray(z.poligono[0][0]) ? z.poligono.flat() : z.poligono).length,
+        0
+      );
+
+    if ((indice + 1) % 25 === 0) {
+      console.log(`  … ${indice + 1}/${seleccion.length} municipios procesados`);
+    }
   }
 }
 
-municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+for (const codigo of opciones.estados) {
+  await importarEstado(codigo);
+}
+
+if (!municipios.length) {
+  console.error('No se importó ningún municipio. Revisa --estado y --municipios.');
+  process.exit(1);
+}
+
+// Orden del selector: por estado y, dentro de cada uno, por nombre.
+municipios.sort(
+  (a, b) => a.estado.localeCompare(b.estado, 'es') || a.nombre.localeCompare(b.nombre, 'es')
+);
 
 const bytesMunicipios = escribirJsonCompacto(
   path.join(opciones.salida, 'municipios.json'),
@@ -392,7 +422,15 @@ const bytesMunicipios = escribirJsonCompacto(
 const bytesZonas = escribirJsonCompacto(path.join(opciones.salida, 'zonas.json'), zonasPorMunicipio);
 
 const mb = (bytes) => `${(bytes / 1048576).toFixed(2)} MB`;
+const porEstado = municipios.reduce((acc, m) => {
+  acc[m.estado] = (acc[m.estado] || 0) + 1;
+  return acc;
+}, {});
+
 console.log('');
+for (const [estado, total] of Object.entries(porEstado)) {
+  console.log(`  ${estado}: ${total} municipios`);
+}
 console.log(`Municipios: ${municipios.length}`);
 console.log(`Comunidades (localidades): ${zonasTotales}`);
 console.log(`Vértices totales: ${verticesTotales.toLocaleString('es-MX')}`);

@@ -13,6 +13,19 @@ import {
 import { TIPOS_ZONA } from '../../src/models/zona.model.js';
 import { hashearPassword } from '../../src/models/usuario.model.js';
 
+/**
+ * Trocea una lista para insertarla por lotes.
+ *
+ * Con los tres estados el catálogo pasa de 6 000 comunidades y una sola
+ * sentencia INSERT se acerca al `max_allowed_packet` de MariaDB, así que se
+ * inserta por partes.
+ */
+function enLotes(lista, tamano = 500) {
+  const lotes = [];
+  for (let i = 0; i < lista.length; i += tamano) lotes.push(lista.slice(i, i + tamano));
+  return lotes;
+}
+
 export async function seed(knex) {
   // Idempotente: se vacían las tablas de catálogo respetando las dependencias.
   await knex('incidencia_comentarios').del();
@@ -40,19 +53,20 @@ export async function seed(knex) {
     }))
   );
 
-  await knex('zonas').insert(
-    zonasSemilla.map((z) => ({
-      id: z.id,
-      municipio_id: z.municipioId,
-      nombre: z.nombre,
-      tipo: TIPOS_ZONA.includes(z.tipo) ? z.tipo : 'localidad',
-      ambito: z.ambito || null,
-      clave: z.clave || null,
-      poblacion: Number(z.poblacion) || 0,
-      color: z.color,
-      poligono: JSON.stringify(z.poligono)
-    }))
-  );
+  const zonas = zonasSemilla.map((z) => ({
+    id: z.id,
+    municipio_id: z.municipioId,
+    nombre: z.nombre,
+    tipo: TIPOS_ZONA.includes(z.tipo) ? z.tipo : 'localidad',
+    ambito: z.ambito || null,
+    clave: z.clave || null,
+    poblacion: Number(z.poblacion) || 0,
+    color: z.color,
+    poligono: JSON.stringify(z.poligono)
+  }));
+  for (const lote of enLotes(zonas)) {
+    await knex('zonas').insert(lote);
+  }
 
   await knex('tipos').insert(
     tiposSemilla.map((t) => ({
@@ -80,5 +94,4 @@ export async function seed(knex) {
   console.log(
     `Semilla aplicada: ${municipiosSemilla.length} municipios, ${zonasSemilla.length} zonas, ` +
       `${tiposSemilla.length} tipos y ${usuarios.length} usuarios.`
-  );
-}
+  );}

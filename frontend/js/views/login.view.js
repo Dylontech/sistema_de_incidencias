@@ -66,19 +66,33 @@ export function actualizarMunicipioTitulo(municipio) {
 /**
  * Rellena el selector de municipio de la barra superior.
  *
- * El listado del catálogo llega sin polígonos y ordenado por nombre, así que
- * el selector se puede usar con los 113 municipios del estado sin traer
- * megabytes de contornos. Un funcionario ve su municipio y no puede cambiarlo
- * (el servidor ignora cualquier otro: su alcance no se decide en el navegador).
+ * El listado del catálogo llega sin polígonos y ordenado por estado y nombre,
+ * así que se agrupa con `optgroup` para no mezclar los municipios de un estado
+ * con los de otro (en la Ciudad de México el INEGI codifica las alcaldías como
+ * municipios). Un funcionario ve su municipio y no puede cambiarlo: el
+ * servidor ignora cualquier otro, porque su alcance no se decide en el navegador.
  */
 export function renderMunicipios(municipios = [], activoId = null) {
   const selector = $('municipioActivoSelect');
   if (!selector) return;
 
-  const opciones = municipios
-    .map((m) => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`)
-    .join('');
-  selector.innerHTML = opciones || '<option value="">Sin municipios</option>';
+  const porEstado = new Map();
+  for (const municipio of municipios) {
+    const estado = municipio.estado || 'Sin estado';
+    if (!porEstado.has(estado)) porEstado.set(estado, []);
+    porEstado.get(estado).push(municipio);
+  }
+
+  selector.innerHTML =
+    [...porEstado.entries()]
+      .map(
+        ([estado, lista]) =>
+          `<optgroup label="${esc(estado)}">` +
+          lista.map((m) => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('') +
+          '</optgroup>'
+      )
+      .join('') || '<option value="">Sin municipios</option>';
+
   if (activoId) selector.value = activoId;
 }
 

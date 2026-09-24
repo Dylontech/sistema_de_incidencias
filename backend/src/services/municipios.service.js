@@ -13,16 +13,21 @@ import { DIAS_LIMITES, EVIDENCIA_POLITICA, MUNICIPIO_DEFAULT } from '../config/c
 /**
  * Listado de municipios para el selector.
  *
- * Por omisión va sin polígonos: los 113 municipios de Michoacán con sus
- * contornos suman más de un megabyte y el selector solo necesita nombre,
- * centro y zoom. El contorno del municipio activo se pide con `detalle()`.
+ * Por omisión va sin polígonos: los 175 municipios de los tres estados con sus
+ * contornos suman más de un megabyte y el selector sólo necesita nombre, centro
+ * y zoom. El contorno del municipio activo se pide con `detalle()`.
+ * Se ordena por estado y nombre: el frontend los agrupa por estado.
  */
 export async function listar(repositorio, usuario, { incluirPoligono = false } = {}) {
   const municipios = await repositorio.todosMunicipios();
   const incluirClave = usuario?.rol === 'admin';
   return municipios
     .map((m) => publico(m, { incluirClave, incluirPoligono }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    .sort(
+      (a, b) =>
+        String(a.estado).localeCompare(String(b.estado), 'es') ||
+        a.nombre.localeCompare(b.nombre, 'es')
+    );
 }
 
 /** Un municipio con su contorno, para dibujar el límite y la máscara del mapa. */

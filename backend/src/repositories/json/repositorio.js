@@ -17,10 +17,28 @@ export class RepositorioJson {
     this.driver = 'json';
     this.directorio = directorio;
     this.almacen = new AlmacenJson(directorio);
+    /**
+     * Caché del catálogo (municipios, zonas y tipos).
+     *
+     * Con tres estados el catálogo pasa de 6 MB, y `zonasPorMunicipio()` se
+     * consulta en cada petición (listado, creación de reportes, geocerca), así
+     * que leerlo del disco cada vez no tiene sentido. Se invalida al escribir:
+     * la sincronización de arranque y los tipos personalizados.
+     */
+    this.catalogo = new Map();
+  }
+
+  /** Lectura del catálogo con caché (sólo para colecciones de catálogo). */
+  async #leerCatalogo(coleccion, porDefecto) {
+    if (!this.catalogo.has(coleccion)) {
+      this.catalogo.set(coleccion, await this.almacen.leer(coleccion, porDefecto));
+    }
+    return this.catalogo.get(coleccion);
   }
 
   /** Crea los archivos con los datos semilla la primera vez. */
   async inicializar() {
+    this.catalogo.clear();
     const conSemilla = [
       ['municipios', municipiosSemilla],
       ['zonas', zonasSemilla],
@@ -62,6 +80,7 @@ export class RepositorioJson {
   /** Reescribe una colección de catálogo si difiere de la semilla. */
   async #sincronizarCatalogo(coleccion, semilla) {
     const actuales = await this.almacen.leer(coleccion, []);
+    this.catalogo.set(coleccion, semilla);
     if (JSON.stringify(actuales) === JSON.stringify(semilla)) return false;
     await this.almacen.escribir(coleccion, semilla);
     return true;
@@ -74,7 +93,7 @@ export class RepositorioJson {
   /* ------------------------------- municipios ------------------------------ */
 
   async todosMunicipios() {
-    return this.almacen.leer('municipios', municipiosSemilla);
+    return this.#leerCatalogo('municipios', municipiosSemilla);
   }
 
   async municipioPorId(id) {
@@ -91,7 +110,7 @@ export class RepositorioJson {
   /* ---------------------------------- zonas -------------------------------- */
 
   async todasLasZonas() {
-    return this.almacen.leer('zonas', zonasSemilla);
+    return this.#leerCatalogo('zonas', zonasSemilla);
   }
 
   async zonasPorMunicipio(municipioId) {
@@ -102,7 +121,7 @@ export class RepositorioJson {
   /* ---------------------------------- tipos -------------------------------- */
 
   async todosLosTipos() {
-    return this.almacen.leer('tipos', tiposSemilla);
+    return this.#leerCatalogo('tipos', tiposSemilla);
   }
 
   async tipoPorId(id) {
@@ -111,17 +130,21 @@ export class RepositorioJson {
   }
 
   async crearTipo(tipo) {
-    return this.almacen.transaccion('tipos', tiposSemilla, (tipos) => ({
+    const resultado = await this.almacen.transaccion('tipos', tiposSemilla, (tipos) => ({
       datos: [...tipos, tipo],
       resultado: tipo
     }));
+    this.catalogo.delete('tipos');
+    return resultado;
   }
 
   async eliminarTipo(id) {
-    return this.almacen.transaccion('tipos', tiposSemilla, (tipos) => {
+    const resultado = await this.almacen.transaccion('tipos', tiposSemilla, (tipos) => {
       const filtrados = tipos.filter((t) => t.id !== id);
       return { datos: filtrados, resultado: filtrados.length !== tipos.length };
     });
+    this.catalogo.delete('tipos');
+    return resultado;
   }
 
   /* -------------------------------- usuarios ------------------------------- */

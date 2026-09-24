@@ -97,10 +97,17 @@ describe('Autenticación', () => {
 
     const municipios = await admin.get('/api/municipios');
     assert.equal(municipios.status, 200);
-    // Todo el estado de Michoacán, ordenado por nombre y sin los polígonos
-    // (el listado ligero no los lleva: el detalle sí).
-    assert.equal(municipios.body.municipios.length, 113);
-    assert.equal(municipios.body.municipios[0].nombre, 'Acuitzio');
+    // Los 175 municipios de los tres estados, ordenados por estado y nombre y
+    // sin los polígonos (el listado ligero no los lleva; el detalle sí).
+    assert.equal(municipios.body.municipios.length, 175);
+    const estados = [...new Set(municipios.body.municipios.map((m) => m.estado))];
+    assert.deepEqual(estados, ['Ciudad de México', 'Guanajuato', 'Michoacán']);
+    assert.equal(municipios.body.municipios[0].estado, 'Ciudad de México');
+    // En la CDMX el INEGI codifica las alcaldías como municipios.
+    assert.ok(
+      municipios.body.municipios.some((m) => m.id === '09015' && m.nombre === 'Cuauhtémoc')
+    );
+    assert.ok(municipios.body.municipios.some((m) => m.id === '11007' && m.nombre === 'Celaya'));
 
     const maravatio = municipios.body.municipios.find((m) => m.id === MUNICIPIO_MARAVATIO);
     assert.ok(maravatio, 'Maravatío debe estar en el catálogo');

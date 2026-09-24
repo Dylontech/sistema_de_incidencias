@@ -132,18 +132,27 @@ describe('Geocerca', () => {
     assert.equal(poligonoValido([]), false);
   });
 
-  test('el catálogo del INEGI cubre el estado y sus comunidades', () => {
-    // Michoacán tiene 113 municipios y todos traen al menos una comunidad.
-    assert.equal(municipiosSemilla.length, 113);
+  test('el catálogo del INEGI cubre los tres estados y sus comunidades', () => {
+    // Michoacán (113), Guanajuato (46) y Ciudad de México (16 demarcaciones).
+    assert.equal(municipiosSemilla.length, 175);
     assert.ok(municipiosSemilla.every((m) => poligonoValido(m.poligono)));
     assert.ok(municipiosSemilla.every((m) => m.clave && m.nombre && m.estado));
+    assert.deepEqual(
+      [...new Set(municipiosSemilla.map((m) => m.estado))].sort((a, b) => a.localeCompare(b, 'es')),
+      ['Ciudad de México', 'Guanajuato', 'Michoacán']
+    );
 
     const porMunicipio = new Map();
     for (const zona of zonasSemilla) {
       porMunicipio.set(zona.municipioId, (porMunicipio.get(zona.municipioId) || 0) + 1);
     }
-    assert.equal(porMunicipio.size, 113);
+    assert.equal(porMunicipio.size, municipiosSemilla.length);
     assert.ok([...porMunicipio.values()].every((n) => n > 0));
+
+    // En la Ciudad de México la alcaldía entera es la comunidad.
+    const cuauhtemoc = zonasSemilla.filter((z) => z.municipioId === '09015');
+    assert.ok(cuauhtemoc.length >= 1);
+    assert.ok(cuauhtemoc.every((z) => z.tipo === 'localidad'));
 
     // Las comunidades son las localidades del INEGI y traen su clave.
     const maravatio = zonasSemilla.filter((z) => z.municipioId === MUNICIPIO_MARAVATIO);
