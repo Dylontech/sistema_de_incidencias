@@ -3,7 +3,7 @@ import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { prepararBaseDeDatos, prepararEntorno } from './helpers/entorno.js';
-import { Api, CLAVE_MARAVATIO, MUNICIPIO_MARAVATIO, PUNTO_MARAVATIO, incidenciaValida } from './helpers/api.js';
+import { Api, CLAVE_MARAVATIO, MUNICIPIO_MARAVATIO, PUNTO_MARAVATIO, PUNTO_SIN_ZONA, incidenciaValida } from './helpers/api.js';
 
 const entorno = prepararEntorno();
 await prepararBaseDeDatos(entorno);
@@ -88,6 +88,42 @@ describe('Alcance por municipio y rol', () => {
     assert.equal(detalleAdmin.body.incidencia.municipioId, '16053');
   });
 
+  test('el ciudadano puede abrir el detalle de cualquier municipio que elija', async () => {
+    // El ciudadano navega el catálogo con el selector: al entrar se le asigna
+    // un municipio (Maravatío), pero eso no puede impedirle consultar otro.
+    const anon = await Api.anonimo(app, 'ciudadanoNavega');
+    const ajena = await insertarDeOtroMunicipio();
+
+    const lista = await anon.get('/api/incidencias?municipio=16053');
+    assert.equal(lista.status, 200);
+    assert.ok(lista.body.incidencias.some((i) => i.id === ajena.id));
+
+    const detalle = await anon.get(`/api/incidencias/${ajena.id}`);
+    assert.equal(detalle.status, 200);
+    assert.equal(detalle.body.incidencia.zonaNombre, 'Morelia');
+    // Puede leerlo y comentarlo, pero no editar ni resolver.
+    assert.equal(detalle.body.incidencia.permisos.puedeEditar, false);
+    assert.equal(detalle.body.incidencia.permisos.puedeResolver, false);
+    assert.equal(detalle.body.incidencia.permisos.puedeEliminar, false);
+    assert.equal((await anon.put(`/api/incidencias/${ajena.id}`, { titulo: 'X' })).status, 403);
+  });
+
+  test('el admin sin municipio asignado puede registrar reportes donde elige', async () => {
+    // Regresión: `municipioDeRegistro` ignoraba el municipio enviado por un
+    // administrador (no está atado a ninguno) y caía en la regla estricta por
+    // zona, así que solo podía reportar dentro de una comunidad.
+    const admin = await Api.admin(app);
+    const creada = await admin.post(
+      '/api/incidencias',
+      incidenciaValida({ ...PUNTO_SIN_ZONA, titulo: 'Reporte del administrador filtroszz' })
+    );
+
+    assert.equal(creada.status, 201);
+    assert.equal(creada.body.incidencia.municipioId, MUNICIPIO_MARAVATIO);
+    assert.equal(creada.body.incidencia.zonaId, null);
+    await admin.delete(`/api/incidencias/${creada.body.incidencia.id}`);
+  });
+
   test('el admin puede limitarse a un municipio activo', async () => {
     const admin = await Api.admin(app);
     const conMunicipio = await admin.post('/api/auth/municipio-activo', {
@@ -156,10 +192,21 @@ describe('Estadísticas y exportación', () => {
     const anon = await Api.anonimo(app, 'ciudadanoCat');
     const catalogos = await anon.get('/api/catalogos');
     assert.equal(catalogos.status, 200);
-    assert.equal(catalogos.body.iconos.length, 32);
-    assert.equal(Object.keys(catalogos.body.ejemplos).length, 16);
+    assert.equal(catalogos.body.iconos.length, 33);
+    assert.equal(Object.keys(catalogos.body.ejemplos).length, 18);
     assert.deepEqual(catalogos.body.diasLimites, { amarillo: 15, naranja: 30 });
     assert.equal(catalogos.body.limites.maxVideoSegundos, 300);
+
+    // El catálogo de conceptos (tipos base) crece con la semilla: los dos
+    // últimos añadidos son los de bienestar animal.
+    const tipos = await anon.get('/api/tipos');
+    assert.equal(tipos.body.tipos.length, 18);
+    assert.ok(tipos.body.tipos.some((t) => t.nombre === 'Animal atropellado'));
+    assert.ok(tipos.body.tipos.some((t) => t.nombre === 'Crueldad animal'));
+    // Un ejemplo guía por concepto (el formulario lo muestra al elegir el tipo).
+    for (const tipo of tipos.body.tipos) {
+      assert.ok(catalogos.body.ejemplos[tipo.id], `falta el ejemplo de ${tipo.id}`);
+    }
   });
 });
 

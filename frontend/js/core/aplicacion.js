@@ -124,7 +124,9 @@ export async function recargarIncidencias() {
   store.actualizar({ incidencias }, 'incidencias');
   listaView.renderizar(incidencias, {
     tipos: store.estado.tipos,
-    esCiudadano: sesion.esAnonimo()
+    // Ciudadano y anónimo comparten el estado vacío: ambos ven todo el
+    // municipio, pero solo editan lo suyo.
+    esCiudadano: !sesion.esEmpleado()
   });
   mapa.refrescarMarcadores(incidencias, store.estado.tipos);
   return incidencias;
@@ -180,8 +182,23 @@ export async function cargarResumenZonas(municipioId) {
 
 export async function cargarUsuarios() {
   const { usuarios } = await catalogosService.usuarios();
-  adminView.renderUsuarios(usuarios, store.estado.municipios || []);
+  store.actualizar({ usuarios }, 'usuarios');
+  adminView.renderUsuarios(usuarios, store.estado.municipios || [], {
+    esAdmin: sesion.esAdmin()
+  });
   return usuarios;
+}
+
+/**
+ * Alta o edición de una cuenta del personal.
+ * `id` nulo = alta; con id = parche (la contraseña solo viaja si se escribió).
+ */
+export async function guardarUsuario(id, datos) {
+  const respuesta = id
+    ? await catalogosService.actualizarUsuario(id, datos)
+    : await catalogosService.crearUsuario(datos);
+  await cargarUsuarios();
+  return respuesta.usuario;
 }
 
 /* --------------------------- temporizador --------------------------- */

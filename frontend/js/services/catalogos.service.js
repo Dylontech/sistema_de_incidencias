@@ -20,5 +20,13 @@ export const catalogosService = {
   },
   usuarios() {
     return api.get('/usuarios');
+  },
+  /** Alta de una cuenta del personal (solo administrador). */
+  crearUsuario(datos) {
+    return api.post('/usuarios', datos);
+  },
+  /** Edición de una cuenta del personal (solo administrador). */
+  actualizarUsuario(id, datos) {
+    return api.patch(`/usuarios/${id}`, datos);
   }
 };

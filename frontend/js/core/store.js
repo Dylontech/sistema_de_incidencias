@@ -19,6 +19,8 @@ const estado = {
   municipio: null,
   catalogos: { iconos: [], ejemplos: {}, diasLimites: { amarillo: 15, naranja: 30 }, limites: {} },
   notificaciones: [],
+  /** Cuentas del personal cargadas en el panel de administración */
+  usuarios: [],
   estadisticas: { panel: null, informes: null },
 
   /** Filtros del listado (los lee el servicio al pedir incidencias) */

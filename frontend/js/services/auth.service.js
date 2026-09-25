@@ -19,6 +19,29 @@ export const authService = {
     return api.post('/auth/admin', { username, password });
   },
 
+  /** Entrada de una cuenta ciudadana (correo + contraseña). */
+  entrarCiudadano({ correo, password }) {
+    return api.post('/auth/ciudadano', {
+      correo,
+      password,
+      municipioId: sesion.municipioActivo?.id
+    });
+  },
+
+  /**
+   * Alta de cuenta ciudadana. `pseudonimo: true` pide un nombre generado en
+   * lugar del nombre real (el servidor lo sortea).
+   */
+  registrarCiudadano({ correo, password, nombre, pseudonimo }) {
+    return api.post('/auth/registro', {
+      correo,
+      password,
+      nombre,
+      pseudonimo: pseudonimo === true,
+      municipioId: sesion.municipioActivo?.id
+    });
+  },
+
   /** Valida el token guardado y recupera la sesión (equivale a Auth.init). */
   yo() {
     return api.get('/auth/me');

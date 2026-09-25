@@ -173,9 +173,11 @@ export class RepositorioMysql {
       id: fila.id,
       username: fila.username,
       nombre: fila.nombre,
+      correo: fila.correo || null,
       rol: fila.rol,
       municipioId: fila.municipio_id,
       activo: Boolean(fila.activo),
+      pseudonimo: Boolean(fila.pseudonimo),
       passwordHash: fila.password_hash
     };
   }
@@ -192,9 +194,48 @@ export class RepositorioMysql {
     return this.#aUsuario(fila);
   }
 
+  /** Las cuentas ciudadanas entran con su correo (siempre en minúsculas). */
+  async usuarioPorCorreo(correo) {
+    const objetivo = String(correo || '').trim().toLowerCase();
+    if (!objetivo) return null;
+    const fila = await this.knex('usuarios').whereRaw('LOWER(correo) = ?', [objetivo]).first();
+    return this.#aUsuario(fila);
+  }
+
   async usuarioPorId(id) {
     const fila = await this.knex('usuarios').where({ id }).first();
     return this.#aUsuario(fila);
+  }
+
+  async crearUsuario(usuario) {
+    await this.knex('usuarios').insert(this.#aFilaUsuario(usuario));
+    return usuario;
+  }
+
+  /** Parche parcial: solo se escriben las columnas presentes en `cambios`. */
+  async actualizarUsuario(id, cambios = {}) {
+    const fila = this.#aFilaUsuario(cambios, { parcial: true });
+    if (Object.keys(fila).length) await this.knex('usuarios').where({ id }).update(fila);
+    return this.usuarioPorId(id);
+  }
+
+  /** Traduce el objeto de dominio a columnas (y viceversa con `parcial`). */
+  #aFilaUsuario(usuario, { parcial = false } = {}) {
+    const fila = {};
+    const tiene = (campo) => Object.prototype.hasOwnProperty.call(usuario, campo);
+    const pon = (columna, valor, campo = columna) => {
+      if (!parcial || tiene(campo)) fila[columna] = valor;
+    };
+    pon('id', usuario.id);
+    pon('username', usuario.username);
+    pon('nombre', usuario.nombre);
+    pon('correo', usuario.correo ?? null);
+    pon('rol', usuario.rol);
+    pon('municipio_id', usuario.municipioId ?? null, 'municipioId');
+    pon('activo', usuario.activo !== false);
+    pon('pseudonimo', usuario.pseudonimo === true);
+    pon('password_hash', usuario.passwordHash, 'passwordHash');
+    return fila;
   }
 
   /* ------------------------------ incidencias ----------------------------- */

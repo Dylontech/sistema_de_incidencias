@@ -6,9 +6,21 @@
  * exactamente la misma política de negocio.
  */
 
-export const ROLES = ['anonimo', 'funcionario', 'admin'];
+/**
+ * Roles del sistema.
+ * - `anonimo`: sesión de navegador sin cuenta (solo puede reportar).
+ * - `ciudadano`: cuenta registrada con correo (recibe avisos de sus reportes).
+ * - `funcionario` / `admin`: personal del municipio (login con clave de municipio).
+ */
+export const ROLES = ['anonimo', 'ciudadano', 'funcionario', 'admin'];
 
 export const ROLES_EMPLEADO = ['funcionario', 'admin'];
+
+/** Roles que puede crear y editar un administrador desde el panel. */
+export const ROLES_PERSONAL = ['funcionario', 'admin'];
+
+/** Roles con cuenta propia (todo menos la sesión anónima). */
+export const ROLES_CUENTA = ['ciudadano', 'funcionario', 'admin'];
 
 /** Estados posibles de una incidencia. */
 export const ESTADOS = ['reportada', 'en_proceso', 'resuelta'];
@@ -28,6 +40,9 @@ export const ORDENES = ['reciente', 'antigua', 'prioridad'];
 
 /** Longitudes máximas (antes solo existían como maxlength en el HTML). */
 export const LIMITES_TEXTO = {
+  correo: 160,
+  /** Mínimo de la contraseña de una cuenta ciudadana. */
+  passwordMin: 8,
   titulo: 80,
   descripcion: 600,
   indicaciones: 400,

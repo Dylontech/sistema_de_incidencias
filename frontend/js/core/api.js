@@ -31,6 +31,20 @@ export const token = {
 
 export const BASE = '/api';
 
+/**
+ * Rutas de entrada. En ellas un 401 significa «credenciales incorrectas», no
+ * «sesión caducada»: si se trataran igual, fallar al escribir la contraseña
+ * cerraría la sesión (por ejemplo la ciudadana anónima que ya estaba abierta)
+ * y recargaría la página en lugar de mostrar el aviso.
+ */
+const RUTAS_ENTRADA = [
+  '/auth/anonimo',
+  '/auth/registro',
+  '/auth/ciudadano',
+  '/auth/funcionario',
+  '/auth/admin'
+];
+
 async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
   const cabeceras = {};
   const actual = token.leer();
@@ -56,7 +70,7 @@ async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
 
   if (!respuesta.ok) {
     // Sesión caducada o token inválido: se avisa para volver al login.
-    if (respuesta.status === 401 && actual) {
+    if (respuesta.status === 401 && actual && !RUTAS_ENTRADA.includes(ruta)) {
       token.borrar();
       document.dispatchEvent(new CustomEvent('sesion-expirada'));
     }

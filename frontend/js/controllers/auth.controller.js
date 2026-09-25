@@ -45,7 +45,42 @@ export function registrar() {
   registrarAcciones({
     'auth:tab': ({ valor }) => loginView.mostrarPanel(valor),
 
+    /** Sub-pasos del panel ciudadano (inicio / entrar / crear cuenta). */
+    'auth:modoAnon': ({ valor }) => loginView.mostrarModoAnon(valor || 'inicio'),
+
+    /** Casilla del nombre generado en el registro. */
+    'auth:pseudonimo': ({ evento }) =>
+      loginView.alternarPseudonimo(evento?.target?.checked === true),
+
     'auth:entrarAnonimo': () => entrarComoCiudadano(),
+
+    /** Entrada con una cuenta ciudadana (correo + contraseña). */
+    'auth:entrarCiudadano': () => {
+      const datos = loginView.valoresCiudadano();
+      if (!datos.correo || !datos.password) {
+        toast('Completa todos los campos', 'err');
+        return;
+      }
+      return entrar(() => authService.entrarCiudadano(datos));
+    },
+
+    /** Alta de cuenta: nombre real o pseudónimo generado por el servidor. */
+    'auth:registrar': () => {
+      const datos = loginView.valoresRegistro();
+      if (!datos.correo || !datos.password) {
+        toast('Escribe tu correo y una contraseña', 'err');
+        return;
+      }
+      if (datos.password.length < 8) {
+        toast('La contraseña debe tener al menos 8 caracteres', 'err');
+        return;
+      }
+      if (!datos.pseudonimo && !datos.nombre) {
+        toast('Escribe tu nombre o elige un nombre generado', 'err');
+        return;
+      }
+      return entrar(() => authService.registrarCiudadano(datos));
+    },
 
     'auth:entrarFuncionario': () => {
       const datos = loginView.valoresFuncionario();
@@ -66,7 +101,8 @@ export function registrar() {
     },
 
     /** Acceso del personal sin perder la sesión ciudadana. */
-    'auth:mostrarLogin': () => loginView.mostrarLogin({ puedeCancelar: !!sesion.datos }),
+    'auth:mostrarLogin': ({ valor }) =>
+      loginView.mostrarLogin({ puedeCancelar: !!sesion.datos, panel: valor || 'func' }),
 
     'auth:cancelarLogin': () => loginView.cancelarLogin(),
 

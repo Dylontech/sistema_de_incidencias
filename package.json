@@ -12,6 +12,7 @@
     "migrate:rollback": "npm --prefix backend run migrate:rollback",
     "seed": "npm --prefix backend run seed",
   "importar-inegi": "npm --prefix backend run importar-inegi",
-  "migrar-catalogo": "npm --prefix backend run migrar-catalogo"
+  "migrar-catalogo": "npm --prefix backend run migrar-catalogo",
+  "datos-demo": "npm --prefix backend run datos-demo"
   }
 }

@@ -23,10 +23,16 @@ export const CAMPOS_ENTRADA = [
   'indicaciones',
   'lat',
   'lng',
+  'anonima',
   'evidencia'
 ];
 
 const MIME_EVIDENCIA = /^(image\/|video\/|application\/pdf)/;
+
+/** Acepta booleanos y las cadenas que envía un formulario HTML. */
+function comoBooleano(valor) {
+  return valor === true || valor === 'true' || valor === 'on' || valor === 1 || valor === '1';
+}
 
 /** Normaliza y valida una entrada de incidencia. `parcial` = edición. */
 export function validarEntrada(datos = {}, { parcial = false, exigirUbicacion = true } = {}) {
@@ -70,6 +76,10 @@ export function validarEntrada(datos = {}, { parcial = false, exigirUbicacion = 
     salida.evidencia = normalizarEvidencia(datos.evidencia, v);
   }
 
+  // El autor decide, reporte a reporte, si aparece su nombre (o pseudónimo) o
+  // si el reporte queda anónimo. Acepta booleanos y las cadenas del formulario.
+  if (tiene('anonima')) salida.anonima = comoBooleano(datos.anonima);
+
   // Municipio activo elegido en la interfaz (el selector es público). Con él se
   // busca la zona del reporte; no se guarda tal cual, la incidencia hereda el
   // municipio de la zona encontrada.
@@ -110,7 +120,12 @@ function normalizarEvidencia(lista, v) {
 
 /** Documento completo de una incidencia nueva. */
 export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora = ahoraIso() }) {
-  const esAnonimo = usuario.rol === 'anonimo';
+  // Una sesión sin cuenta solo puede reportar en anónimo. Con cuenta, manda la
+  // elección que venga en el formulario (por omisión, firma el reporte).
+  const anonima = usuario.rol === 'anonimo' ? true : entrada.anonima === true;
+  // El historial es público: si el reporte va sin nombre, tampoco puede decir
+  // quién lo escribió (delataría al autor anónimo).
+  const quien = anonima ? 'Anónimo' : usuario.nombre;
   return {
     id: nuevoId(),
     tipoId: entrada.tipoId,
@@ -123,9 +138,11 @@ export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora
     fecha: ahora,
     actualizado: ahora,
     estado: ESTADO_INICIAL,
-    esAnonimo,
-    autor: esAnonimo ? 'Anónimo' : usuario.username,
-    autorNombre: esAnonimo ? 'Anónimo' : usuario.nombre,
+    esAnonimo: anonima,
+    // `autor` guarda siempre la identidad interna (username): es lo que da
+    // autoría para editar y para dirigir los avisos, aunque no se muestre.
+    autor: usuario.username,
+    autorNombre: anonima ? 'Anónimo' : usuario.nombre,
     userKey: usuario.userKey,
     municipioId,
     zonaId: zona ? zona.id : null,
@@ -142,7 +159,7 @@ export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora
         fecha: ahora,
         estado: ESTADO_INICIAL,
         accion: 'Incidencia reportada',
-        por: usuario.nombre
+        por: quien
       }
     ],
     comentarios: [],
@@ -164,6 +181,7 @@ export function aplicarEdicion(actual, entrada, { ahora = ahoraIso() } = {}) {
   };
   // Campos derivados o históricos que jamás se sobrescriben desde una edición.
   delete editado.colorAuto;
+  delete editado.anonima;
   editado.estado = actual.estado;
   editado.fecha = actual.fecha;
   editado.historial = actual.historial;
@@ -195,11 +213,13 @@ export function agregarComentario(incidencia, { autor, texto, ahora = ahoraIso()
   ];
 }
 
-/** Un ciudadano anónimo solo puede ver sus propios reportes. */
+/**
+ * Todos los roles pueden LEER las incidencias de su municipio: el listado es
+ * público para que los vecinos vean los problemas reportados. Editar, resolver
+ * o eliminar se controla con `puedeEditar` y con los permisos de cada servicio.
+ */
 export function puedeVer(incidencia, usuario) {
-  if (!usuario) return false;
-  if (usuario.rol === 'admin' || usuario.rol === 'funcionario') return true;
-  return incidencia.userKey === usuario.userKey;
+  return !!incidencia && !!usuario;
 }
 
 /** Reglas de edición (paridad con la vista de detalle del monolito). */

@@ -2,7 +2,16 @@
 import { AppError } from '../utils/AppError.js';
 import { dirigidaA } from '../models/notificacion.model.js';
 
+/**
+ * Buzón del usuario.
+ *
+ * La sesión anónima no tiene cuenta a la que avisar, así que su buzón está
+ * siempre vacío: el sistema de cuentas decidió que el anónimo solo reporta y
+ * que el seguimiento (avisos de estado, comentarios y resolución) es cosa de
+ * quien se registra.
+ */
 export async function listar(repositorio, usuario) {
+  if (usuario?.rol === 'anonimo') return [];
   return repositorio.notificacionesDe(usuario.userKey);
 }
 

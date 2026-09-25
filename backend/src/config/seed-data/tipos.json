@@ -75,6 +75,16 @@
     "icono": "🐕"
   },
   {
+    "id": "animal_atropellado",
+    "nombre": "Animal atropellado",
+    "icono": "🚗"
+  },
+  {
+    "id": "crueldad_animal",
+    "nombre": "Crueldad animal",
+    "icono": "🐾"
+  },
+  {
     "id": "otro",
     "nombre": "Otro",
     "icono": "❗"

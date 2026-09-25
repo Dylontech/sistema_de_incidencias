@@ -243,28 +243,118 @@ export function renderZonas(zonas = []) {
     </div>`;
 }
 
-export function renderUsuarios(usuarios = [], municipios = []) {
+export function renderUsuarios(usuarios = [], municipios = [], { esAdmin = false } = {}) {
   const contenedor = $('usuariosLista');
   if (!contenedor) return;
+
+  const botonNuevo = $('btnNuevoUsuario');
+  if (botonNuevo) botonNuevo.style.display = esAdmin ? 'inline-flex' : 'none';
+
+  if (!usuarios.length) {
+    contenedor.innerHTML =
+      '<div class="empty-state"><i class="bi bi-person-badge"></i><div>No hay cuentas del personal dadas de alta</div></div>';
+    return;
+  }
+
   contenedor.innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Municipio</th><th>Activo</th></tr></thead>
-      <tbody>
-        ${usuarios
-          .map((u) => {
-            const municipio = municipios.find((m) => m.id === u.municipioId);
-            return `
-            <tr>
-              <td><code>${esc(u.username)}</code></td>
-              <td>${esc(u.nombre)}</td>
-              <td><span style="background:#e8f5f2;color:#006657;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${esc(u.rol)}</span></td>
-              <td>${municipio ? esc(municipio.nombre) : '—'}</td>
-              <td>${u.activo !== false ? '✅' : '❌'}</td>
-            </tr>`;
-          })
-          .join('')}
-      </tbody>
-    </table>`;
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Municipio</th><th>Estado</th>
+            ${esAdmin ? '<th>Acciones</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${usuarios
+            .map((u) => {
+              const municipio = municipios.find((m) => m.id === u.municipioId);
+              return `
+              <tr>
+                <td><code>${esc(u.username)}</code></td>
+                <td>${esc(u.nombre)}${u.correo ? `<div class="campo-nota">${esc(u.correo)}</div>` : ''}</td>
+                <td><span class="inc-badge badge-${u.rol === 'admin' ? 'rojo' : 'amarillo'}">${esc(u.rol)}</span></td>
+                <td>${municipio ? esc(municipio.nombre) : '—'}</td>
+                <td>${u.activo !== false ? '✅ Activa' : '🚫 Inactiva'}</td>
+                ${
+                  esAdmin
+                    ? `<td>
+                         <button class="btn btn-sm btn-outline" data-action="admin:usuarioEditar" data-id="${esc(u.id)}" title="Editar cuenta">
+                           <i class="bi bi-pencil-square"></i>
+                         </button>
+                       </td>`
+                    : ''
+                }
+              </tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/* ---------------------- alta / edición del personal ---------------------- */
+
+/**
+ * Prepara el modal de usuario.
+ * Sin `usuario` es un alta; con él, una edición en la que el usuario de acceso
+ * queda bloqueado (es la llave de entrada y el `userKey` de sus reportes).
+ */
+export function prepararModalUsuario({ usuario = null, municipios = [] } = {}) {
+  const edicion = Boolean(usuario);
+
+  $('modalUsuarioTitle').textContent = edicion ? 'Editar usuario' : 'Nuevo usuario';
+  $('usuarioId').value = usuario?.id || '';
+  $('usuarioUsernameBox').style.display = edicion ? 'none' : 'block';
+  $('usuarioUsername').value = usuario?.username || '';
+  $('usuarioNombre').value = usuario?.nombre || '';
+  $('usuarioRol').value = usuario?.rol || 'funcionario';
+
+  renderSelectMunicipiosUsuario(municipios, usuario?.municipioId || null);
+
+  $('usuarioCorreo').value = usuario?.correo || '';
+  $('usuarioPassword').value = '';
+  $('usuarioPasswordNota').textContent = edicion
+    ? 'Déjala vacía para conservar la contraseña actual.'
+    : 'Mínimo 8 caracteres.';
+
+  $('usuarioActivoBox').style.display = edicion ? 'block' : 'none';
+  $('usuarioActivo').checked = usuario?.activo !== false;
+
+  actualizarNotaMunicipioUsuario();
+}
+
+/** Rellena el selector de municipio con el catálogo activo. */
+export function renderSelectMunicipiosUsuario(municipios = [], activoId = null) {
+  const selector = $('usuarioMunicipio');
+  if (!selector) return;
+  selector.innerHTML =
+    '<option value="">— Sin municipio —</option>' +
+    municipios.map((m) => `<option value="${esc(m.id)}">${esc(m.nombre)}, ${esc(m.estado)}</option>`).join('');
+  if (activoId) selector.value = activoId;
+}
+
+/** El funcionario necesita municipio; el administrador puede quedarse sin él. */
+export function actualizarNotaMunicipioUsuario() {
+  const nota = $('usuarioMunicipioBox')?.querySelector('.campo-nota');
+  if (!nota) return;
+  nota.textContent =
+    $('usuarioRol')?.value === 'funcionario'
+      ? 'Obligatorio: el funcionario solo ve y gestiona este municipio.'
+      : 'Opcional: un administrador sin municipio trabaja con el activo de la barra superior.';
+}
+
+export function valoresUsuarioForm() {
+  return {
+    id: $('usuarioId').value.trim() || null,
+    username: $('usuarioUsername').value.trim(),
+    nombre: $('usuarioNombre').value.trim(),
+    rol: $('usuarioRol').value,
+    municipioId: $('usuarioMunicipio').value || null,
+    correo: $('usuarioCorreo').value.trim() || null,
+    password: $('usuarioPassword').value,
+    activo: $('usuarioActivo').checked
+  };
 }
 
 export function valorMunicipioSeleccionado() {

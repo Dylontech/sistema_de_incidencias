@@ -30,11 +30,13 @@
  *
  * @typedef {Object} Usuario
  * @property {string} id
- * @property {string} username
- * @property {string} nombre
- * @property {'funcionario'|'admin'} rol
+ * @property {string} username       identificador interno (también `userKey`)
+ * @property {string} nombre         nombre visible (real o pseudónimo)
+ * @property {string|null} correo    solo en cuentas ciudadanas
+ * @property {'ciudadano'|'funcionario'|'admin'} rol
  * @property {string|null} municipioId
  * @property {boolean} activo
+ * @property {boolean} pseudonimo    `true` si `nombre` es un pseudónimo generado
  * @property {string} passwordHash
  *
  * @typedef {Object} Evidencia
@@ -58,9 +60,9 @@
  * @property {string} actualizado      ISO de última modificación
  * @property {'reportada'|'en_proceso'|'resuelta'} estado
  * @property {boolean} esAnonimo
- * @property {string} autor            username o 'Anónimo'
- * @property {string} autorNombre
- * @property {string} userKey          'anon_<id>' o username
+ * @property {string} autor            identidad interna (username); no se muestra si es anónimo
+ * @property {string} autorNombre      lo que ve el vecindario ('Anónimo' o el nombre/pseudónimo)
+ * @property {string} userKey          'anon_<id>' o username del autor
  * @property {string} municipioId
  * @property {string|null} zonaId
  * @property {string|null} zonaNombre
@@ -105,7 +107,10 @@
  * @property {(id:string) => Promise<boolean>} eliminarTipo
  * @property {() => Promise<Usuario[]>} todosLosUsuarios
  * @property {(username:string) => Promise<Usuario|null>} usuarioPorUsername
+ * @property {(correo:string) => Promise<Usuario|null>} usuarioPorCorreo
  * @property {(id:string) => Promise<Usuario|null>} usuarioPorId
+ * @property {(usuario:Usuario) => Promise<Usuario>} crearUsuario
+ * @property {(id:string, cambios:Object) => Promise<Usuario|null>} actualizarUsuario
  * @property {(filtros:FiltrosIncidencias) => Promise<Incidencia[]>} buscarIncidencias
  * @property {() => Promise<Incidencia[]>} todasLasIncidencias
  * @property {(id:string) => Promise<Incidencia|null>} incidenciaPorId
@@ -137,7 +142,10 @@ export const METODOS_REQUERIDOS = [
   'eliminarTipo',
   'todosLosUsuarios',
   'usuarioPorUsername',
+  'usuarioPorCorreo',
   'usuarioPorId',
+  'crearUsuario',
+  'actualizarUsuario',
   'buscarIncidencias',
   'todasLasIncidencias',
   'incidenciaPorId',

@@ -13,7 +13,7 @@ const ICONOS_STATUS = {
 };
 
 /** Deja el formulario listo para un reporte nuevo. */
-export function prepararAlta() {
+export function prepararAlta(usuario = null) {
   $('modalIncTitle').textContent = 'Reportar incidencia';
   $('incGuardarTexto').textContent = 'Enviar reporte';
   $('incTipo').value = '';
@@ -26,6 +26,43 @@ export function prepararAlta() {
   $('evidenceList').innerHTML = '';
   limpiarPicker('iconPicker');
   renderZonaBadge(null);
+  renderFirma(usuario);
+}
+
+/**
+ * Bloque «Firma del reporte».
+ *
+ * Una sesión anónima no tiene elección: sus reportes nunca llevan nombre. Una
+ * cuenta (ciudadana o del personal) decide reporte a reporte si firma con su
+ * nombre o si aparece como «Anónimo»; el valor por omisión es firmar.
+ */
+export function renderFirma(usuario = null, { anonima = null, bloqueado = false } = {}) {
+  const casilla = $('incAnonima');
+  const nota = $('incFirmaNota');
+  if (!casilla) return;
+
+  const esAnonimo = usuario?.rol === 'anonimo';
+  const conNombre = anonima === true;
+  casilla.disabled = esAnonimo || bloqueado;
+  casilla.checked = esAnonimo ? true : conNombre;
+
+  if (!nota) return;
+  if (bloqueado) {
+    nota.textContent =
+      'La firma se decide al crear el reporte y no cambia después: este quedó como «Anónimo».';
+  } else if (esAnonimo) {
+    nota.textContent =
+      'Estás en una sesión anónima: el reporte aparecerá como «Anónimo» y no recibirás avisos. Crea una cuenta para seguir tus reportes.';
+  } else if (casilla.checked) {
+    nota.textContent = `Aparecerá como «Anónimo», pero seguirás recibiendo los avisos de «${usuario?.nombre || 'tu cuenta'}».`;
+  } else {
+    nota.textContent = `Aparecerá con tu nombre: ${usuario?.nombre || 'tu cuenta'}.`;
+  }
+}
+
+/** Refleja la elección del usuario en la nota del formulario. */
+export function actualizarNotaFirma(usuario) {
+  renderFirma(usuario, { anonima: $('incAnonima')?.checked === true });
 }
 
 /** Rellena el formulario con una incidencia existente. */
@@ -60,6 +97,7 @@ export function leerFormulario() {
     descripcion: $('incDescripcion').value.trim(),
     indicaciones: $('incIndicaciones').value.trim(),
     iconoCustom: iconoSeleccionado('iconPicker'),
+    anonima: $('incAnonima')?.checked === true,
     evidencia: []
   };
 }

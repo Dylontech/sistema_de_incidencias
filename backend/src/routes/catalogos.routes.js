@@ -3,7 +3,7 @@ import { Router } from 'express';
 import * as municipios from '../controllers/municipios.controller.js';
 import * as tipos from '../controllers/tipos.controller.js';
 import * as usuarios from '../controllers/usuarios.controller.js';
-import { requiereEmpleado, requiereSesion } from '../middlewares/auth.js';
+import { requiereAdmin, requiereEmpleado, requiereSesion } from '../middlewares/auth.js';
 
 const router = Router();
 
@@ -20,5 +20,8 @@ router.post('/tipos', requiereEmpleado, tipos.crear);
 router.delete('/tipos/:id', requiereEmpleado, tipos.eliminar);
 
 router.get('/usuarios', requiereEmpleado, usuarios.listar);
+// Las cuentas del personal las abre y mantiene un administrador.
+router.post('/usuarios', requiereAdmin, usuarios.crear);
+router.patch('/usuarios/:id', requiereAdmin, usuarios.actualizar);
 
 export default router;

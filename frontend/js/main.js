@@ -49,7 +49,11 @@ async function iniciarSesion() {
   loading(true, 'Restaurando sesión…');
   try {
     const { usuario, municipioActivo } = await authService.yo();
-    await aplicacion.arrancar({ usuario, municipioActivo });
+    // El municipio elegido en la barra superior se conserva entre recargas
+    // (si sigue existiendo: `arrancar` lo valida). Un funcionario está atado al
+    // suyo, así que para él manda el que devuelve el servidor.
+    const elegido = usuario.rol === 'funcionario' ? municipioActivo : guardada.municipioActivo;
+    await aplicacion.arrancar({ usuario, municipioActivo: elegido || municipioActivo });
   } catch (error) {
     // Token caducado o servidor no disponible: se entra como ciudadano en
     // lugar de dejar la pantalla bloqueada.

@@ -83,10 +83,63 @@ arráncalo puntualmente con `PORT=<otro puerto> npm run dev`, o libera el puerto
 | Administrador | `admin` | `admin123` | — |
 | Funcionario | `funcionario` | `func123` | `16050` (Maravatío) |
 | Funcionario | `funcionario2` | `func123` | `16050` (Maravatío) |
-| Ciudadano | — | — | acceso anónimo |
+| Ciudadano | correo propio | contraseña propia | se crea desde la pantalla de acceso |
 
 > Las contraseñas se guardan con bcrypt. En el monolito estaban en claro dentro de
 > `localStorage`.
+
+### Sistema de cuentas
+
+Hay tres formas de usar el sistema, y solo la primera no necesita nada:
+
+| Forma de entrar | Cómo | Qué consigue |
+|---|---|---|
+| **Participante anónimo** | Botón «Entrar como ciudadano anónimo» | Reportar y ver todo el municipio. **No recibe avisos**: no hay cuenta a la que dirigirlos. |
+| **Cuenta ciudadana** | Correo + contraseña (pestaña «Ciudadano» → *Crear cuenta*) | Buzón de avisos (estado, comentarios, resolución y alertas) y edición de sus reportes. |
+| **Personal** | Usuario + contraseña + clave de municipio | Funcionario: gestiona su municipio. Administrador: todo + cuentas del personal. |
+
+**Identidad en cada reporte.** Al registrarse se elige entre poner el nombre real o
+pedir un **nombre generado** («Águila Nocturna», «Colibrí 07»…) que el servidor sortea y
+que solo aparece en los reportes. Además, en el formulario de cada reporte hay una
+casilla *Reportar como anónimo*: el reporte se muestra como «Anónimo» aunque la cuenta
+siga recibiendo sus avisos. La firma se fija al crear el reporte y no cambia después
+(una sesión anónima siempre publica como «Anónimo»).
+
+**Cuentas del personal.** Las abre y mantiene el administrador desde *Panel → Usuarios*
+(`POST`/`PATCH /api/usuarios`): alta, nombre, rol, municipio, correo de contacto,
+activar/desactivar y reseteo de contraseña. El **usuario de acceso nunca se cambia**
+(es la llave de entrada y la autoría de sus reportes) y el sistema impide quedarse sin
+algún administrador activo. Los ciudadanos no aparecen en ese listado: su correo es
+dato privado y su `userKey` en los reportes es un identificador opaco (`cdad_…`), nunca
+el correo.
+
+**Un 401 en el login no cierra la sesión.** El cliente HTTP no confunde «credenciales
+incorrectas» con «sesión caducada» en las rutas de entrada, así que equivocarse al
+escribir la contraseña no tira la sesión ciudadana ni recarga la página.
+
+### Datos de demostración
+
+Para probar los filtros, el mapa y el panel sin capturar reportes a mano:
+
+```bash
+npm run datos-demo                              # Tarandacuao (Guanajuato)
+npm run datos-demo -- --municipio=16050         # otro municipio (nombre o clave)
+npm run datos-demo -- --por-tipo=10             # entre 5 y 15 por cada tipo
+npm run datos-demo -- --peligrosas=8            # cuántas se marcan como peligrosas
+npm run datos-demo -- --limpiar --por-tipo=5    # borra las anteriores y regenera
+npm run datos-demo -- --limpiar                 # sólo borrar
+```
+
+Genera el número indicado de reportes por cada uno de los 18 tipos (7 por omisión:
+126 en total), repartidos a propósito entre los tres estados, las cuatro antigüedades
+(amarillo, naranja, rojo y verde), las comunidades del municipio y varios autores, para
+que **ninguna opción de los filtros quede vacía**. Los documentos se insertan con el
+repositorio (no por la API) para no llenar el buzón de notificaciones, llevan `demo: true`
+y un id con prefijo `demo-`, que es lo que usa `--limpiar` para retirarlos.
+
+> Los reportes son **públicos dentro del municipio activo**: un ciudadano (o el personal)
+> ve todos los que hayan reportado los demás, sin necesidad de cuenta. Solo el autor de
+> cada reporte puede editarlo o eliminarlo.
 
 ---
 
@@ -109,6 +162,7 @@ Dentro de `backend/`:
 | `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/` (ya no la geografía). |
 | `npm run importar-inegi` | Genera el catálogo de municipios y comunidades con los polígonos del INEGI. |
 | `npm run migrar-catalogo` | Pasa los datos existentes a las claves geoestadísticas (ver más abajo). |
+| `npm run datos-demo` | Crea incidencias de ejemplo repartidas por tipo, estado, antigüedad y comunidad. |
 | `npm run importar-legacy -- respaldo.json` | Importa un respaldo del sistema anterior. |
 | `npm run limpiar-bases-prueba` | Borra las bases `incidencias_test_*` de las pruebas. |
 
@@ -139,10 +193,12 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
 | POST | `/api/auth/anonimo` | público | Entrada como ciudadano anónimo (`anonId` opcional y persistente). |
+| POST | `/api/auth/registro` | público | Crea una cuenta ciudadana (correo, contraseña, nombre o `pseudonimo`). |
+| POST | `/api/auth/ciudadano` | público | Entrada de una cuenta ciudadana (correo + contraseña). |
 | POST | `/api/auth/funcionario` | público | Usuario + contraseña + clave de municipio. |
 | POST | `/api/auth/admin` | público | Usuario + contraseña. |
 | GET | `/api/auth/me` | sesión | Sesión actual y municipio sugerido para el mapa. |
-| POST | `/api/auth/municipio-activo` | empleado | Cambia de municipio (exige la clave) y devuelve token nuevo. |
+| POST | `/api/auth/municipio-activo` | sesión | Cambia de municipio y devuelve token nuevo (el admin exige la clave). |
 
 ### Catálogos
 
@@ -154,7 +210,9 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | GET | `/api/municipios/:id/zonas` | sesión |
 | GET | `/api/municipios/:id/zonas/resumen` | empleado |
 | GET / POST / DELETE | `/api/tipos`, `/api/tipos/:id` | sesión / empleado / empleado |
-| GET | `/api/usuarios` | empleado (sin hashes de contraseña) |
+| GET | `/api/usuarios` | empleado (solo cuentas del personal, sin hashes) |
+| POST | `/api/usuarios` | admin (crea funcionario o administrador) |
+| PATCH | `/api/usuarios/:id` | admin (nombre, rol, municipio, correo, estado y contraseña) |
 
 ### Incidencias y evidencia
 
@@ -162,7 +220,7 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 |---|---|---|---|
 | GET | `/api/incidencias` | sesión | Filtros: `texto`, `estado`, `tipo`, `color`, `zona`, `orden`. |
 | GET | `/api/incidencias/:id` | sesión | Detalle + `permisos` calculados en el servidor. |
-| POST | `/api/incidencias` | sesión | Crea un reporte (valida geocerca y duplicados). |
+| POST | `/api/incidencias` | sesión | Crea un reporte (valida geocerca y duplicados). `anonima: true` lo publica sin nombre. |
 | PUT | `/api/incidencias/:id` | autor o empleado | Edita conservando estado, fecha e historial. |
 | PATCH | `/api/incidencias/:id/estado` | empleado | `reportada` ↔ `en_proceso`. |
 | PATCH | `/api/incidencias/:id/peligro` | empleado | Marca o desmarca como peligrosa (`{ peligrosa, motivo }`). |
@@ -183,11 +241,16 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 
 ### Alcance de datos (se aplica siempre en el servidor)
 
-| Rol | Qué ve |
-|---|---|
-| Ciudadano anónimo | Solo sus propios reportes, dentro de su municipio. |
-| Funcionario | Todo su municipio. |
-| Administrador | Todos los municipios, o solo el que tenga activo. |
+| Rol | Qué ve | Qué puede cambiar |
+|---|---|---|
+| Ciudadano anónimo | **Todos los reportes del municipio activo** (el de la barra superior). | Solo los suyos: editar y eliminar. Puede comentar y dar seguimiento a cualquiera. |
+| Cuenta ciudadana | Lo mismo que el anónimo, y además su buzón de avisos. | Lo mismo; sus reportes pueden ir con su nombre o anónimos. |
+| Funcionario | Todo su municipio (está atado a él, no elige otro). | Estado, peligro y cualquier reporte de su municipio. Sigue sin poder editar el contenido ajeno. |
+| Administrador | Todos los municipios, o solo el que tenga activo. | Todo, incluido marcar/desmarcar peligrosas y gestionar las cuentas del personal. |
+
+El recorte por municipio se aplica a quien **no** puede elegir municipio (el funcionario);
+el ciudadano y el administrador recorren el catálogo con el selector de la barra superior,
+así que pueden abrir el detalle de cualquier municipio aunque su sesión se haya creado en otro.
 
 ---
 
@@ -281,6 +344,11 @@ Traduce el municipio de incidencias y usuarios del identificador antiguo
 comunidad que contiene sus coordenadas. Antes de escribir deja copias
 `<archivo>.antes.json` en `backend/data/`.
 
+En el driver JSON se siembra `usuarios.json` con el personal de demostración; las
+cuentas ciudadanas se guardan en el mismo archivo con `rol: "ciudadano"`, `correo` y
+`pseudonimo`. En MySQL/MariaDB eso lo resuelve la migración **`006_cuentas`** (columnas
+`correo` y `pseudonimo` + el rol `ciudadano` en el `ENUM`).
+
 ---
 
 ## Incidencias peligrosas
@@ -363,8 +431,13 @@ exactamente con las del driver JSON.
   comunidades se conservan sin comunidad asignada).
 - **Driver JSON (por defecto)**: el catálogo geográfico —`municipios` y `zonas`— se compara
   con los datos semilla en cada arranque y se reescribe si difiere, así que un cambio de
-  contorno municipal o de comunidades se aplica solo. Las incidencias, notificaciones,
-  tipos y usuarios se conservan intactos.
+  contorno municipal o de comunidades se aplica solo. Las incidencias, notificaciones y
+  usuarios se conservan intactos.
+- **Conceptos nuevos en el catálogo de tipos**: los tipos base no se pueden borrar desde el
+  panel, así que los que traiga una semilla nueva se **añaden** al arranque (driver JSON) sin
+  tocar los personalizados ni los reportes que ya existan. Con MySQL/MariaDB, la migración
+  `007_tipos_animales` hace lo mismo al ejecutar `npm run migrate` (inserta solo los que
+  falten; `npm run seed` también los incluye, pero borra los reportes).
 - **MySQL / MariaDB**: aplica la migración `004_localidades_inegi` (población y cabecera del
   municipio; ámbito, clave y población de la comunidad) y recarga el catálogo:
 
@@ -405,11 +478,14 @@ npm test                                                    # driver json (por d
 STORAGE_DRIVER_TEST=mysql DB_PORT=3306 DB_USER=root npm test # driver mysql
 ```
 
-La suite (`backend/test/`) cubre autenticación y roles, ciclo de vida de la incidencia,
-geocerca y colores derivados, filtros y alcance por municipio, evidencia, estadísticas,
-exportación y la importación de respaldos. Cada archivo de pruebas usa su propio directorio
-temporal y, con MySQL, su propia base de datos (`incidencias_test_<pid>`), de modo que la
-**misma suite valida los dos drivers**.
+La suite (`backend/test/`, **75 pruebas**) cubre autenticación y roles, ciclo de vida de
+la incidencia, geocerca y colores derivados, filtros y alcance por municipio, evidencia,
+estadísticas, exportación y la importación de respaldos. `cuentas.test.js` añade el
+sistema de cuentas: alta y entrada de ciudadanos, nombre generado, firma por reporte
+(el anónimo nunca firma y el buzón del anónimo está vacío) y la gestión de cuentas del
+personal con sus permisos. Cada archivo de pruebas usa su propio directorio temporal y,
+con MySQL, su propia base de datos (`incidencias_test_<pid>`), de modo que la **misma
+suite valida los dos drivers**.
 
 ---
 
@@ -468,6 +544,19 @@ defectos del monolito:
     ([ver más](#incidencias-peligrosas)) y el panel los muestra en grande. Además se
     sustituyeron los `window.prompt`/`window.confirm` de este flujo por un modal propio,
     porque los diálogos nativos no funcionan en todos los navegadores.
+13. **Los reportes del municipio son públicos**: antes el ciudadano anónimo solo veía los
+    suyos. Ahora cualquiera ve todos los del municipio activo —la idea es que todos
+    conozcan los problemas— y la escritura sigue restringida al autor
+    ([ver alcance](#alcance-de-datos-se-aplica-siempre-en-el-servidor)). Para volver al
+    esquema privado basta con que `filtrosDeAlcance` vuelva a añadir `userKey` para los
+    anónimos y que `puedeVer` exija ser el autor.
+14. **Cuentas con seguimiento**: el monolito solo distinguía «anónimo» y «personal». Ahora
+    hay una **cuenta ciudadana** con correo y contraseña que sirve para seguir los propios
+    reportes, con la posibilidad de publicar cada uno con el nombre real, con un
+    **pseudónimo generado** o como «Anónimo». A cambio, la sesión anónima ya no recibe
+    notificaciones: sin cuenta no hay buzón al que avisar.
+    ([ver el sistema de cuentas](#sistema-de-cuentas)) Además, las cuentas del personal se
+    gestionan desde el panel en lugar de venir solo de los datos semilla.
 
 ---
 

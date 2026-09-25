@@ -37,6 +37,39 @@ export class Api {
     return new Api(app, r.body.token);
   }
 
+  /**
+   * Ciudadano registrado (correo + contraseña). Es quien recibe los avisos de
+   * sus reportes: la sesión anónima no tiene buzón.
+   */
+  static async ciudadano(app, { correo, password = 'segura1234', nombre = 'Vecina Prueba', pseudonimo = false } = {}) {
+    const email = correo || `prueba-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}@ejemplo.mx`;
+    const r = await request(app)
+      .post('/api/auth/registro')
+      .send({ correo: email, password, nombre, pseudonimo });
+    if (r.status !== 201) {
+      throw new Error(`No se pudo registrar el ciudadano de prueba: ${r.body?.error || r.status}`);
+    }
+    return new Api(app, r.body.token);
+  }
+
+  /**
+   * Alta de cuenta ciudadana devolviendo la respuesta cruda: así se pueden
+   * comprobar los rechazos (correo repetido, contraseña corta, sin nombre…).
+   */
+  static registrar(app, cuerpo = {}) {
+    return request(app).post('/api/auth/registro').send(cuerpo);
+  }
+
+  /** Entrada de una cuenta ciudadana (correo + contraseña). */
+  static entrarCiudadano(app, cuerpo = {}) {
+    return request(app).post('/api/auth/ciudadano').send(cuerpo);
+  }
+
+  /** Entrada de un funcionario (respuesta cruda, para probar rechazos). */
+  static entrarFuncionario(app, cuerpo = {}) {
+    return request(app).post('/api/auth/funcionario').send(cuerpo);
+  }
+
   static async funcionario(app, credenciales = {}) {
     const cuerpo = {
       username: 'funcionario',

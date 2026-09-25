@@ -15,6 +15,7 @@
     "extraer-semilla": "node scripts/extraer-semilla.mjs",
     "importar-inegi": "node scripts/importar-inegi.mjs",
     "migrar-catalogo": "node scripts/migrar-catalogo.mjs",
+    "datos-demo": "node scripts/datos-demo.mjs",
     "importar-legacy": "node scripts/importar-legacy.mjs",
     "limpiar-bases-prueba": "node scripts/limpiar-bases-prueba.mjs",
     "migrate": "knex --knexfile knexfile.js migrate:latest",

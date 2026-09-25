@@ -1,7 +1,7 @@
 /**
  * MODELO: Tipo de incidencia.
- * Los 16 tipos base son datos semilla y no se pueden eliminar;
- * los creados desde el panel (`custom: true`) sí.
+ * Los tipos base (los de la semilla) son datos del sistema y no se pueden
+ * eliminar; los creados desde el panel (`custom: true`) sí.
  */
 import { LIMITES_TEXTO } from '../config/constantes.js';
 import { recolector, normalizarBusqueda } from '../utils/validacion.js';

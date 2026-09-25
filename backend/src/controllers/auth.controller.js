@@ -12,6 +12,22 @@ export const entrarAnonimo = asyncHandler(async (req, res) => {
   res.status(201).json({ ...sesion, municipioActivo: publico(sesion.municipioActivo) });
 });
 
+/** Alta de una cuenta ciudadana (correo + contraseña, nombre o pseudónimo). */
+export const registrarCiudadano = asyncHandler(async (req, res) => {
+  const sesion = await auth.registrarCiudadano(req.repositorio, req.body || {});
+  res.status(201).json({ ...sesion, municipioActivo: publico(sesion.municipioActivo) });
+});
+
+/** Entrada de una cuenta ciudadana ya existente. */
+export const entrarCiudadano = asyncHandler(async (req, res) => {
+  const sesion = await auth.entrarCiudadano(req.repositorio, {
+    correo: req.body?.correo,
+    password: req.body?.password,
+    municipioId: req.body?.municipioId
+  });
+  res.json({ ...sesion, municipioActivo: publico(sesion.municipioActivo) });
+});
+
 export const entrarFuncionario = asyncHandler(async (req, res) => {
   const sesion = await auth.entrarFuncionario(req.repositorio, {
     username: req.body?.username,
@@ -39,7 +55,15 @@ export const yo = asyncHandler(async (req, res) => {
   // cae al municipio por defecto, no al primero del listado.
   const municipioActivo =
     propio || municipios.find((m) => m.id === MUNICIPIO_DEFAULT) || municipios[0] || null;
-  res.json({ usuario: req.usuario, municipioActivo: publico(municipioActivo) });
+  res.json({
+    usuario: {
+      ...req.usuario,
+      // Se mantiene la misma forma que devuelve el login, para que la interfaz
+      // pueda preguntar «¿es anónimo?» sin ramificar por rol.
+      esAnonimo: req.usuario.rol === 'anonimo'
+    },
+    municipioActivo: publico(municipioActivo)
+  });
 });
 
 /** Cambio de municipio activo con clave (paridad con `Admin.cambiarMunicipio`). */

@@ -60,9 +60,11 @@ export class RepositorioJson {
           id: u.id,
           username: u.username,
           nombre: u.nombre,
+          correo: u.correo ?? null,
           rol: u.rol,
           municipioId: u.municipioId ?? null,
           activo: u.activo !== false,
+          pseudonimo: u.pseudonimo === true,
           passwordHash: await hashearPassword(u.passwordInicial)
         });
       }
@@ -75,6 +77,28 @@ export class RepositorioJson {
     // se refrescan. Es catálogo del sistema, no información del ciudadano.
     await this.#sincronizarCatalogo('municipios', municipiosSemilla);
     await this.#sincronizarCatalogo('zonas', zonasSemilla);
+    await this.#agregarTiposBase();
+  }
+
+  /**
+   * Agrega los tipos base que falten en `tipos.json`.
+   *
+   * Los tipos base no se pueden borrar desde el panel (solo los `custom`), así
+   * que añadir los que traiga una semilla nueva siempre es correcto: la
+   * instalación que ya existía ve el concepto nuevo sin volver a sembrar, y los
+   * reportes que ya lo usaban no se tocan.
+   */
+  async #agregarTiposBase() {
+    const actuales = await this.almacen.leer('tipos', []);
+    const conocidos = new Set(actuales.map((t) => t.id));
+    if (tiposSemilla.every((t) => conocidos.has(t.id))) return false;
+
+    const porId = new Map(actuales.map((t) => [t.id, t]));
+    const base = tiposSemilla.map((t) => porId.get(t.id) || t);
+    const personalizados = actuales.filter((t) => t.custom === true);
+    await this.almacen.escribir('tipos', [...base, ...personalizados]);
+    this.catalogo.delete('tipos');
+    return true;
   }
 
   /** Reescribe una colección de catálogo si difiere de la semilla. */
@@ -159,9 +183,39 @@ export class RepositorioJson {
     return lista.find((u) => String(u.username).toLowerCase() === objetivo) || null;
   }
 
+  /** Las cuentas ciudadanas entran con su correo (siempre en minúsculas). */
+  async usuarioPorCorreo(correo) {
+    const objetivo = String(correo || '').trim().toLowerCase();
+    if (!objetivo) return null;
+    const lista = await this.todosLosUsuarios();
+    return lista.find((u) => String(u.correo || '').toLowerCase() === objetivo) || null;
+  }
+
   async usuarioPorId(id) {
     const lista = await this.todosLosUsuarios();
     return lista.find((u) => u.id === id) || null;
+  }
+
+  async crearUsuario(usuario) {
+    return this.almacen.transaccion('usuarios', [], (lista) => ({
+      datos: [...lista, usuario],
+      resultado: usuario
+    }));
+  }
+
+  /**
+   * Aplica un parche parcial sobre una cuenta.
+   * El username y el rol no se tocan aquí: el servicio decide qué campos viajan.
+   */
+  async actualizarUsuario(id, cambios = {}) {
+    return this.almacen.transaccion('usuarios', [], (lista) => {
+      const indice = lista.findIndex((u) => u.id === id);
+      if (indice === -1) return { datos: undefined, resultado: null };
+      const actualizado = { ...lista[indice], ...cambios, id: lista[indice].id };
+      const datos = lista.slice();
+      datos[indice] = actualizado;
+      return { datos, resultado: actualizado };
+    });
   }
 
   /* ------------------------------- incidencias ----------------------------- */

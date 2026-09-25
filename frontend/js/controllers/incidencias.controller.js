@@ -35,13 +35,18 @@ async function abrirFormulario(id = null) {
   const ejemplos = store.estado.catalogos.ejemplos || {};
 
   if (!id) {
-    formView.prepararAlta();
+    formView.prepararAlta(store.estado.usuario);
     abrirModal('modalIncidencia');
     return;
   }
 
   const { incidencia } = await incidenciasService.obtener(id);
   formView.prepararEdicion(incidencia);
+  // La firma se elige al crear el reporte (el servidor la protege después).
+  formView.renderFirma(store.estado.usuario, {
+    anonima: incidencia.esAnonimo === true,
+    bloqueado: true
+  });
   formView.mostrarEjemplo(incidencia.tipoId, ejemplos);
   formView.renderEvidencia(incidencia.evidencia || []);
   store.actualizarSeccion(
@@ -175,6 +180,7 @@ async function guardarIncidencia() {
     descripcion: datos.descripcion,
     indicaciones: datos.indicaciones,
     iconoCustom: datos.iconoCustom,
+    anonima: datos.anonima,
     lat: ubicacion.lat,
     lng: ubicacion.lng,
     // El municipio activo decide contra qué límite se valida la ubicación.
@@ -290,6 +296,9 @@ export function registrar() {
 
     /* ----------------------- formulario ---------------------------- */
     'incidencias:reportar': () => abrirFormulario(null),
+
+    /** Casilla «reportar como anónimo»: actualiza la nota de firma. */
+    'incidencias:firma': () => formView.actualizarNotaFirma(store.estado.usuario),
 
     'incidencias:editar': ({ id }) => intentar(() => abrirFormulario(id)),
 

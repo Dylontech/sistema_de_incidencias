@@ -143,15 +143,20 @@ export async function crear(repositorio, usuario, datos) {
 
   await repositorio.crearIncidencia(incidencia);
 
-  await repositorio.crearNotificacion(
-    construirNotificacion({
-      tipo: 'reporte',
-      titulo: '✅ Reporte enviado',
-      mensaje: `Tu reporte "${incidencia.titulo}" fue registrado correctamente.`,
-      incidenciaId: incidencia.id,
-      paraUsuario: usuario.userKey
-    })
-  );
+  // El acuse de recibo solo tiene destinatario si hay cuenta: el anónimo no
+  // recibe notificaciones (por eso el registro sirve para tener seguimiento).
+  const destinatario = destinatarioDeIncidencia(incidencia);
+  if (destinatario) {
+    await repositorio.crearNotificacion(
+      construirNotificacion({
+        tipo: 'reporte',
+        titulo: '✅ Reporte enviado',
+        mensaje: `Tu reporte "${incidencia.titulo}" fue registrado correctamente.`,
+        incidenciaId: incidencia.id,
+        paraUsuario: destinatario
+      })
+    );
+  }
 
   return enriquecer(incidencia);
 }
@@ -401,7 +406,8 @@ export async function marcarPeligro(repositorio, usuario, id, { peligrosa = true
 }
 
 /** Crea la notificación dirigida al autor del reporte. */
-async function notificar(repositorio, incidencia, tipo, titulo, mensaje) {  await repositorio.crearNotificacion(
+async function notificar(repositorio, incidencia, tipo, titulo, mensaje) {
+  await repositorio.crearNotificacion(
     construirNotificacion({
       tipo,
       titulo,

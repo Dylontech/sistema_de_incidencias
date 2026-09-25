@@ -44,9 +44,9 @@ export function renderizar(incidencias = [], { tipos = [], esCiudadano = false }
   if (!incidencias.length) {
     contenedor.innerHTML = `<div class="empty-state">
       <i class="bi bi-inbox"></i>
-      <div>${esCiudadano ? 'Aún no has reportado ninguna incidencia' : 'No hay incidencias que mostrar'}</div>
+      <div>${esCiudadano ? 'Todavía no hay reportes en este municipio' : 'No hay incidencias que mostrar'}</div>
       <div style="font-size:11.5px;margin-top:6px;">
-        ${esCiudadano ? 'Usa el botón + para reportar tu primera incidencia' : 'Prueba ajustar los filtros o reporta una nueva'}
+        ${esCiudadano ? 'Usa el botón + para reportar el primero' : 'Prueba ajustar los filtros o reporta una nueva'}
       </div>
     </div>`;
     return;

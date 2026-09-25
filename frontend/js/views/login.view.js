@@ -5,6 +5,41 @@ export function mostrarPanel(nombre) {
   $$('.login-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.valor === nombre));
   $$('.login-panel').forEach((panel) => panel.classList.remove('active'));
   $(`panel-${nombre}`)?.classList.add('active');
+  // El panel ciudadano siempre abre en el paso de elección (anónimo/cuenta).
+  if (nombre === 'anon') mostrarModoAnon('inicio');
+}
+
+/**
+ * Sub-pasos del panel «Ciudadano»: elegir, entrar con cuenta o registrarse.
+ * Es una sola pestaña con tres vistas para no llenar la pantalla de acceso de
+ * pestañas (el ciudadano de a pie es el caso más común y debe quedar primero).
+ */
+export function mostrarModoAnon(modo = 'inicio') {
+  const vistas = { inicio: 'anonInicio', login: 'anonLogin', registro: 'anonRegistro' };
+  Object.entries(vistas).forEach(([nombre, id]) => {
+    const elemento = $(id);
+    if (elemento) elemento.style.display = nombre === modo ? 'block' : 'none';
+  });
+  if (modo === 'registro') alternarPseudonimo(false);
+  if (modo === 'login') $('ciud-correo')?.focus();
+  if (modo === 'registro') $('reg-correo')?.focus();
+}
+
+/**
+ * Alterna el nombre generado en el registro: cuando está marcado, el campo de
+ * nombre se oculta porque el servidor sortea el pseudónimo.
+ */
+export function alternarPseudonimo(activo) {
+  const casilla = $('reg-pseudonimo');
+  if (casilla) casilla.checked = activo === true;
+  const campo = $('reg-nombre');
+  if (campo) campo.style.display = activo ? 'none' : 'block';
+  const nota = $('regNombreNota');
+  if (nota) {
+    nota.textContent = activo
+      ? 'Te asignaremos un nombre como «Águila Nocturna»: nadie sabrá quién eres y aun así recibirás los avisos de tus reportes.'
+      : 'Escribe tu nombre o marca la casilla para que te asignemos un pseudónimo.';
+  }
 }
 
 /**
@@ -12,12 +47,13 @@ export function mostrarPanel(nombre) {
  * perder la sesión ciudadana que ya está activa. Si hay sesión, se muestra la
  * «×» para volver a la aplicación. Mismo comportamiento que `Auth.mostrarLogin`.
  */
-export function mostrarLogin({ puedeCancelar = false } = {}) {
+export function mostrarLogin({ puedeCancelar = false, panel = 'func' } = {}) {
   $('loginScreen').style.display = 'flex';
   const cancelar = $('loginCancelBtn');
   if (cancelar) cancelar.style.display = puedeCancelar ? 'block' : 'none';
-  // El acceso del personal empieza en la pestaña de funcionario.
-  mostrarPanel('func');
+  // El acceso del personal empieza en la pestaña de funcionario; quien llega
+  // desde el aviso de «sesión anónima» aterriza en la del ciudadano.
+  mostrarPanel(panel);
 }
 
 /** Cierra la pantalla de acceso y vuelve a la aplicación. */
@@ -31,15 +67,18 @@ export function mostrarApp({ usuario, municipioActivo }) {
   $('app').classList.add('active');
 
   const esEmpleado = usuario.rol === 'funcionario' || usuario.rol === 'admin';
+  // Cualquier cuenta (ciudadana o del personal) puede cerrar sesión; el enlace
+  // «Personal» solo tiene sentido para quien no ha entrado con cuenta.
+  const tieneCuenta = usuario.rol !== 'anonimo';
   $('btn-admin').style.display = esEmpleado ? 'inline-flex' : 'none';
   $('btn-informes').style.display = esEmpleado ? 'inline-flex' : 'none';
-  // El ciudadano ve el botón para acceder como personal; el personal, el de salir.
   $('btn-staff-login').style.display = esEmpleado ? 'none' : 'inline-flex';
-  $('btn-logout').style.display = esEmpleado ? 'inline-flex' : 'none';
+  $('btn-logout').style.display = tieneCuenta ? 'inline-flex' : 'none';
   $('visibilidadNota').style.display = esEmpleado ? 'none' : 'block';
 
   $('userName').textContent = usuario.nombre;
   actualizarMunicipioTitulo(municipioActivo);
+  actualizarNotaCuenta(usuario);
 
   // El funcionario está atado a su municipio: el selector se queda fijo.
   fijarSelectorMunicipio({
@@ -49,6 +88,24 @@ export function mostrarApp({ usuario, municipioActivo }) {
         ? 'Tu municipio asignado no se puede cambiar'
         : 'Municipio activo (catálogo del INEGI)'
   });
+}
+
+/**
+ * Nota de la barra lateral para quien no es personal: explica si va a recibir
+ * avisos (cuenta con correo) o no (sesión anónima).
+ */
+function actualizarNotaCuenta(usuario) {
+  const nota = $('notaCuenta');
+  if (!nota) return;
+  if (usuario.rol === 'funcionario' || usuario.rol === 'admin') {
+    nota.style.display = 'none';
+    return;
+  }
+  nota.style.display = 'block';
+  nota.innerHTML =
+    usuario.rol === 'ciudadano'
+      ? `<i class="bi bi-bell-fill"></i> Recibirás avisos de tus reportes en el buzón (la campana). Estás como <strong>${esc(usuario.nombre)}</strong>.`
+      : `<i class="bi bi-bell-slash"></i> Estás como <strong>anónimo</strong>: puedes reportar, pero no recibirás avisos. <a href="#" data-action="auth:mostrarLogin" data-valor="anon">Crea una cuenta</a> para seguir tus reportes.`;
 }
 
 export function actualizarMunicipioTitulo(municipio) {
@@ -119,11 +176,41 @@ export function valoresAdmin() {
   };
 }
 
+/** Credenciales de una cuenta ciudadana (se entra con el correo). */
+export function valoresCiudadano() {
+  return {
+    correo: $('ciud-correo').value.trim(),
+    password: $('ciud-pass').value
+  };
+}
+
+/** Datos del alta de cuenta ciudadana. */
+export function valoresRegistro() {
+  return {
+    correo: $('reg-correo').value.trim(),
+    password: $('reg-pass').value,
+    nombre: $('reg-nombre').value.trim(),
+    pseudonimo: $('reg-pseudonimo')?.checked === true
+  };
+}
+
 export function limpiarFormularios() {
-  ['func-user', 'func-pass', 'func-code', 'admin-user', 'admin-pass'].forEach((id) => {
+  [
+    'func-user',
+    'func-pass',
+    'func-code',
+    'admin-user',
+    'admin-pass',
+    'ciud-correo',
+    'ciud-pass',
+    'reg-correo',
+    'reg-pass',
+    'reg-nombre'
+  ].forEach((id) => {
     const campo = $(id);
     if (campo) campo.value = '';
   });
+  alternarPseudonimo(false);
 }
 
 export function alternarSidebar() {

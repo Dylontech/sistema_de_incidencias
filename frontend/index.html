@@ -31,18 +31,86 @@
       <button class="login-tab" data-action="auth:tab" data-valor="admin">Administrador</button>
     </div>
 
-    <!-- ANÓNIMO -->
+    <!-- ANÓNIMO / CUENTA CIUDADANA -->
     <div class="login-panel active" id="panel-anon">
-      <p style="font-size:12.5px;color:#4a5568;margin-bottom:14px;line-height:1.5;">
-        No necesitas cuenta: cualquier persona puede reportar incidencias de forma <strong>anónima</strong>.
-        Este sistema recuerda tus reportes en este dispositivo automáticamente.
-      </p>
-      <button class="btn btn-primary btn-block" data-action="auth:entrarAnonimo">
-        <i class="bi bi-person-fill"></i> Entrar como ciudadano anónimo
-      </button>
-      <p style="font-size:11px;color:#94a3b8;margin-top:12px;text-align:center;">
-        <i class="bi bi-info-circle"></i> Los reportes anónimos no recopilan datos personales.
-      </p>
+      <!-- Paso 1: elegir cómo entrar -->
+      <div id="anonInicio">
+        <p style="font-size:12.5px;color:#4a5568;margin-bottom:14px;line-height:1.5;">
+          No necesitas cuenta: cualquier persona puede reportar incidencias de forma <strong>anónima</strong>.
+          Este sistema recuerda tus reportes en este dispositivo automáticamente.
+        </p>
+        <button class="btn btn-primary btn-block" data-action="auth:entrarAnonimo">
+          <i class="bi bi-person-fill"></i> Entrar como ciudadano anónimo
+        </button>
+        <p style="font-size:11.5px;color:#8a5a00;background:#fff8e6;border:1px solid #ffe4a3;border-radius:6px;padding:8px 10px;margin-top:12px;line-height:1.45;">
+          <i class="bi bi-bell-slash"></i> Una sesión anónima <strong>no recibe avisos</strong>:
+          si quieres saber cómo va tu reporte, abre una cuenta.
+        </p>
+        <div class="cuenta-sep"><span>o con tu cuenta</span></div>
+        <div class="cuenta-acciones">
+          <button class="btn btn-outline btn-block" data-action="auth:modoAnon" data-valor="login">
+            <i class="bi bi-box-arrow-in-right"></i> Ya tengo cuenta
+          </button>
+          <button class="btn btn-outline btn-block" data-action="auth:modoAnon" data-valor="registro">
+            <i class="bi bi-person-plus-fill"></i> Crear cuenta
+          </button>
+        </div>
+        <p style="font-size:11px;color:#94a3b8;margin-top:12px;text-align:center;">
+          <i class="bi bi-info-circle"></i> Con cuenta sigues pudiendo reportar sin mostrar tu nombre.
+        </p>
+      </div>
+
+      <!-- Paso 2: entrar con correo y contraseña -->
+      <div id="anonLogin" style="display:none;">
+        <form data-submit="auth:entrarCiudadano">
+          <div class="form-group">
+            <label for="ciud-correo">Correo electrónico</label>
+            <input type="email" id="ciud-correo" name="correo" placeholder="tu@correo.mx" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="ciud-pass">Contraseña</label>
+            <input type="password" id="ciud-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">
+            <i class="bi bi-box-arrow-in-right"></i> Entrar a mi cuenta
+          </button>
+        </form>
+        <button class="btn btn-outline btn-block btn-sm" data-action="auth:modoAnon" data-valor="inicio" style="margin-top:10px;">
+          <i class="bi bi-arrow-left"></i> Volver
+        </button>
+      </div>
+
+      <!-- Paso 3: crear cuenta -->
+      <div id="anonRegistro" style="display:none;">
+        <form data-submit="auth:registrar">
+          <div class="form-group">
+            <label for="reg-correo">Correo electrónico *</label>
+            <input type="email" id="reg-correo" name="correo" placeholder="tu@correo.mx" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="reg-pass">Contraseña *</label>
+            <input type="password" id="reg-pass" name="password" placeholder="Al menos 8 caracteres" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>Nombre en tus reportes *</label>
+            <label class="check-line">
+              <input type="checkbox" id="reg-pseudonimo" data-change="auth:pseudonimo">
+              <span>Usar un nombre generado (pseudónimo)</span>
+            </label>
+            <input type="text" id="reg-nombre" name="nombre" maxlength="80" placeholder="Ej. María Ramírez" style="margin-top:8px;">
+            <p class="campo-nota" id="regNombreNota">
+              Si eliges el nombre generado te asignamos algo como «Águila Nocturna» y nadie
+              sabrá quién eres.
+            </p>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">
+            <i class="bi bi-person-plus-fill"></i> Crear mi cuenta
+          </button>
+        </form>
+        <button class="btn btn-outline btn-block btn-sm" data-action="auth:modoAnon" data-valor="inicio" style="margin-top:10px;">
+          <i class="bi bi-arrow-left"></i> Volver
+        </button>
+      </div>
     </div>
 
     <!-- FUNCIONARIO -->
@@ -170,8 +238,10 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div id="visibilidadNota" style="display:none;font-size:11px;color:#8a5a00;background:#fff8e6;border:1px solid #ffe4a3;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;">
-          <i class="bi bi-shield-lock"></i> Por privacidad, solo ves <strong>tus propios reportes</strong>. El listado completo es visible únicamente para funcionarios y administradores.
+          <i class="bi bi-people-fill"></i> Ves <strong>todos los reportes del municipio</strong>. Solo tú puedes
+          editar los que hayas creado tú.
         </div>
+        <div id="notaCuenta" style="display:none;font-size:11px;color:#1e4d6b;background:#eaf4fb;border:1px solid #bfdcf0;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;"></div>
         <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
         <div class="filters">
           <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
@@ -285,6 +355,15 @@
         <div class="form-group">
           <label for="incIndicaciones">Indicaciones / Referencias para llegar</label>
           <textarea id="incIndicaciones" rows="2" maxlength="400" placeholder="Ej. Frente a la tienda, junto al poste, color de la fachada…"></textarea>
+        </div>
+
+        <div class="form-group" id="incFirmaBox">
+          <label>Firma del reporte</label>
+          <label class="check-line">
+            <input type="checkbox" id="incAnonima" data-change="incidencias:firma">
+            <span>Reportar como anónimo (no mostrar mi nombre)</span>
+          </label>
+          <p class="campo-nota" id="incFirmaNota"></p>
         </div>
 
         <div class="form-group">
@@ -426,6 +505,16 @@
       </div>
 
       <div class="admin-panel" id="panel-usuarios">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+          <p style="font-size:12.5px;color:var(--gris);margin:0;max-width:620px;line-height:1.45;">
+            Cuentas del <strong>personal del municipio</strong> (funcionarios y administradores).
+            Ellas entran por la pestaña <em>Personal</em> de la pantalla de acceso; los ciudadanos
+            crean su propia cuenta con correo. El usuario de acceso no se puede cambiar después.
+          </p>
+          <button class="btn btn-primary btn-sm" data-action="admin:usuarioNuevo" id="btnNuevoUsuario">
+            <i class="bi bi-person-plus-fill"></i> Nuevo usuario
+          </button>
+        </div>
         <div id="usuariosLista"></div>
       </div>
     </div>
@@ -520,6 +609,65 @@
 <!-- ============================================================
      MODAL: NUEVO TIPO
      ============================================================ -->
+<!-- ============================================================
+     MODAL: USUARIO DEL PERSONAL (alta / edición)
+     ============================================================ -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-person-badge-fill"></i> <span id="modalUsuarioTitle">Nuevo usuario</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalUsuario">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form data-submit="admin:usuarioGuardar">
+        <input type="hidden" id="usuarioId">
+        <div class="form-group" id="usuarioUsernameBox">
+          <label for="usuarioUsername">Usuario de acceso *</label>
+          <input type="text" id="usuarioUsername" maxlength="60" placeholder="ej. jlopez" autocomplete="off">
+          <p class="campo-nota">Así entra en la pestaña «Personal» (junto a la clave del municipio).</p>
+        </div>
+        <div class="form-group">
+          <label for="usuarioNombre">Nombre completo *</label>
+          <input type="text" id="usuarioNombre" maxlength="80" placeholder="Ej. Juan López">
+        </div>
+        <div class="form-group">
+          <label for="usuarioRol">Rol *</label>
+          <select id="usuarioRol" data-change="admin:usuarioRol">
+            <option value="funcionario">Funcionario</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="form-group" id="usuarioMunicipioBox">
+          <label for="usuarioMunicipio">Municipio</label>
+          <select id="usuarioMunicipio"></select>
+          <p class="campo-nota">El funcionario queda atado a este municipio; el administrador puede cambiar el activo cuando quiera.</p>
+        </div>
+        <div class="form-group">
+          <label for="usuarioCorreo">Correo de contacto (opcional)</label>
+          <input type="email" id="usuarioCorreo" maxlength="160" placeholder="no se usa para entrar">
+        </div>
+        <div class="form-group">
+          <label for="usuarioPassword">Contraseña *</label>
+          <input type="password" id="usuarioPassword" placeholder="Al menos 8 caracteres" autocomplete="new-password">
+          <p class="campo-nota" id="usuarioPasswordNota">Mínimo 8 caracteres.</p>
+        </div>
+        <div class="form-group" id="usuarioActivoBox" style="display:none;">
+          <label class="check-line">
+            <input type="checkbox" id="usuarioActivo">
+            <span>Cuenta activa (puede iniciar sesión)</span>
+          </label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalUsuario">Cancelar</button>
+      <button class="btn btn-primary" data-action="admin:usuarioGuardar">
+        <i class="bi bi-check2-circle"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalNuevoTipo">
   <div class="modal-box">
     <div class="modal-head">

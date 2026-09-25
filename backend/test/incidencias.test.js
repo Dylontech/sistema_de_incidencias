@@ -66,7 +66,10 @@ describe('Incidencias: creación', () => {
     assert.equal(inc.zonaId, ZONA_MARAVATIO);
     assert.equal(inc.municipioId, MUNICIPIO_MARAVATIO);
     assert.equal(inc.esAnonimo, true);
-    assert.equal(inc.autor, 'Anónimo');
+    // La autoría interna se conserva (permite editar el reporte y dirigirle
+    // avisos), pero lo que se muestra es «Anónimo».
+    assert.equal(inc.autor, 'anonimo_ciudadano1001');
+    assert.equal(inc.autorNombre, 'Anónimo');
     assert.equal(inc.userKey, 'anon_ciudadano1001');
     assert.equal(inc.historial.length, 1);
     assert.equal(inc.historial[0].accion, 'Incidencia reportada');
@@ -147,57 +150,98 @@ describe('Incidencias: creación', () => {
     assert.equal(otroTipo.status, 201);
   });
 
-  test('el ciudadano solo ve sus propios reportes', async () => {
+  test('el listado es público dentro del municipio, pero solo el autor edita', async () => {
     const ana = await Api.anonimo(app, 'ciudadanoA01');
     const luis = await Api.anonimo(app, 'ciudadanoB01');
 
-    const creada = await ana.post('/api/incidencias', incidenciaValida({ titulo: 'Reporte privado de Ana' }));
+    const creada = await ana.post(
+      '/api/incidencias',
+      incidenciaValida({ titulo: 'Reporte de Ana frente a la primaria' })
+    );
     assert.equal(creada.status, 201);
+    const id = creada.body.incidencia.id;
 
+    // Los dos ven el mismo reporte: los problemas son públicos.
     const listaAna = await ana.get('/api/incidencias');
-    assert.equal(listaAna.body.incidencias.length, 1);
+    assert.ok(listaAna.body.incidencias.some((i) => i.id === id));
 
     const listaLuis = await luis.get('/api/incidencias');
-    assert.equal(listaLuis.body.incidencias.length, 0);
+    // Ve la de Ana (y las que hayan dejado otras pruebas en el municipio).
+    assert.ok(listaLuis.body.incidencias.some((i) => i.id === id));
 
-    const detalleAjeno = await luis.get(`/api/incidencias/${creada.body.incidencia.id}`);
-    assert.equal(detalleAjeno.status, 403);
+    const detalleAjeno = await luis.get(`/api/incidencias/${id}`);
+    assert.equal(detalleAjeno.status, 200);
+    assert.equal(detalleAjeno.body.incidencia.id, id);
+    // Luis puede leerlo, pero no editarlo ni borrarlo.
+    assert.equal(detalleAjeno.body.incidencia.permisos.puedeEditar, false);
+    assert.equal(detalleAjeno.body.incidencia.permisos.puedeEliminar, false);
+
+    const edicionAjena = await luis.put(`/api/incidencias/${id}`, { titulo: 'Secuestro' });
+    assert.equal(edicionAjena.status, 403);
+    assert.equal((await luis.delete(`/api/incidencias/${id}`)).status, 403);
+  });
+
+  test('un ciudadano no ve reportes de otro municipio', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoA02');
+    await anon.post('/api/incidencias', incidenciaValida({ titulo: 'Reporte en Maravatío' }));
+
+    // Al pedir otro municipio, el listado se recorta a él (queda vacío).
+    const otro = await anon.get('/api/incidencias?municipio=11038');
+    assert.equal(otro.status, 200);
+    assert.equal(otro.body.incidencias.length, 0);
+    assert.ok(
+      otro.body.incidencias.every((i) => i.municipioId === '11038'),
+      'solo puede devolver incidencias del municipio pedido'
+    );
   });
 });
 
 describe('Incidencias: filtros', () => {
   test('filtra por texto, estado, tipo, zona y ordena por prioridad', async () => {
     const anon = await Api.anonimo(app, 'ciudadanoFiltros');
+    // El listado es público, así que convive con los reportes de otras pruebas:
+    // se usan títulos con marcador único y se comprueba el filtro, no el total.
+    const marca = 'filtroszz';
 
-    await anon.post('/api/incidencias', incidenciaValida({ titulo: 'Bache en la esquina' }));
+    await anon.post('/api/incidencias', incidenciaValida({ titulo: `Bache en la esquina ${marca}` }));
     await anon.post(
       '/api/incidencias',
-      incidenciaValida({ tipoId: 'basura', titulo: 'Basura acumulada', descripcion: 'Muchos desechos.' })
+      incidenciaValida({
+        tipoId: 'basura',
+        titulo: `Basura acumulada ${marca}`,
+        descripcion: 'Muchos desechos.'
+      })
     );
-    await insertarAntigua('anon_ciudadanoFiltros');
+    const antigua = await insertarAntigua('anon_ciudadanoFiltros', {
+      titulo: `Luminaria vieja ${marca}`
+    });
 
-    const todos = await anon.get('/api/incidencias');
+    const todos = await anon.get(`/api/incidencias?texto=${marca}`);
     assert.equal(todos.body.incidencias.length, 3);
 
-    const porTexto = await anon.get('/api/incidencias?texto=basura');
+    const porTexto = await anon.get(`/api/incidencias?texto=Basura acumulada ${marca}`);
     assert.equal(porTexto.body.incidencias.length, 1);
-    assert.equal(porTexto.body.incidencias[0].titulo, 'Basura acumulada');
+    assert.equal(porTexto.body.incidencias[0].titulo, `Basura acumulada ${marca}`);
 
-    const porTipo = await anon.get('/api/incidencias?tipo=luminaria');
+    const porTipo = await anon.get(`/api/incidencias?tipo=luminaria&texto=${marca}`);
     assert.equal(porTipo.body.incidencias.length, 1);
+    assert.equal(porTipo.body.incidencias[0].id, antigua.id);
     assert.equal(porTipo.body.incidencias[0].color, 'rojo');
 
-    const porEstado = await anon.get('/api/incidencias?estado=resuelta');
+    const porEstado = await anon.get(`/api/incidencias?estado=resuelta&texto=${marca}`);
     assert.equal(porEstado.body.incidencias.length, 0);
 
-    const porColor = await anon.get('/api/incidencias?color=rojo');
+    const porColor = await anon.get(`/api/incidencias?color=rojo&texto=${marca}`);
     assert.equal(porColor.body.incidencias.length, 1);
+    assert.equal(porColor.body.incidencias[0].id, antigua.id);
 
+    // El orden por prioridad pone primero lo más urgente de todo el municipio.
     const porPrioridad = await anon.get('/api/incidencias?orden=prioridad');
     assert.equal(porPrioridad.body.incidencias[0].color, 'rojo');
 
-    const porZona = await anon.get(`/api/incidencias?zona=${ZONA_MARAVATIO}`);
+    const porZona = await anon.get(`/api/incidencias?zona=${ZONA_MARAVATIO}&texto=${marca}`);
     assert.equal(porZona.body.incidencias.length, 3);
+    assert.ok(porZona.body.incidencias.every((i) => i.zonaId === ZONA_MARAVATIO));
 
     const zonaInexistente = await anon.get('/api/incidencias?zona=ten_apeo');
     assert.equal(zonaInexistente.body.incidencias.length, 0);
@@ -242,13 +286,13 @@ describe('Incidencias: edición y estados', () => {
   });
 
   test('solo funcionarios y administradores cambian estado; el flujo notifica al autor', async () => {
-    const anon = await Api.anonimo(app, 'ciudadano2004');
+    const ciudadano = await Api.ciudadano(app, { correo: 'estados2004@ejemplo.mx' });
     const funcionario = await Api.funcionario(app);
 
-    const creada = await anon.post('/api/incidencias', incidenciaValida());
+    const creada = await ciudadano.post('/api/incidencias', incidenciaValida());
     const id = creada.body.incidencia.id;
 
-    const anonIntenta = await anon.patch(`/api/incidencias/${id}/estado`, { estado: 'en_proceso' });
+    const anonIntenta = await ciudadano.patch(`/api/incidencias/${id}/estado`, { estado: 'en_proceso' });
     assert.equal(anonIntenta.status, 403);
 
     const enProceso = await funcionario.patch(`/api/incidencias/${id}/estado`, { estado: 'en_proceso' });
@@ -259,17 +303,31 @@ describe('Incidencias: edición y estados', () => {
     const directa = await funcionario.patch(`/api/incidencias/${id}/estado`, { estado: 'resuelta' });
     assert.equal(directa.status, 400); // debe pasar por la resolución
 
-    const notificaciones = await anon.get('/api/notificaciones');
+    const notificaciones = await ciudadano.get('/api/notificaciones');
     const tipos = notificaciones.body.notificaciones.map((n) => n.tipo);
     assert.ok(tipos.includes('reporte'));
     assert.ok(tipos.includes('estado'));
   });
 
-  test('resolver exige descripción, guarda evidencia y notifica al ciudadano', async () => {
-    const anon = await Api.anonimo(app, 'ciudadano2005');
+  test('la sesión anónima no recibe ninguna notificación', async () => {
+    const anon = await Api.anonimo(app, 'ciudadano2008');
     const funcionario = await Api.funcionario(app);
 
-    const creada = await anon.post('/api/incidencias', incidenciaValida());
+    const creada = await anon.post('/api/incidencias', incidenciaValida({ titulo: 'Bache sin buzón' }));
+    const id = creada.body.incidencia.id;
+    await funcionario.patch(`/api/incidencias/${id}/estado`, { estado: 'en_proceso' });
+    await funcionario.post(`/api/incidencias/${id}/resolucion`, { solucion: 'Se bacheó la calle.' });
+
+    const notificaciones = await anon.get('/api/notificaciones');
+    const suyas = notificaciones.body.notificaciones.filter((n) => n.incidenciaId === id);
+    assert.equal(suyas.length, 0);
+  });
+
+  test('resolver exige descripción, guarda evidencia y notifica al ciudadano', async () => {
+    const ciudadano = await Api.ciudadano(app, { correo: 'resolver2005@ejemplo.mx' });
+    const funcionario = await Api.funcionario(app);
+
+    const creada = await ciudadano.post('/api/incidencias', incidenciaValida());
     const id = creada.body.incidencia.id;
 
     const sinTexto = await funcionario.post(`/api/incidencias/${id}/resolucion`, { solucion: '' });
@@ -296,18 +354,18 @@ describe('Incidencias: edición y estados', () => {
     });
     assert.equal(repetida.status, 409);
 
-    const notificaciones = await anon.get('/api/notificaciones');
+    const notificaciones = await ciudadano.get('/api/notificaciones');
     assert.ok(notificaciones.body.notificaciones.some((n) => n.tipo === 'resuelta'));
   });
 
   test('los comentarios se guardan y avisan al autor del reporte', async () => {
-    const anon = await Api.anonimo(app, 'ciudadano2006');
+    const ciudadano = await Api.ciudadano(app, { correo: 'comentarios2006@ejemplo.mx' });
     const funcionario = await Api.funcionario(app);
 
-    const creada = await anon.post('/api/incidencias', incidenciaValida());
+    const creada = await ciudadano.post('/api/incidencias', incidenciaValida());
     const id = creada.body.incidencia.id;
 
-    const vacio = await anon.post(`/api/incidencias/${id}/comentarios`, { texto: '   ' });
+    const vacio = await ciudadano.post(`/api/incidencias/${id}/comentarios`, { texto: '   ' });
     assert.equal(vacio.status, 400);
 
     const comentario = await funcionario.post(`/api/incidencias/${id}/comentarios`, {
@@ -317,7 +375,7 @@ describe('Incidencias: edición y estados', () => {
     assert.equal(comentario.body.incidencia.comentarios.length, 1);
     assert.equal(comentario.body.incidencia.comentarios[0].autor, 'Juan López');
 
-    const notificaciones = await anon.get('/api/notificaciones');
+    const notificaciones = await ciudadano.get('/api/notificaciones');
     assert.ok(notificaciones.body.notificaciones.some((n) => n.tipo === 'comentario'));
   });
 
@@ -338,10 +396,10 @@ describe('Incidencias: edición y estados', () => {
 
 describe('Incidencias: marca de peligro', () => {
   test('solo el personal marca y desmarca, con historial y aviso al autor', async () => {
-    const anon = await Api.anonimo(app, 'ciudadanoPeligro');
+    const ciudadano = await Api.ciudadano(app, { correo: 'peligro@ejemplo.mx' });
     const funcionario = await Api.funcionario(app);
 
-    const creada = await anon.post(
+    const creada = await ciudadano.post(
       '/api/incidencias',
       incidenciaValida({ titulo: 'Cable de alta tensión caído' })
     );
@@ -351,7 +409,7 @@ describe('Incidencias: marca de peligro', () => {
     assert.equal(creada.body.incidencia.peligrosa, false);
 
     // El ciudadano no puede marcarla ni tan siquiera su propio reporte.
-    const intento = await anon.patch(`/api/incidencias/${id}/peligro`, { peligrosa: true });
+    const intento = await ciudadano.patch(`/api/incidencias/${id}/peligro`, { peligrosa: true });
     assert.equal(intento.status, 403);
 
     const marcada = await funcionario.patch(`/api/incidencias/${id}/peligro`, {
@@ -367,7 +425,7 @@ describe('Incidencias: marca de peligro', () => {
     assert.match(inc.historial.at(-1).accion, /Marcada como peligrosa/);
 
     // El autor recibe el aviso.
-    const notificaciones = await anon.get('/api/notificaciones');
+    const notificaciones = await ciudadano.get('/api/notificaciones');
     assert.ok(
       notificaciones.body.notificaciones.some(
         (n) => n.tipo === 'alerta' && /peligroso/i.test(n.titulo)
@@ -383,7 +441,7 @@ describe('Incidencias: marca de peligro', () => {
     assert.equal(detalle.body.incidencia.peligrosa, true);
     assert.equal(detalle.body.incidencia.permisos.puedeMarcarPeligro, true);
 
-    const detalleAnon = await anon.get(`/api/incidencias/${id}`);
+    const detalleAnon = await ciudadano.get(`/api/incidencias/${id}`);
     assert.equal(detalleAnon.body.incidencia.permisos.puedeMarcarPeligro, false);
 
     // Repetir la marca no tiene sentido.

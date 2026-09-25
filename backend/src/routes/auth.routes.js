@@ -6,6 +6,8 @@ import { requiereSesion } from '../middlewares/auth.js';
 const router = Router();
 
 router.post('/anonimo', auth.entrarAnonimo);
+router.post('/registro', auth.registrarCiudadano);
+router.post('/ciudadano', auth.entrarCiudadano);
 router.post('/funcionario', auth.entrarFuncionario);
 router.post('/admin', auth.entrarAdmin);
 router.get('/me', requiereSesion, auth.yo);

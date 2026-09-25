@@ -1322,6 +1322,8 @@ const TIPOS_DEFAULT = [
   { id: 'senal', nombre: 'Señalización dañada', icono: '🚏' },
   { id: 'grafiti', nombre: 'Grafiti / vandalismo', icono: '🎨' },
   { id: 'animal', nombre: 'Animal callejero', icono: '🐕' },
+  { id: 'animal_atropellado', nombre: 'Animal atropellado', icono: '🚗' },
+  { id: 'crueldad_animal', nombre: 'Crueldad animal', icono: '🐾' },
   { id: 'otro', nombre: 'Otro', icono: '❗' }
 ];
 
@@ -1345,12 +1347,14 @@ const EJEMPLOS_TIPO = {
   senal: { titulo: 'Señal de alto derribada', descripcion: 'La señal de alto de la esquina fue derribada por un vehículo y no ha sido repuesta, ya se han visto casi-choques.' },
   grafiti: { titulo: 'Grafiti en fachada de edificio público', descripcion: 'La barda de la escuela primaria amaneció con grafiti la semana pasada y sigue sin limpiarse.' },
   animal: { titulo: 'Perros abandonados en la calle', descripcion: 'Hay un grupo de perros callejeros que rondan la cuadra desde hace días, algunos parecen enfermos o agresivos.' },
+  animal_atropellado: { titulo: 'Perro atropellado sobre la avenida', descripcion: 'Un perro fue atropellado frente a la primaria y quedó sobre el carril derecho; los autos lo esquivan y nadie ha venido a retirarlo. Pasa mucha gente a la escuela por esta banqueta.' },
+  crueldad_animal: { titulo: 'Perro encadenado sin agua ni sombra', descripcion: 'En el patio de la casa de la esquina hay un perro atado con cadena muy corta, sin agua ni sombra durante todo el día. Se escucha que llora y los vecinos ya lo hemos reportado sin respuesta.' },
   otro: { titulo: 'Describe brevemente el problema', descripcion: 'Explica qué observaste, desde cuándo, y por qué representa un riesgo o molestia para la comunidad.' }
 };
 
 const ICONOS_DISPONIBLES = [
   '🕳️','🚧','💧','💡','🌊','🗑️','🚰','🛣️','🌳','🚦','⚡','🏞️','🚏','🎨','🐕','❗',
-  '🏗️','🚨','🔥','🌪️','🌧️','☀️','🚗','🚌','🏥','🏫','⛪','🏛️','🏘️','📡','🔌','🛠️'
+  '🐾','🏗️','🚨','🔥','🌪️','🌧️','☀️','🚗','🚌','🏥','🏫','⛪','🏛️','🏘️','📡','🔌','🛠️'
 ];
 
 const DIAS_LIMITES = { amarillo: 15, naranja: 30 };
