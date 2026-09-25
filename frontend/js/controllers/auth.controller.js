@@ -4,22 +4,32 @@ import { loading, preguntar, toast } from '../core/ui.js';
 import { intentar } from '../core/errores.js';
 import { $ } from '../core/utils.js';
 import { sesion } from '../core/session.js';
+import { consentimiento } from '../core/consentimiento.js';
 import * as loginView from '../views/login.view.js';
 import * as notifView from '../views/notificaciones.view.js';
 import { authService } from '../services/auth.service.js';
 import * as aplicacion from '../core/aplicacion.js';
 
-async function entrar(operacion, { silencioso = false } = {}) {
+async function entrar(operacion, { silencioso = false, antesDeArrancar = null } = {}) {
   loading(true, 'Iniciando sesión…');
   try {
     const respuesta = await operacion();
     sesion.guardar(respuesta);
     loginView.cancelarLogin();
+
+    // Paso previo (municipio + términos): puede cambiar el municipio activo.
+    const previo = antesDeArrancar
+      ? await antesDeArrancar({
+          usuario: respuesta.usuario,
+          municipioActivo: respuesta.municipioActivo
+        })
+      : null;
+
     // Se llama a `arrancar` en ambos casos: el mapa es idempotente
     // (no se crea dos veces) y así el cambio de rol se refleja sin recargar.
     await aplicacion.arrancar({
       usuario: respuesta.usuario,
-      municipioActivo: respuesta.municipioActivo
+      municipioActivo: previo?.municipio || respuesta.municipioActivo
     });
     if (!silencioso) toast(`Bienvenido, ${respuesta.usuario.nombre}`, 'ok');
   } catch (error) {
@@ -35,10 +45,14 @@ async function entrar(operacion, { silencioso = false } = {}) {
  * por la pantalla de acceso (decisión de la versión nueva del monolito).
  * Con `silencioso` no muestra el aviso de bienvenida (arranque automático).
  */
-export async function entrarComoCiudadano({ silencioso = false } = {}) {
-  // Si el ciudadano ya eligió un municipio, se conserva al volver a entrar.
-  const municipioId = sesion.datos?.municipioActivo?.id || null;
-  return entrar(() => authService.entrarAnonimo({ municipioId }), { silencioso });
+export async function entrarComoCiudadano({ silencioso = false, antesDeArrancar = null } = {}) {
+  // El municipio elegido (en el paso previo o en la barra superior) se conserva.
+  const municipioId =
+    sesion.datos?.municipioActivo?.id || consentimiento.municipioId() || null;
+  return entrar(() => authService.entrarAnonimo({ municipioId }), {
+    silencioso,
+    antesDeArrancar
+  });
 }
 
 export function registrar() {

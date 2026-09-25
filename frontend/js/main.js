@@ -21,6 +21,10 @@ import { registrar as registrarTipos } from './controllers/tipos.controller.js';
 import { registrar as registrarAdmin } from './controllers/admin.controller.js';
 import { registrar as registrarReportes } from './controllers/reportes.controller.js';
 import { registrar as registrarNotificaciones } from './controllers/notificaciones.controller.js';
+import {
+  registrar as registrarOnboarding,
+  pedir as pedirConsentimiento
+} from './controllers/onboarding.controller.js';
 
 function registrarControladores() {
   registrarAuth();
@@ -29,6 +33,15 @@ function registrarControladores() {
   registrarAdmin();
   registrarReportes();
   registrarNotificaciones();
+  registrarOnboarding();
+}
+
+/**
+ * Paso previo de entrada: municipio en el que se va a reportar y aceptación de
+ * los términos. Devuelve `null` cuando no hay nada que preguntar.
+ */
+function pasoPrevio({ usuario, municipioActivo }) {
+  return pedirConsentimiento({ usuario, municipioActivo });
 }
 
 /**
@@ -42,7 +55,7 @@ async function iniciarSesion() {
   const guardada = sesion.cargar();
 
   if (!guardada) {
-    await entrarComoCiudadano({ silencioso: true });
+    await entrarComoCiudadano({ silencioso: true, antesDeArrancar: pasoPrevio });
     return;
   }
 
@@ -53,12 +66,17 @@ async function iniciarSesion() {
     // (si sigue existiendo: `arrancar` lo valida). Un funcionario está atado al
     // suyo, así que para él manda el que devuelve el servidor.
     const elegido = usuario.rol === 'funcionario' ? municipioActivo : guardada.municipioActivo;
-    await aplicacion.arrancar({ usuario, municipioActivo: elegido || municipioActivo });
+    // Paso previo: municipio (preseleccionado) + términos, si quedan pendientes.
+    const previo = await pasoPrevio({ usuario, municipioActivo: elegido || municipioActivo });
+    await aplicacion.arrancar({
+      usuario,
+      municipioActivo: previo?.municipio || elegido || municipioActivo
+    });
   } catch (error) {
     // Token caducado o servidor no disponible: se entra como ciudadano en
     // lugar de dejar la pantalla bloqueada.
     sesion.limpiar();
-    await entrarComoCiudadano({ silencioso: true });
+    await entrarComoCiudadano({ silencioso: true, antesDeArrancar: pasoPrevio });
     if (error.estado && error.estado !== 401) {
       toast(error.message || 'No se pudo restaurar la sesión', 'err');
     }

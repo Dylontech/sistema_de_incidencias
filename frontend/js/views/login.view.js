@@ -121,18 +121,15 @@ export function actualizarMunicipioTitulo(municipio) {
 }
 
 /**
- * Rellena el selector de municipio de la barra superior.
+ * HTML de las opciones del catálogo, agrupadas por estado.
  *
- * El listado del catálogo llega sin polígonos y ordenado por estado y nombre,
- * así que se agrupa con `optgroup` para no mezclar los municipios de un estado
- * con los de otro (en la Ciudad de México el INEGI codifica las alcaldías como
- * municipios). Un funcionario ve su municipio y no puede cambiarlo: el
- * servidor ignora cualquier otro, porque su alcance no se decide en el navegador.
+ * El listado llega sin polígonos y ordenado por estado y nombre, así que se
+ * agrupa con `optgroup` para no mezclar los municipios de un estado con los de
+ * otro (en la Ciudad de México el INEGI codifica las alcaldías como
+ * municipios). Lo usan el selector de la barra superior y el paso previo de
+ * entrada.
  */
-export function renderMunicipios(municipios = [], activoId = null) {
-  const selector = $('municipioActivoSelect');
-  if (!selector) return;
-
+export function opcionesMunicipios(municipios = []) {
   const porEstado = new Map();
   for (const municipio of municipios) {
     const estado = municipio.estado || 'Sin estado';
@@ -140,7 +137,7 @@ export function renderMunicipios(municipios = [], activoId = null) {
     porEstado.get(estado).push(municipio);
   }
 
-  selector.innerHTML =
+  return (
     [...porEstado.entries()]
       .map(
         ([estado, lista]) =>
@@ -148,7 +145,20 @@ export function renderMunicipios(municipios = [], activoId = null) {
           lista.map((m) => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('') +
           '</optgroup>'
       )
-      .join('') || '<option value="">Sin municipios</option>';
+      .join('') || '<option value="">Sin municipios</option>'
+  );
+}
+
+/**
+ * Rellena el selector de municipio de la barra superior.
+ * Un funcionario ve su municipio y no puede cambiarlo: el servidor ignora
+ * cualquier otro, porque su alcance no se decide en el navegador.
+ */
+export function renderMunicipios(municipios = [], activoId = null) {
+  const selector = $('municipioActivoSelect');
+  if (!selector) return;
+
+  selector.innerHTML = opcionesMunicipios(municipios);
 
   if (activoId) selector.value = activoId;
 }

@@ -117,6 +117,32 @@ el correo.
 incorrectas» con «sesión caducada» en las rutas de entrada, así que equivocarse al
 escribir la contraseña no tira la sesión ciudadana ni recarga la página.
 
+### Entrada: municipio y términos de uso
+
+La aplicación **no arranca sin pasar por el paso previo** (`#onboarding`,
+`views/onboarding.view.js` + `controllers/onboarding.controller.js`), que el arranque
+espera antes de pintar nada:
+
+1. **Municipio** — se pregunta en cada entrada, con el último elegido preseleccionado. Un
+   funcionario no lo ve (está atado al suyo por el servidor).
+2. **Términos y condiciones** — se piden **una vez por versión y dispositivo**. Si no se
+   marca la casilla, no se entra: el aviso no es un `.modal-overlay`, así que `Escape` no lo
+   cierra, y no tiene «×».
+
+El texto vive en `#obTerminos` de `frontend/index.html` (resumen de 4 puntos + 6 cláusulas:
+naturaleza informativa y no gubernamental, sin responsabilidad sobre la atención de los
+reportes, privacidad con **venta o transferencia de datos a terceros**, colaboración con
+gobiernos que quieran implementar la plataforma, y **bloqueo permanente** por mal uso).
+Deja claro también que un reporte aquí no es una denuncia ni una solicitud de servicio.
+
+> **Si cambias el texto, sube `VERSION_TERMINOS`** en `frontend/js/core/consentimiento.js`:
+> todo el mundo lo volverá a aceptar.
+
+La aceptación se guarda en `localStorage` (`inc_consentimiento_v1`: versión, fecha y
+municipio) igual que la sesión, porque también entra público sin cuenta; no hay usuario al
+que asociarla en el servidor. Desde la aplicación, el enlace *Términos y privacidad* de la
+barra lateral los vuelve a mostrar en modo lectura.
+
 ### Datos de demostración
 
 Para probar los filtros, el mapa y el panel sin capturar reportes a mano:
@@ -557,6 +583,10 @@ defectos del monolito:
     notificaciones: sin cuenta no hay buzón al que avisar.
     ([ver el sistema de cuentas](#sistema-de-cuentas)) Además, las cuentas del personal se
     gestionan desde el panel en lugar de venir solo de los datos semilla.
+15. **Paso previo obligatorio**: al entrar se elige el municipio y se aceptan los términos de
+    uso ([ver entrada](#entrada-municipio-y-términos-de-uso)), que dejan por escrito que la
+    página es informativa, que no es una entidad gubernamental, que los datos pueden
+    venderse y que el mal uso puede provocar un bloqueo permanente.
 
 ---
 

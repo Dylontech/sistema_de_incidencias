@@ -160,6 +160,81 @@
 </div>
 
 <!-- ============================================================
+     PASO PREVIO: MUNICIPIO + TÉRMINOS
+     Se muestra antes de la aplicación (y por encima de la pantalla de acceso).
+     ============================================================ -->
+<div class="onboarding" id="onboarding" style="display:none;">
+  <div class="onboarding-card">
+    <button class="modal-close" id="obCerrar" data-action="onboarding:cerrar" style="display:none;position:absolute;top:10px;right:10px;" title="Cerrar">&times;</button>
+    <div class="onboarding-head">
+      <h1><i class="bi bi-geo-alt-fill"></i> Antes de empezar</h1>
+      <p class="sub" id="obSubtitulo">Elige el municipio en el que vas a reportar.</p>
+    </div>
+
+    <!-- PASO 1: MUNICIPIO -->
+    <div id="obMunicipio">
+      <div class="form-group">
+        <label for="obMunicipioSelect">¿En qué municipio vas a reportar? *</label>
+        <select id="obMunicipioSelect"></select>
+        <p class="campo-nota">Puedes cambiarlo después desde la barra superior.</p>
+      </div>
+      <button class="btn btn-primary btn-block" data-action="onboarding:continuar">
+        <i class="bi bi-arrow-right-circle"></i> Continuar
+      </button>
+    </div>
+
+    <!-- PASO 2: TÉRMINOS Y CONDICIONES -->
+    <div id="obTerminos" style="display:none;">
+      <div class="terminos">
+        <div class="terminos-resumen">
+          <strong>Resumen en 4 puntos</strong>
+          <ol>
+            <li>Esta página es <strong>informativa</strong>: <strong>no somos una entidad gubernamental</strong> y no atendemos, ejecutamos ni resolvemos los reportes.</li>
+            <li>Los datos que generes (reportes, ubicación, fotos, comentarios) <strong>pueden ser vendidos o compartidos con terceros</strong>.</li>
+            <li>Si una autoridad o un gobierno quiere usar esta plataforma, <strong>estamos dispuestos a colaborar</strong> para su correcta implementación.</li>
+            <li>El <strong>mal uso</strong> (reportes falsos, ofensas, suplantación) puede provocar un <strong>bloqueo permanente</strong>.</li>
+          </ol>
+        </div>
+
+        <p class="terminos-fecha">Términos y condiciones de uso · última actualización: 25 de septiembre de 2026</p>
+
+        <h3>1. Naturaleza del servicio</h3>
+        <p>Esta plataforma es un espacio <strong>informativo y ciudadano</strong> de participación. <strong>NO es un portal oficial</strong>, no representa a ningún ayuntamiento, dependencia, gobierno ni entidad pública, y no tiene facultad para ejecutar obras, dar mantenimiento, prestar servicios públicos ni resolver los problemas que aquí se reportan. Un reporte publicado aquí <strong>no es una denuncia formal</strong>, ni una solicitud de servicio, ni un acto jurídico ante autoridad alguna.</p>
+
+        <h3>2. Sobre la atención de los reportes</h3>
+        <p>No garantizamos que alguien revise, atienda o resuelva los reportes, ni en qué plazo. La atención de los problemas depende de autoridades o de terceros ajenos a esta página. No somos responsables de daños, perjuicios, retrasos o decisiones que se tomen a partir de la información publicada.</p>
+
+        <h3>3. Privacidad y uso de los datos</h3>
+        <p>Al usar este sitio aceptas que la información que generes —reportes, títulos, descripciones, ubicaciones y coordenadas, fotografías, videos, comentarios, el nombre o pseudónimo con el que firmes, y los datos técnicos de tu visita— pueda ser <strong>recopilada, almacenada, procesada, publicada, compartida y vendida o transferida a terceros</strong>, con o sin fines de lucro, dentro y fuera del país. <strong>No recibirás ninguna compensación</strong> por esa información. Si no estás de acuerdo, no uses el sitio.</p>
+        <p>Los reportes marcados como <strong>anónimos</strong> no muestran tu nombre, pero su contenido y su ubicación siguen siendo públicos. Evita incluir datos personales tuyos o de otras personas.</p>
+        <p>Las cuentas con correo y contraseña sirven para que recibas avisos de tus reportes; este sitio no usa cookies de publicidad ni vende tu contraseña (que se guarda cifrada).</p>
+
+        <h3>4. Colaboración con gobiernos</h3>
+        <p>Cualquier gobierno, dependencia, empresa u organización que quiera utilizar esta plataforma <strong>está invitada a colaborar con nosotros</strong> para implementarla correctamente: capacitación, catálogo de comunidades, carga de datos y acompañamiento en la operación. Escríbenos y lo revisamos juntos.</p>
+
+        <h3>5. Uso indebido y bloqueo permanente</h3>
+        <p>Podemos suspender o <strong>bloquear permanentemente</strong> —por cuenta o por el dispositivo que usemos para reconocerte— a quien haga mal uso: reportes falsos o inventados, contenido ofensivo, difamatorio, discriminatorio o de acoso, suplantación de identidad, publicidad, difusión de datos personales de terceros, intentos de alterar, saturar o dañar el sistema, o uso automatizado abusivo. También podemos moderar, reordenar o retirar contenido sin aviso previo.</p>
+
+        <h3>6. Moderación y cambios</h3>
+        <p>Podemos actualizar estos términos en cualquier momento. Si cambian, se te pedirá aceptarlos de nuevo para seguir usando la aplicación. El uso del sitio después de un cambio implica que los aceptas.</p>
+      </div>
+
+      <label class="check-line" style="margin-top:12px;">
+        <input type="checkbox" id="obAcepto">
+        <span>He leído y acepto los términos: entiendo que esta página <strong>no es una entidad gubernamental</strong> y que los <strong>datos que genere pueden ser vendidos</strong>.</span>
+      </label>
+
+      <button class="btn btn-primary btn-block" data-action="onboarding:aceptar" style="margin-top:12px;">
+        <i class="bi bi-check2-circle"></i> Aceptar y entrar
+      </button>
+      <button class="btn btn-outline btn-block btn-sm" id="obVolver" data-action="onboarding:volver" style="margin-top:8px;">
+        <i class="bi bi-arrow-left"></i> Volver
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      APP
      ============================================================ -->
 <div class="app" id="app">
@@ -242,6 +317,9 @@
           editar los que hayas creado tú.
         </div>
         <div id="notaCuenta" style="display:none;font-size:11px;color:#1e4d6b;background:#eaf4fb;border:1px solid #bfdcf0;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;"></div>
+        <button type="button" class="link-terminos" data-action="onboarding:terminos">
+          <i class="bi bi-file-earmark-text"></i> Términos y privacidad
+        </button>
         <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
         <div class="filters">
           <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
