@@ -2,9 +2,8 @@
 import multer from 'multer';
 import { config } from '../config/index.js';
 import { EVIDENCIA_POLITICA } from '../config/constantes.js';
-import { AppError } from '../utils/AppError.js';
 import { nuevoId } from '../utils/ids.js';
-import { asegurarDirectorio, extensionDe, mimePermitido } from '../services/uploads.service.js';
+import { asegurarDirectorio, errorMime, extensionDe, mimePermitido } from '../services/uploads.service.js';
 
 const almacenamiento = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -19,15 +18,13 @@ const almacenamiento = multer.diskStorage({
 export const recibirArchivos = multer({
   storage: almacenamiento,
   limits: {
-    // El límite fino (100 MB imagen / 1 GB video) se valida después con el
-    // mimetype real; aquí se usa el máximo absoluto.
-    fileSize: config.evidencia.maxVideoBytes,
+    // Solo fotografías (y el PDF de la resolución): el tope absoluto es el de
+    // una foto, así que no se escribe en disco ningún archivo mayor.
+    fileSize: config.evidencia.maxFotoBytes,
     files: EVIDENCIA_POLITICA.maxArchivosPorCarga
   },
   fileFilter: (req, file, cb) => {
-    if (!mimePermitido(file.mimetype)) {
-      return cb(AppError.solicitudInvalida(`Tipo de archivo no permitido: ${file.mimetype}`));
-    }
+    if (!mimePermitido(file.mimetype)) return cb(errorMime(file.mimetype));
     cb(null, true);
   }
 }).array('archivos', EVIDENCIA_POLITICA.maxArchivosPorCarga);

@@ -240,6 +240,30 @@
 </div>
 
 <!-- ============================================================
+     TUTORIAL GUIADO
+     Foco sobre un elemento + tarjeta que lo explica (ver
+     controllers/tutorial.controller.js).
+     ============================================================ -->
+<div class="tutorial" id="tutorial" style="display:none;">
+  <div class="tutorial-foco" id="tutorialFoco"></div>
+  <div class="tutorial-tarjeta" id="tutorialTarjeta" role="dialog" aria-labelledby="tutorialTitulo" aria-live="polite">
+    <div class="tutorial-cabecera">
+      <span class="tutorial-paso" id="tutorialPaso">Paso 1</span>
+      <div class="tutorial-puntos" id="tutorialPuntos"></div>
+    </div>
+    <h3 id="tutorialTitulo"></h3>
+    <p id="tutorialTexto"></p>
+    <div class="tutorial-pie">
+      <button type="button" class="tutorial-saltar" data-action="tutorial:saltar">Saltar</button>
+      <div class="tutorial-nav">
+        <button type="button" class="btn btn-outline btn-sm" id="tutorialAnterior" data-action="tutorial:anterior">← Anterior</button>
+        <button type="button" class="btn btn-primary btn-sm" id="tutorialSiguiente" data-action="tutorial:siguiente">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      APP
      ============================================================ -->
 <div class="app" id="app">
@@ -333,6 +357,9 @@
         <button type="button" class="link-terminos" data-action="onboarding:terminos">
           <i class="bi bi-file-earmark-text"></i> Términos y privacidad
         </button>
+        <button type="button" class="link-terminos" data-action="tutorial:abrir">
+          <i class="bi bi-question-circle"></i> ¿Cómo funciona? (tutorial)
+        </button>
         <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
         <div class="filters">
           <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
@@ -366,6 +393,12 @@
               <option value="todos">Todas las comunidades</option>
             </select>
           </div>
+        </div>
+
+        <!-- Atajos a los municipios que tocan las fronteras del activo -->
+        <div class="colindantes" id="colindantesBox" style="display:none;">
+          <h3><i class="bi bi-signpost-split-fill"></i> Municipios colindantes</h3>
+          <div class="colindantes-lista" id="colindantesLista"></div>
         </div>
       </div>
       <div class="list-container" id="listaIncidencias"></div>
@@ -425,9 +458,19 @@
           <div style="font-size:12px;color:#4a5568;margin-top:2px;line-height:1.45;" id="ejemploDescripcion"></div>
         </div>
 
-        <div class="form-group">
-          <label>Icono *</label>
+        <!-- Aviso que trae el propio concepto (hoy solo «Sitio peligroso»): deja
+             claro que el reporte avisa de una zona y no señala a personas. -->
+        <div class="aviso-tipo" id="avisoTipoBox" style="display:none;">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span id="avisoTipoTexto"></span>
+        </div>
+
+        <!-- El icono propio solo se elige en «Otro»: el resto de conceptos ya
+             traen el suyo (lo muestra u oculta el formulario). -->
+        <div class="form-group" id="iconoBox" style="display:none;">
+          <label>Icono</label>
           <div class="icon-picker" id="iconPicker"></div>
+          <p class="campo-nota">Solo el concepto «Otro» deja elegir el icono; los demás usan el que trae su tipo.</p>
         </div>
 
         <div class="form-group">
@@ -473,13 +516,13 @@
         </div>
 
         <div class="form-group">
-          <label>Evidencia (fotos hasta 100 MB · video hasta 1 GB o 5 min)</label>
+          <label>Evidencia (fotos hasta 100 MB)</label>
           <div class="evidence-drop" data-action="incidencias:elegirArchivos">
             <i class="bi bi-cloud-arrow-up-fill"></i>
-            <p>Haz clic o arrastra archivos aquí</p>
-            <small>JPG, PNG, MP4, MOV</small>
+            <p>Haz clic o arrastra tus fotos aquí</p>
+            <small>JPG, PNG, WEBP o GIF</small>
           </div>
-          <input type="file" id="incEvidencia" multiple accept="image/*,video/*" style="display:none;" data-change="incidencias:archivos">
+          <input type="file" id="incEvidencia" multiple accept="image/*" style="display:none;" data-change="incidencias:archivos">
           <div class="evidence-list" id="evidenceList"></div>
         </div>
       </form>
@@ -827,12 +870,12 @@
           <textarea id="resolverTexto" rows="3" placeholder="Describe brevemente cómo se resolvió la incidencia…"></textarea>
         </div>
         <div class="form-group">
-          <label>Evidencia de la solución (oficio, foto, etc.)</label>
+          <label>Evidencia de la solución (oficio, foto o PDF)</label>
           <div class="evidence-drop" data-action="incidencias:elegirArchivosResolucion">
             <i class="bi bi-cloud-arrow-up-fill"></i>
             <p>Haz clic o arrastra archivos aquí</p>
           </div>
-          <input type="file" id="resolverEvidencia" multiple accept="image/*,video/*,application/pdf" style="display:none;" data-change="incidencias:archivosResolucion">
+          <input type="file" id="resolverEvidencia" multiple accept="image/*,application/pdf" style="display:none;" data-change="incidencias:archivosResolucion">
           <div class="evidence-list" id="resolverEvidenceList"></div>
         </div>
       </form>

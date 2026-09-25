@@ -50,9 +50,8 @@ export const config = {
   },
 
   evidencia: {
-    maxFotoBytes: Number(process.env.MAX_FOTO_BYTES || 100 * 1024 * 1024),
-    maxVideoBytes: Number(process.env.MAX_VIDEO_BYTES || 1024 * 1024 * 1024),
-    maxVideoSegundos: Number(process.env.MAX_VIDEO_SEG || 300)
+    // Solo fotografías: el video se retiró del formulario y del servidor.
+    maxFotoBytes: Number(process.env.MAX_FOTO_BYTES || 100 * 1024 * 1024)
   },
 
   /** Cada cuánto se recalculan las alertas por antigüedad (paridad: 60 s). */

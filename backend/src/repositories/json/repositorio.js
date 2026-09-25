@@ -81,22 +81,24 @@ export class RepositorioJson {
   }
 
   /**
-   * Agrega los tipos base que falten en `tipos.json`.
+   * Agrega los tipos base que falten en `tipos.json` y refresca sus campos.
    *
    * Los tipos base no se pueden borrar desde el panel (solo los `custom`), así
    * que añadir los que traiga una semilla nueva siempre es correcto: la
    * instalación que ya existía ve el concepto nuevo sin volver a sembrar, y los
-   * reportes que ya lo usaban no se tocan.
+   * reportes que ya lo usaban no se tocan. Al reconstruirlos desde la semilla
+   * también llegan los campos que se agreguen después (como el `aviso` de
+   * «Sitio peligroso»), sin pisar lo que la instalación tenga guardado encima.
    */
   async #agregarTiposBase() {
     const actuales = await this.almacen.leer('tipos', []);
-    const conocidos = new Set(actuales.map((t) => t.id));
-    if (tiposSemilla.every((t) => conocidos.has(t.id))) return false;
-
     const porId = new Map(actuales.map((t) => [t.id, t]));
-    const base = tiposSemilla.map((t) => porId.get(t.id) || t);
+    const base = tiposSemilla.map((t) => (porId.has(t.id) ? { ...t, ...porId.get(t.id) } : t));
     const personalizados = actuales.filter((t) => t.custom === true);
-    await this.almacen.escribir('tipos', [...base, ...personalizados]);
+    const resultado = [...base, ...personalizados];
+    if (JSON.stringify(resultado) === JSON.stringify(actuales)) return false;
+
+    await this.almacen.escribir('tipos', resultado);
     this.catalogo.delete('tipos');
     return true;
   }

@@ -5,7 +5,7 @@
  * confirmarResolver(), cambiarEstado(), eliminar() y agregarComentario(),
  * más las validaciones que antes solo existían en el navegador.
  */
-import { LIMITES_TEXTO, ESTADOS } from '../config/constantes.js';
+import { LIMITES_TEXTO, ESTADOS, TIPO_OTRO } from '../config/constantes.js';
 import { AppError } from '../utils/AppError.js';
 import { ahoraIso } from '../utils/fechas.js';
 import { recolector } from '../utils/validacion.js';
@@ -86,6 +86,10 @@ export async function crear(repositorio, usuario, datos) {
   if (!tipo) {
     throw AppError.solicitudInvalida('Selecciona un tipo de incidencia válido');
   }
+
+  // El icono propio solo vale para «Otro»: en el resto de conceptos manda el del
+  // tipo, así todos los reportes del mismo tipo se ven igual.
+  if (tipo.id !== TIPO_OTRO) entrada.iconoCustom = '';
 
   // El municipio activo lo elige el usuario en el selector; el funcionario
   // sigue atado al suyo.
@@ -173,6 +177,11 @@ export async function actualizar(repositorio, usuario, id, datos) {
   if (entrada.tipoId) {
     const tipo = await repositorio.tipoPorId(entrada.tipoId);
     if (!tipo) throw AppError.solicitudInvalida('Tipo de incidencia inválido');
+  }
+
+  // El icono propio solo se admite (y se conserva) en «Otro».
+  if ((entrada.tipoId || actual.tipoId) !== TIPO_OTRO && entrada.iconoCustom !== undefined) {
+    entrada.iconoCustom = '';
   }
 
   // Si cambia la ubicación hay que recalcular la zona (geocerca). Se aplica la

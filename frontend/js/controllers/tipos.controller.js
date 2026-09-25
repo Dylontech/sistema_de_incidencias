@@ -48,6 +48,7 @@ export function registrar() {
         if (selector) {
           selector.value = tipo.id;
           formView.mostrarEjemplo(tipo.id, store.estado.catalogos.ejemplos);
+          formView.renderAviso(tipo);
         }
         toast('Concepto agregado correctamente', 'ok');
       }),

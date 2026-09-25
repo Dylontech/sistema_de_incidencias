@@ -21,6 +21,8 @@ const estado = {
   notificaciones: [],
   /** Cuentas del personal cargadas en el panel de administración */
   usuarios: [],
+  /** Municipios que colindan con el activo */
+  colindantes: [],
   estadisticas: { panel: null, informes: null },
 
   /** Filtros del listado (los lee el servicio al pedir incidencias) */

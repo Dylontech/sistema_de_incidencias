@@ -193,6 +193,39 @@ export function fijarSelectorMunicipio({ bloqueado = false, motivo = '' } = {}) 
   comboMunicipio()?.bloquear(bloqueado, selector.title);
 }
 
+/**
+ * Botones para saltar a un municipio colindante con el activo.
+ *
+ * Se ocultan a quien no puede cambiar de municipio (el funcionario) y cuando el
+ * municipio activo no tiene vecinos en el catálogo. Cada botón dispara la misma
+ * acción que el buscador de la barra superior (`municipio:cambiar`), así que
+ * cambiar de municipio desde aquí actualiza mapa, filtros, listado y estos
+ * mismos botones.
+ */
+export function renderColindantes(colindantes = [], { visible = true } = {}) {
+  const caja = $('colindantesBox');
+  const lista = $('colindantesLista');
+  if (!caja || !lista) return;
+
+  if (!visible || !colindantes.length) {
+    caja.style.display = 'none';
+    lista.innerHTML = '';
+    return;
+  }
+
+  caja.style.display = 'block';
+  lista.innerHTML = colindantes
+    .map(
+      (m) => `
+      <button type="button" class="chip-municipio" data-action="municipio:cambiar"
+              data-valor="${esc(m.id)}" title="${esc(`${m.nombre}, ${m.estado}`)}">
+        <span class="chip-nombre">${esc(m.nombre)}</span>
+        <span class="chip-estado">${esc(m.estado)}</span>
+      </button>`
+    )
+    .join('');
+}
+
 export function valoresFuncionario() {
   return {
     username: $('func-user').value.trim(),

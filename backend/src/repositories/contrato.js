@@ -45,7 +45,7 @@
  * @property {string} tipo      MIME
  * @property {number} tamano    bytes
  * @property {string} url       /uploads/<archivo>
- * @property {number|null} duracion segundos (solo video)
+ * @property {number|null} duracion segundos (vestigio del video: ya no se sube)
  *
  * @typedef {Object} Incidencia
  * @property {string} id

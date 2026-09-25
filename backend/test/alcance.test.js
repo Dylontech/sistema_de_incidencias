@@ -193,16 +193,30 @@ describe('Estadísticas y exportación', () => {
     const catalogos = await anon.get('/api/catalogos');
     assert.equal(catalogos.status, 200);
     assert.equal(catalogos.body.iconos.length, 33);
-    assert.equal(Object.keys(catalogos.body.ejemplos).length, 18);
+    assert.equal(Object.keys(catalogos.body.ejemplos).length, 20);
     assert.deepEqual(catalogos.body.diasLimites, { amarillo: 15, naranja: 30 });
-    assert.equal(catalogos.body.limites.maxVideoSegundos, 300);
+    assert.equal(catalogos.body.limites.maxVideoSegundos, undefined);
+    assert.deepEqual(catalogos.body.limites.mimesPermitidos, ['image/', 'application/pdf']);
 
-    // El catálogo de conceptos (tipos base) crece con la semilla: los dos
-    // últimos añadidos son los de bienestar animal.
+    // El catálogo de conceptos (tipos base) crece con la semilla: los cuatro
+    // últimos añadidos son los de bienestar animal y los de emergencias.
     const tipos = await anon.get('/api/tipos');
-    assert.equal(tipos.body.tipos.length, 18);
+    assert.equal(tipos.body.tipos.length, 20);
     assert.ok(tipos.body.tipos.some((t) => t.nombre === 'Animal atropellado'));
     assert.ok(tipos.body.tipos.some((t) => t.nombre === 'Crueldad animal'));
+    assert.ok(tipos.body.tipos.some((t) => t.nombre === 'Incendio forestal'));
+
+    // «Sitio peligroso» es el único con aviso: el tema es delicado y el texto
+    // aclara que el reporte avisa de la zona y no señala a personas.
+    const delicado = tipos.body.tipos.find((t) => t.nombre === 'Sitio peligroso');
+    assert.ok(delicado, 'falta el concepto «Sitio peligroso»');
+    assert.match(delicado.aviso, /Tema delicado/);
+    assert.match(delicado.aviso, /no señala a nadie/);
+    assert.deepEqual(
+      tipos.body.tipos.filter((t) => t.aviso).map((t) => t.id),
+      ['sitio_peligroso'],
+      'solo el concepto delicado lleva aviso'
+    );
     // Un ejemplo guía por concepto (el formulario lo muestra al elegir el tipo).
     for (const tipo of tipos.body.tipos) {
       assert.ok(catalogos.body.ejemplos[tipo.id], `falta el ejemplo de ${tipo.id}`);

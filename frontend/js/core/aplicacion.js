@@ -63,10 +63,17 @@ export async function arrancar({ usuario, municipioActivo }) {
     (await municipioCompleto(municipioActivo)) ||
     (await municipioCompleto(municipios.municipios.find((m) => m.id === MUNICIPIO_POR_DEFECTO))) ||
     null;
+  // El del listado (y el que devuelve /auth/me) llega sin polígono y la
+  // geocerca del cliente lo necesita para validar el punto del reporte: se
+  // guarda el municipio completo en el estado y en la sesión.
+  if (activo) {
+    store.actualizar({ municipioActivo: activo, municipio: activo }, 'municipio');
+    sesion.actualizarMunicipio(activo);
+  }
   loginView.renderMunicipios(municipios.municipios, activo?.id);
 
   montarMapa(activo);
-  await Promise.all([cargarZonas(activo?.id), recargarIncidencias()]);
+  await Promise.all([cargarZonas(activo?.id), cargarColindantes(activo?.id), recargarIncidencias()]);
   await recargarNotificaciones();
 
   if (sesion.esEmpleado()) {
@@ -117,6 +124,29 @@ export async function cargarZonas(municipioId) {
 }
 
 /* ------------------------------ datos ------------------------------- */
+
+/**
+ * Botones para saltar a los municipios que tocan las fronteras del activo.
+ * El funcionario está atado a su municipio, así que no se le ofrecen.
+ */
+export async function cargarColindantes(municipioId) {
+  if (!municipioId || sesion.rol === 'funcionario') {
+    loginView.renderColindantes([], { visible: false });
+    return [];
+  }
+
+  try {
+    const { colindantes } = await catalogosService.colindantes(municipioId);
+    store.actualizar({ colindantes }, 'colindantes');
+    loginView.renderColindantes(colindantes, { visible: true });
+    return colindantes;
+  } catch {
+    // Es un atajo, no un dato esencial: si falla, el municipio sigue viéndose
+    // y el bloque simplemente no aparece.
+    loginView.renderColindantes([], { visible: false });
+    return [];
+  }
+}
 
 export async function recargarIncidencias() {
   const filtros = { ...store.estado.filtros, municipio: store.estado.municipioActivo?.id };
@@ -274,6 +304,6 @@ export async function aplicarMunicipio(municipio) {
   adminView.renderMunicipios(store.estado.municipios || [], completo.id);
 
   mapa.reiniciarMunicipio(completo);
-  await Promise.all([cargarZonas(completo.id), recargarIncidencias()]);
+  await Promise.all([cargarZonas(completo.id), cargarColindantes(completo.id), recargarIncidencias()]);
   if (sesion.esEmpleado()) await cargarEstadisticas();
 }

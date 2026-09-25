@@ -1324,6 +1324,14 @@ const TIPOS_DEFAULT = [
   { id: 'animal', nombre: 'Animal callejero', icono: '🐕' },
   { id: 'animal_atropellado', nombre: 'Animal atropellado', icono: '🚗' },
   { id: 'crueldad_animal', nombre: 'Crueldad animal', icono: '🐾' },
+  { id: 'incendio_forestal', nombre: 'Incendio forestal', icono: '🔥' },
+  /*
+   * «Sitio peligroso» es un tema delicado: el `aviso` es el texto que la
+   * aplicación muestra al elegir el concepto, para dejar claro que sirve para
+   * avisar de la inseguridad de una zona y NO para señalar a personas.
+   */
+  { id: 'sitio_peligroso', nombre: 'Sitio peligroso', icono: '🚨',
+    aviso: 'Tema delicado: este reporte avisa de la inseguridad de una zona, no señala a nadie. Describe el lugar (calle, tramo, horario) y lo que ocurre, sin nombres, apodos ni datos de personas; acusar a alguien sin pruebas puede tener consecuencias legales y el reporte se puede retirar.' },
   { id: 'otro', nombre: 'Otro', icono: '❗' }
 ];
 
@@ -1349,6 +1357,8 @@ const EJEMPLOS_TIPO = {
   animal: { titulo: 'Perros abandonados en la calle', descripcion: 'Hay un grupo de perros callejeros que rondan la cuadra desde hace días, algunos parecen enfermos o agresivos.' },
   animal_atropellado: { titulo: 'Perro atropellado sobre la avenida', descripcion: 'Un perro fue atropellado frente a la primaria y quedó sobre el carril derecho; los autos lo esquivan y nadie ha venido a retirarlo. Pasa mucha gente a la escuela por esta banqueta.' },
   crueldad_animal: { titulo: 'Perro encadenado sin agua ni sombra', descripcion: 'En el patio de la casa de la esquina hay un perro atado con cadena muy corta, sin agua ni sombra durante todo el día. Se escucha que llora y los vecinos ya lo hemos reportado sin respuesta.' },
+  incendio_forestal: { titulo: 'Humo y fuego en el cerro junto a la carretera', descripcion: 'Desde la tarde se ve humo denso y llamas en la ladera del cerro que está detrás del fraccionamiento. El viento está acercando el fuego a las casas y alrededor hay mucho pastizal seco.' },
+  sitio_peligroso: { titulo: 'Tramo de calle sin alumbrado y con asaltos', descripcion: 'En el tramo entre las calles Morelos y Allende no hay alumbrado y desde hace semanas se reportan asaltos a quien pasa caminando después de las 9 de la noche; es el paso obligado de quienes salen del trabajo. El problema es la zona, no una persona en particular.' },
   otro: { titulo: 'Describe brevemente el problema', descripcion: 'Explica qué observaste, desde cuándo, y por qué representa un riesgo o molestia para la comunidad.' }
 };
 

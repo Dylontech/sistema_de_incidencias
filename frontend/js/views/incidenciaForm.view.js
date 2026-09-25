@@ -22,11 +22,32 @@ export function prepararAlta(usuario = null) {
   $('incIndicaciones').value = '';
   $('incCoordsTexto').value = '';
   $('ejemploTipoBox').style.display = 'none';
+  renderAviso(null);
   $('locStatus').style.display = 'none';
   $('evidenceList').innerHTML = '';
-  limpiarPicker('iconPicker');
+  renderIconoBox('');
   renderZonaBadge(null);
   renderFirma(usuario);
+}
+
+/** Concepto que sí deja elegir icono: los demás usan el de su tipo. */
+const TIPO_OTRO = 'otro';
+
+/**
+ * Bloque del icono.
+ *
+ * Solo «Otro» permite elegir icono (los demás conceptos ya traen el suyo, y así
+ * todos los reportes del mismo tipo se ven igual en el mapa y en el listado).
+ * Cuando no aplica, el bloque se oculta y el selector se vacía para que no se
+ * envíe ningún icono propio.
+ */
+export function renderIconoBox(tipoId, tipo = null) {
+  const caja = $('iconoBox');
+  const esOtro = tipoId === TIPO_OTRO;
+  if (caja) caja.style.display = esOtro ? 'block' : 'none';
+
+  if (esOtro && tipo?.icono) seleccionarIcono('iconPicker', tipo.icono, null);
+  else limpiarPicker('iconPicker');
 }
 
 /**
@@ -75,8 +96,11 @@ export function prepararEdicion(incidencia) {
   $('incIndicaciones').value = incidencia.indicaciones || '';
   $('incCoordsTexto').value =
     incidencia.lat != null ? `${incidencia.lat.toFixed(6)}, ${incidencia.lng.toFixed(6)}` : '';
-  if (incidencia.iconoCustom) seleccionarIcono('iconPicker', incidencia.iconoCustom, null);
-  else limpiarPicker('iconPicker');
+  // El icono propio de un reporte antiguo solo se conserva si es de «Otro».
+  renderIconoBox(incidencia.tipoId);
+  if (incidencia.tipoId === TIPO_OTRO && incidencia.iconoCustom) {
+    seleccionarIcono('iconPicker', incidencia.iconoCustom, null);
+  }
 }
 
 /** Rellena el desplegable de tipos del formulario. */
@@ -166,6 +190,22 @@ export function mostrarEjemplo(tipoId, ejemplos = {}) {
   caja.style.display = 'block';
 }
 
+/**
+ * Aviso del concepto.
+ *
+ * Algunos conceptos son delicados y traen su propio `aviso` (por ejemplo
+ * «Sitio peligroso», que avisa de la inseguridad de una zona y aclara que no se
+ * señala a nadie). Se muestra al elegir el tipo, tanto al reportar como al
+ * abrir un reporte existente.
+ */
+export function renderAviso(tipo = null) {
+  const caja = $('avisoTipoBox');
+  if (!caja) return;
+  const texto = tipo?.aviso || '';
+  $('avisoTipoTexto').textContent = texto;
+  caja.style.display = texto ? 'flex' : 'none';
+}
+
 /** Copia el ejemplo a los campos vacíos (equivale a `Incidencias.usarEjemplo`). */
 export function usarEjemplo(tipoId, ejemplos = {}) {
   const ejemplo = ejemplos[tipoId];
@@ -175,13 +215,9 @@ export function usarEjemplo(tipoId, ejemplos = {}) {
   return true;
 }
 
-export function seleccionarIconoDeTipo(pickerId, icono) {
-  if (!icono) return;
-  seleccionarIcono(pickerId, icono, null);
-}
-
 function plantillaEvidencia(elemento, indice, accion) {
   const esImagen = elemento.tipo?.startsWith('image/');
+  // Ya no se pueden adjuntar videos; la rama queda para evidencia antigua.
   const esVideo = elemento.tipo?.startsWith('video/');
   return `
     <div class="evidence-item">

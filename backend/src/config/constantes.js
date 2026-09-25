@@ -62,22 +62,41 @@ export const TIPOS_NOTIFICACION = ['reporte', 'resuelta', 'estado', 'alerta', 'c
 /** Municipio que se muestra cuando la aplicación acaba de arrancar (Maravatío). */
 export const MUNICIPIO_DEFAULT = '16050';
 
-/** Límites de evidencia (paridad con MAX_FOTO / MAX_VIDEO / MAX_VIDEO_SEG). */
+/**
+ * Concepto «Otro»: es el único que deja elegir un icono propio.
+ * El resto de conceptos ya trae el suyo, y así todos los reportes del mismo
+ * tipo se ven igual en el listado y en el mapa.
+ */
+export const TIPO_OTRO = 'otro';
+
+/**
+ * Límites de evidencia.
+ *
+ * La evidencia es **solo de fotografías**: el video se retiró del formulario y
+ * el servidor lo rechaza (los reportes que ya tengan video se siguen mostrando).
+ * El PDF se admite únicamente como documento de la resolución.
+ */
 export const EVIDENCIA_POLITICA = {
   maxFotoBytes: 100 * 1024 * 1024,
-  maxVideoBytes: 1024 * 1024 * 1024,
-  maxVideoSegundos: 300,
   maxArchivosPorCarga: 20,
-  mimesPermitidos: ['image/', 'video/', 'application/pdf'],
+  mimesPermitidos: ['image/', 'application/pdf'],
+  /**
+   * Tope para la evidencia que llega dentro de un respaldo del monolito: allí
+   * también había video de hasta 1 GB, así que se conserva ese margen para no
+   * perder archivos que ya existían. Al subir desde el formulario manda
+   * `maxFotoBytes`.
+   */
+  maxImportacionBytes: 1024 * 1024 * 1024,
   extensiones: {
     'image/jpeg': '.jpg',
     'image/png': '.png',
     'image/webp': '.webp',
     'image/gif': '.gif',
+    'application/pdf': '.pdf',
+    // Solo para importar evidencia antigua: el video ya no se puede subir.
     'video/mp4': '.mp4',
     'video/quicktime': '.mov',
-    'video/webm': '.webm',
-    'application/pdf': '.pdf'
+    'video/webm': '.webm'
   }
 };
 

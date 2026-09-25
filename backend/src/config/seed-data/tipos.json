@@ -85,6 +85,17 @@
     "icono": "🐾"
   },
   {
+    "id": "incendio_forestal",
+    "nombre": "Incendio forestal",
+    "icono": "🔥"
+  },
+  {
+    "id": "sitio_peligroso",
+    "nombre": "Sitio peligroso",
+    "icono": "🚨",
+    "aviso": "Tema delicado: este reporte avisa de la inseguridad de una zona, no señala a nadie. Describe el lugar (calle, tramo, horario) y lo que ocurre, sin nombres, apodos ni datos de personas; acusar a alguien sin pruebas puede tener consecuencias legales y el reporte se puede retirar."
+  },
+  {
     "id": "otro",
     "nombre": "Otro",
     "icono": "❗"

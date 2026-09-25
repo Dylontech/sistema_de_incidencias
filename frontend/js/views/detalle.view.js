@@ -3,6 +3,7 @@ import { $, esc, fmtFecha, colorHex, etiquetaEstado, textoAntiguedad } from '../
 
 function evidenciaHTML(evidencia, { abrirImagen = true } = {}) {
   const esImagen = evidencia.tipo?.startsWith('image/');
+  // Ya no se suben videos, pero los reportes antiguos que los tengan se siguen viendo.
   const esVideo = evidencia.tipo?.startsWith('video/');
   return `
     <div class="evidence-item">
@@ -47,6 +48,14 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
                  }
                </div>
              </div>
+           </div>`
+        : ''
+    }
+    ${
+      tipo?.aviso
+        ? `<div class="aviso-tipo">
+             <i class="bi bi-exclamation-triangle-fill"></i>
+             <span>${esc(tipo.aviso)}</span>
            </div>`
         : ''
     }

@@ -15,6 +15,10 @@ export const catalogosService = {
   zonas(municipioId) {
     return api.get(`/municipios/${municipioId}/zonas`);
   },
+  /** Municipios que tocan las fronteras del indicado (para saltar entre ellos). */
+  colindantes(municipioId) {
+    return api.get(`/municipios/${municipioId}/colindantes`);
+  },
   resumenZonas(municipioId) {
     return api.get(`/municipios/${municipioId}/zonas/resumen`);
   },

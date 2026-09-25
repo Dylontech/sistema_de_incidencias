@@ -1,9 +1,10 @@
 /**
  * SERVICIO: Evidencia multimedia.
  *
- * El monolito guardaba las fotos y videos como base64 dentro del JSON de la
- * incidencia, lo que hacía inviable cualquier archivo real (la cuota de
- * localStorage era de ~5 MB frente a límites de 100 MB/1 GB).
+ * La evidencia es **solo de fotografías** (y PDF como documento de la
+ * resolución): el video se retiró. El monolito guardaba las fotos y videos como
+ * base64 dentro del JSON de la incidencia, lo que hacía inviable cualquier
+ * archivo real (la cuota de localStorage era de ~5 MB frente a 100 MB de foto).
  * Ahora el archivo vive en disco y el documento guarda solo sus metadatos.
  */
 import fs from 'node:fs/promises';
@@ -24,14 +25,26 @@ export function mimePermitido(mime) {
 }
 
 /**
- * Límite aplicable según el tipo de archivo.
- * Paridad con el monolito: 100 MB para imágenes y PDF, 1 GB para video.
+ * Límite aplicable a un archivo.
+ *
+ * Las fotografías (y el PDF de la resolución) comparten el mismo límite; el
+ * video ya no se admite, así que no hay un límite mayor para él.
  */
-export function limiteDe(mime) {
-  if (String(mime || '').startsWith('video/')) {
-    return config.evidencia.maxVideoBytes || EVIDENCIA_POLITICA.maxVideoBytes;
-  }
+export function limiteDe() {
   return config.evidencia.maxFotoBytes || EVIDENCIA_POLITICA.maxFotoBytes;
+}
+
+/**
+ * Mensaje de rechazo de un archivo según su tipo.
+ * El video tiene el suyo propio: es un caso que el ciudadano entiende al vuelo.
+ */
+export function errorMime(mime) {
+  if (String(mime || '').startsWith('video/')) {
+    return AppError.solicitudInvalida(
+      'Solo se admiten fotografías: ya no se pueden subir videos'
+    );
+  }
+  return AppError.solicitudInvalida(`Tipo de archivo no permitido: ${mime}`);
 }
 
 export async function asegurarDirectorio() {
@@ -47,7 +60,8 @@ export function metadatosDeArchivo(archivo) {
     tipo: archivo.mimetype || 'application/octet-stream',
     tamano: Number(archivo.size) || 0,
     url: `/uploads/${nombreFisico}`,
-    duracion: null // la duración la valida el navegador (aquí no hay ffprobe)
+    // Vestigio del video (ya no se suben); se conserva para leer evidencia antigua.
+    duracion: null
   };
 }
 
@@ -66,10 +80,10 @@ export async function validarArchivos(archivos = []) {
   for (const archivo of archivos) {
     if (!mimePermitido(archivo.mimetype)) {
       await descartar(archivo);
-      throw AppError.solicitudInvalida(`Tipo de archivo no permitido: ${archivo.mimetype}`);
+      throw errorMime(archivo.mimetype);
     }
-    if (archivo.size > limiteDe(archivo.mimetype)) {
-      const mb = Math.round(limiteDe(archivo.mimetype) / (1024 * 1024));
+    if (archivo.size > limiteDe()) {
+      const mb = Math.round(limiteDe() / (1024 * 1024));
       await descartar(archivo);
       throw AppError.solicitudInvalida(`"${archivo.originalname}" excede el límite de ${mb} MB`);
     }
@@ -90,7 +104,8 @@ export async function guardarDesdeBase64(dataUrl, nombreOriginal = 'evidencia') 
 
   const mime = m[1];
   const contenido = Buffer.from(m[2], 'base64');
-  if (contenido.length > limiteDe(mime)) return null;
+  // Al importar se admite también el video que ya existía en el respaldo.
+  if (contenido.length > EVIDENCIA_POLITICA.maxImportacionBytes) return null;
 
   await asegurarDirectorio();
   const nombreFisico = `${nuevoId()}${extensionDe(mime, nombreOriginal)}`;

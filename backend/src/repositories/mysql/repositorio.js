@@ -136,6 +136,8 @@ export class RepositorioMysql {
       id: fila.id,
       nombre: fila.nombre,
       icono: fila.icono,
+      // Aviso del concepto (solo lo traen los delicados, como «Sitio peligroso»).
+      aviso: fila.aviso || '',
       custom: Boolean(fila.custom)
     };
   }
@@ -155,6 +157,7 @@ export class RepositorioMysql {
       id: tipo.id,
       nombre: tipo.nombre,
       icono: tipo.icono,
+      aviso: tipo.aviso || null,
       custom: tipo.custom === true
     });
     return tipo;

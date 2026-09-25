@@ -98,8 +98,6 @@ export async function catalogos() {
       comentario: 500,
       motivoPeligro: LIMITES_TEXTO.motivoPeligro,
       maxFotoBytes: EVIDENCIA_POLITICA.maxFotoBytes,
-      maxVideoBytes: EVIDENCIA_POLITICA.maxVideoBytes,
-      maxVideoSegundos: EVIDENCIA_POLITICA.maxVideoSegundos,
       maxArchivosPorCarga: EVIDENCIA_POLITICA.maxArchivosPorCarga,
       mimesPermitidos: EVIDENCIA_POLITICA.mimesPermitidos
     },

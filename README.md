@@ -150,6 +150,27 @@ municipio) igual que la sesión, porque también entra público sin cuenta; no h
 que asociarla en el servidor. Desde la aplicación, el enlace *Términos y privacidad* de la
 barra lateral los vuelve a mostrar en modo lectura.
 
+### Tutorial para nuevos usuarios
+
+La primera vez que se entra, después del paso previo, se abre una **guía interactiva**
+(`controllers/tutorial.controller.js` + `views/tutorial.view.js`) que ilumina cada elemento
+con un foco y lo explica en una tarjeta: el buscador de municipio, los colindantes, los
+filtros, el listado, el mapa, el botón de reportar, la campana y la cuenta (o el panel y los
+informes, si es personal).
+
+- **Los pasos se arman según el rol**: el funcionario no ve los de municipio ni colindantes
+  (está atado al suyo) y el personal cambia el de la cuenta por el del panel y los informes.
+  Un paso que apunte a algo que no está en pantalla **se salta solo**, así que la guía nunca
+  señala al vacío.
+- **Se muestra una vez** por versión y dispositivo (`inc_tutorial_v1`). Vuelve a abrirse con
+  *¿Cómo funciona? (tutorial)* en la barra lateral; sube `VERSION_TUTORIAL` al cambiar los
+  pasos para que se vea otra vez.
+- Se navega con los botones, con las flechas del teclado (`←`/`→`) o con `Enter`, y se sale
+  con `Escape` o *Saltar*.
+- Mientras dura, la capa bloquea los clics para que no se dispare nada sin querer. El foco
+  es un recorte con una sombra enorme (`box-shadow: 0 0 0 9999px`), sin máscaras SVG, y se
+  recoloca al cambiar el tamaño de la ventana.
+
 ### Datos de demostración
 
 Para probar los filtros, el mapa y el panel sin capturar reportes a mano:
@@ -163,8 +184,8 @@ npm run datos-demo -- --limpiar --por-tipo=5    # borra las anteriores y regener
 npm run datos-demo -- --limpiar                 # sólo borrar
 ```
 
-Genera el número indicado de reportes por cada uno de los 18 tipos (7 por omisión:
-126 en total), repartidos a propósito entre los tres estados, las cuatro antigüedades
+Genera el número indicado de reportes por cada uno de los 20 tipos (7 por omisión:
+140 en total), repartidos a propósito entre los tres estados, las cuatro antigüedades
 (amarillo, naranja, rojo y verde), las comunidades del municipio y varios autores, para
 que **ninguna opción de los filtros quede vacía**. Los documentos se insertan con el
 repositorio (no por la API) para no llenar el buzón de notificaciones, llevan `demo: true`
@@ -213,7 +234,7 @@ Ver [`.env.example`](.env.example). Las relevantes:
 | `JWT_EXPIRES_IN` | `8h` | Vigencia del token. |
 | `DATA_DIR` / `UPLOAD_DIR` | `backend/data`, `backend/uploads` | Datos y evidencia. |
 | `DB_HOST` … `DB_NAME` | `127.0.0.1:3306` / `incidencias` | Conexión MySQL/MariaDB. |
-| `MAX_FOTO_BYTES`, `MAX_VIDEO_BYTES`, `MAX_VIDEO_SEG` | 100 MB, 1 GB, 300 s | Límites de evidencia. |
+| `MAX_FOTO_BYTES` | 100 MB | Límite de cada foto de evidencia. |
 
 ---
 
@@ -241,6 +262,7 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | GET | `/api/municipios` | sesión (sin polígonos; la clave solo se incluye al admin) |
 | GET | `/api/municipios/:id` | sesión (municipio con su contorno) |
 | GET | `/api/municipios/:id/zonas` | sesión |
+| GET | `/api/municipios/:id/colindantes` | sesión (municipios que tocan sus fronteras) |
 | GET | `/api/municipios/:id/zonas/resumen` | empleado |
 | GET / POST / DELETE | `/api/tipos`, `/api/tipos/:id` | sesión / empleado / empleado |
 | GET | `/api/usuarios` | empleado (solo cuentas del personal, sin hashes) |
@@ -260,7 +282,36 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | POST | `/api/incidencias/:id/resolucion` | empleado | Marca resuelta con descripción y evidencia. |
 | DELETE | `/api/incidencias/:id` | admin | Elimina la incidencia. |
 | POST | `/api/incidencias/:id/comentarios` | sesión | Comenta y avisa al autor. |
-| POST | `/api/uploads` | sesión | Sube evidencia (multipart, campo `archivos`). |
+| POST | `/api/uploads` | sesión | Sube evidencia (multipart, campo `archivos`). **Solo fotografías** (y PDF en la resolución). |
+
+#### Icono del reporte
+
+Cada concepto trae de fábrica su icono (el que se ve en el mapa y en las tarjetas), así que
+**solo el concepto «Otro» deja elegir un icono propio**: la caja del selector aparece
+únicamente con ese tipo en el formulario y, con cualquier otro, el servidor **borra** el
+`iconoCustom` que llegue (al crear y al editar). La regla está en `TIPO_OTRO`
+(`backend/src/config/constantes.js`) y se aplica en `incidencias.service.crear/actualizar`;
+un icono propio de un reporte «Otro» **se conserva** mientras el tipo no cambie.
+
+#### Conceptos delicados: «Sitio peligroso»
+
+Un concepto puede traer su propio **aviso** (campo `aviso` del catálogo de tipos): el texto
+que el formulario muestra al elegirlo y que también se ve en el detalle de un reporte de ese
+concepto. Hoy solo lo trae **«Sitio peligroso»** (🚨) y deja claro que el reporte avisa de la
+**inseguridad de una zona** y que **no señala a nadie**: pide describir el lugar (calle,
+tramo, horario) sin nombres, apodos ni datos de personas. El texto está en la semilla
+(`TIPOS_DEFAULT` del monolito, junto a «Incendio forestal» 🔥), viaja como una columna más del
+tipo en MySQL/MariaDB (migración `008_tipos_incendio_sitio`) y se pinta con
+`formView.renderAviso()` sobre el bloque `.aviso-tipo`.
+
+#### Evidencia: solo fotografías
+
+El formulario adjunta **fotos** (JPG, PNG, WEBP o GIF, hasta 100 MB cada una y 20 por
+carga); en la resolución se admite además el **PDF** del oficio. El video se retiró: el
+input ya no lo ofrece, el cliente avisa al soltarlo y el servidor lo rechaza con «Solo se
+admiten fotografías» (también si se cuela como metadato en el `POST /api/incidencias`). Los
+reportes antiguos o importados que tengan video **se siguen mostrando**, porque el reproductor
+se conserva en el detalle y en el formulario de edición.
 
 ### Informes y administración
 
@@ -354,6 +405,12 @@ Detalles de la conversión:
   manda el contorno del municipio para aceptar y la localidad sólo se registra.
 - Un municipio sin localidades usa su propio polígono como única zona.
 
+La validación del formulario replica esa regla en el navegador
+(`core/geocerca.js`), y para eso el **municipio activo del estado siempre incluye su
+contorno**: el listado (`GET /api/municipios`) llega sin polígonos y `arrancar()` guarda el
+municipio completo (`GET /api/municipios/:id`) en el estado y en la sesión. Sin el polígono
+en el estado, la geocerca del cliente no puede comprobar nada y rechaza cualquier punto.
+
 ### Cambiar de municipio
 
 El selector de la barra superior es público y **agrupa los municipios por estado** (`optgroup`):
@@ -364,6 +421,23 @@ cualquier otro: su alcance no se decide en el navegador).
 `GET /api/municipios` devuelve el catálogo **sin polígonos** (los 175 contornos suman más de
 un megabyte), ordenado por estado y nombre; el del municipio activo se pide con
 `GET /api/municipios/:id` y con él se dibujan el límite y la máscara del mapa.
+
+### Municipios colindantes
+
+El panel lateral muestra **botones con los municipios que tocan las fronteras del activo**,
+para recorrer la zona sin volver al buscador. Cada botón dispara la misma acción que el
+selector de la barra superior, así que al pulsarlo cambian mapa, listado, filtros y los
+propios botones. A un funcionario no se le muestran (está atado a su municipio).
+
+La vecindad se **calcula con la geometría del catálogo** (`services/colindantes.service.js`),
+no con una lista escrita a mano: `GET /api/municipios/:id/colindantes` devuelve los vecinos
+ordenados por estado y nombre. El criterio es la **distancia mínima entre fronteras** con un
+margen de unos 100 m, porque los contornos del INEGI vienen simplificados municipio a
+municipio y dos vecinos no siempre comparten los mismos vértices (Cuauhtémoc y Benito Juárez
+solo se acercan a 1 m). Ese margen separa con holgura los vecinos reales (0–1 m) de los que
+solo están cerca (600 m o más). El cálculo indexa los vértices en una rejilla de ~550 m, se
+apoya en las cajas envolventes y se **memoriza** por municipio: la primera consulta tarda
+menos de una décima de segundo.
 
 ### Pasar los datos existentes al catálogo del INEGI
 
@@ -468,9 +542,11 @@ exactamente con las del driver JSON.
   usuarios se conservan intactos.
 - **Conceptos nuevos en el catálogo de tipos**: los tipos base no se pueden borrar desde el
   panel, así que los que traiga una semilla nueva se **añaden** al arranque (driver JSON) sin
-  tocar los personalizados ni los reportes que ya existan. Con MySQL/MariaDB, la migración
-  `007_tipos_animales` hace lo mismo al ejecutar `npm run migrate` (inserta solo los que
-  falten; `npm run seed` también los incluye, pero borra los reportes).
+  tocar los personalizados ni los reportes que ya existan; al reconstruirlos desde la semilla
+  también llegan los campos que se agreguen después (por ejemplo el `aviso` de «Sitio
+  peligroso»). Con MySQL/MariaDB lo hacen las migraciones `007_tipos_animales` y
+  `008_tipos_incendio_sitio` al ejecutar `npm run migrate` (insertan solo los que falten y
+  añaden la columna `aviso`; `npm run seed` también los incluye, pero borra los reportes).
 - **MySQL / MariaDB**: aplica la migración `004_localidades_inegi` (población y cabecera del
   municipio; ámbito, clave y población de la comunidad) y recarga el catálogo:
 
@@ -511,12 +587,14 @@ npm test                                                    # driver json (por d
 STORAGE_DRIVER_TEST=mysql DB_PORT=3306 DB_USER=root npm test # driver mysql
 ```
 
-La suite (`backend/test/`, **75 pruebas**) cubre autenticación y roles, ciclo de vida de
+La suite (`backend/test/`, **84 pruebas**) cubre autenticación y roles, ciclo de vida de
 la incidencia, geocerca y colores derivados, filtros y alcance por municipio, evidencia,
 estadísticas, exportación y la importación de respaldos. `cuentas.test.js` añade el
 sistema de cuentas: alta y entrada de ciudadanos, nombre generado, firma por reporte
 (el anónimo nunca firma y el buzón del anónimo está vacío) y la gestión de cuentas del
-personal con sus permisos. Cada archivo de pruebas usa su propio directorio temporal y,
+personal con sus permisos; `colindantes.test.js` la vecindad calculada con la geometría
+del catálogo; y `incidencias.test.js` incluye la regla del icono propio (solo en «Otro»).
+Cada archivo de pruebas usa su propio directorio temporal y,
 con MySQL, su propia base de datos (`incidencias_test_<pid>`), de modo que la **misma
 suite valida los dos drivers**.
 
@@ -555,10 +633,10 @@ defectos del monolito:
 3. **Filtro por municipio**: los listados y estadísticas ya no mezclan municipios.
 4. **Municipio en la barra superior**: se sincroniza al iniciar sesión; el administrador ya
    no queda atado a Maravatío.
-5. **Límites de evidencia homogéneos**: la evidencia de resolución aplica los mismos límites
-   (antes aceptaba 100 MB sin validar la duración del video).
+5. **Solo fotografías**: la evidencia ya no admite video (el monolito aceptaba 1 GB o 5 min)
+   y la de resolución aplica el mismo límite y los mismos tipos que la del reporte.
 6. **Sin pérdidas silenciosas**: la evidencia ya no se guarda como base64 dentro del
-   documento (la cuota de `localStorage` era de ~5 MB frente a límites de 100 MB/1 GB);
+   documento (la cuota de `localStorage` era de ~5 MB frente a 100 MB por foto);
    ahora vive en disco y el JSON solo guarda metadatos.
 7. **Seguridad**: contraseñas con bcrypt, sesión con JWT y permisos comprobados en el
    servidor (antes el rol vivía en el navegador y era manipulable).

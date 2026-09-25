@@ -73,6 +73,7 @@ export async function seed(knex) {
       id: t.id,
       nombre: t.nombre,
       icono: t.icono,
+      aviso: t.aviso || null,
       custom: t.custom === true
     }))
   );

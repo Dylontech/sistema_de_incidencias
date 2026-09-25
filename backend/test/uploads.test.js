@@ -62,6 +62,31 @@ describe('Evidencia', () => {
     assert.match(r.body.error, /no permitido/);
   });
 
+  test('rechaza los videos: la evidencia es solo de fotografías', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoUploadVideo');
+    const r = await anon
+      .post('/api/uploads')
+      .attach('archivos', Buffer.from('no-es-un-video-real'), {
+        filename: 'clip.mp4',
+        contentType: 'video/mp4'
+      });
+
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /solo se admiten fotografías/i);
+  });
+
+  test('tampoco se puede colar el video como metadato de la incidencia', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoUploadVideo2');
+    const r = await anon.post(
+      '/api/incidencias',
+      incidenciaValida({
+        evidencia: [{ nombre: 'clip.mp4', tipo: 'video/mp4', tamano: 1024, url: '/uploads/clip.mp4' }]
+      })
+    );
+    assert.equal(r.status, 400);
+    assert.ok(r.body.detalles.some((d) => String(d.campo).includes('evidencia')));
+  });
+
   test('la evidencia subida se adjunta a la incidencia y se sirve por URL', async () => {
     const anon = await Api.anonimo(app, 'ciudadanoUpload3');
 

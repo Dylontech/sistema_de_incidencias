@@ -48,6 +48,7 @@ async function abrirFormulario(id = null) {
     bloqueado: true
   });
   formView.mostrarEjemplo(incidencia.tipoId, ejemplos);
+  formView.renderAviso(store.estado.tipos.find((t) => t.id === incidencia.tipoId));
   formView.renderEvidencia(incidencia.evidencia || []);
   store.actualizarSeccion(
     'formulario',
@@ -96,49 +97,28 @@ function aplicarUbicacion(lat, lng, { moverMapa = true } = {}) {
 function mostrarEjemploDelTipo() {
   const seleccionado = store.estado.tipos.find((t) => t.id === document.getElementById('incTipo').value);
   formView.mostrarEjemplo(seleccionado?.id, store.estado.catalogos.ejemplos);
-  if (seleccionado) formView.seleccionarIconoDeTipo('iconPicker', seleccionado.icono);
-}
-
-async function duracionDeVideo(archivo) {
-  return new Promise((resolver, rechazar) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(video.src);
-      resolver(video.duration);
-    };
-    video.onerror = () => rechazar(new Error('No se pudo leer el video'));
-    video.src = URL.createObjectURL(archivo);
-  });
+  formView.renderAviso(seleccionado);
+  // El icono solo se elige en «Otro»: en los demás manda el del tipo.
+  if (seleccionado) formView.renderIconoBox(seleccionado.id, seleccionado);
 }
 
 /** Sube los archivos elegidos y guarda sus metadatos en el formulario. */
 async function agregarEvidencia(archivos, destino) {
   if (!archivos?.length) return;
   const limites = store.estado.catalogos.limites || {};
+  const limite = limites.maxFotoBytes ?? 104857600;
   const validos = [];
 
   for (const archivo of Array.from(archivos)) {
-    const esVideo = archivo.type.startsWith('video/');
-    const limite = esVideo
-      ? limites.maxVideoBytes ?? 1073741824
-      : limites.maxFotoBytes ?? 104857600;
-
-    if (archivo.size > limite) {
-      toast(`"${archivo.name}" excede el límite de ${esVideo ? '1 GB' : '100 MB'}`, 'err');
+    // La evidencia es solo de fotografías: el video se retiró del formulario
+    // (los reportes antiguos que lo tengan se siguen mostrando).
+    if (String(archivo.type).startsWith('video/')) {
+      toast(`"${archivo.name}": la evidencia ahora es solo de fotografías`, 'err');
       continue;
     }
-    if (esVideo) {
-      try {
-        const duracion = await duracionDeVideo(archivo);
-        if (duracion > (limites.maxVideoSegundos ?? 300)) {
-          toast(`"${archivo.name}" dura ${Math.round(duracion)}s (máx. 5 min)`, 'err');
-          continue;
-        }
-      } catch {
-        toast(`No se pudo leer "${archivo.name}"`, 'err');
-        continue;
-      }
+    if (archivo.size > limite) {
+      toast(`"${archivo.name}" excede el límite de ${Math.round(limite / 1048576)} MB`, 'err');
+      continue;
     }
     validos.push(archivo);
   }

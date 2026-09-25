@@ -27,7 +27,9 @@ export const CAMPOS_ENTRADA = [
   'evidencia'
 ];
 
-const MIME_EVIDENCIA = /^(image\/|video\/|application\/pdf)/;
+// La evidencia es solo de fotografías; el PDF se admite como documento de la
+// resolución. El video ya no se acepta (los reportes antiguos se siguen viendo).
+const MIME_EVIDENCIA = /^(image\/|application\/pdf)/;
 
 /** Acepta booleanos y las cadenas que envía un formulario HTML. */
 function comoBooleano(valor) {

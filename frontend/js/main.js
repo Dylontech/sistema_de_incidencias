@@ -25,6 +25,10 @@ import {
   registrar as registrarOnboarding,
   pedir as pedirConsentimiento
 } from './controllers/onboarding.controller.js';
+import {
+  registrar as registrarTutorial,
+  quizáMostrar as mostrarTutorial
+} from './controllers/tutorial.controller.js';
 
 function registrarControladores() {
   registrarAuth();
@@ -34,6 +38,7 @@ function registrarControladores() {
   registrarReportes();
   registrarNotificaciones();
   registrarOnboarding();
+  registrarTutorial();
 }
 
 /**
@@ -102,6 +107,9 @@ async function iniciar() {
   });
 
   await iniciarSesion();
+
+  // Guía para quien entra por primera vez (una vez por versión y dispositivo).
+  mostrarTutorial();
 }
 
 document.addEventListener('DOMContentLoaded', iniciar);

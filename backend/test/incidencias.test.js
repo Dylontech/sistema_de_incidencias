@@ -94,6 +94,34 @@ describe('Incidencias: creación', () => {
     assert.match(fuera.body.error, /fuera del municipio/);
   });
 
+  test('el icono propio solo se guarda en el concepto «Otro»', async () => {
+    const anon = await Api.anonimo(app, 'ciudadano1010');
+
+    // Un concepto que ya trae icono (Bache) ignora el que mande el cliente: así
+    // todos los baches se ven igual en el listado y en el mapa.
+    const bache = await anon.post('/api/incidencias', incidenciaValida({ iconoCustom: '🔥' }));
+    assert.equal(bache.status, 201);
+    assert.equal(bache.body.incidencia.iconoCustom, '');
+
+    // En «Otro» sí se admite y se conserva al editar sin tocar el icono.
+    const otro = await anon.post(
+      '/api/incidencias',
+      incidenciaValida({ ...PUNTO_SIN_ZONA, tipoId: 'otro', iconoCustom: '🔥' })
+    );
+    assert.equal(otro.status, 201);
+    assert.equal(otro.body.incidencia.iconoCustom, '🔥');
+    const id = otro.body.incidencia.id;
+
+    const editado = await anon.put(`/api/incidencias/${id}`, { titulo: 'Otro título' });
+    assert.equal(editado.status, 200);
+    assert.equal(editado.body.incidencia.iconoCustom, '🔥');
+
+    // Si el reporte cambia a un concepto con icono fijo, el icono propio se va.
+    const cambiado = await anon.put(`/api/incidencias/${id}`, { tipoId: 'bache', iconoCustom: '🔥' });
+    assert.equal(cambiado.status, 200);
+    assert.equal(cambiado.body.incidencia.iconoCustom, '');
+  });
+
   test('con un municipio desconocido se mantiene la regla estricta por zona', async () => {
     // Si el cliente pide un municipio que no está en el catálogo no se puede
     // comprobar el límite municipal, así que vuelve a exigirse una zona.
