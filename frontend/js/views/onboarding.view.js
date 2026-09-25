@@ -3,14 +3,36 @@
  * No decide nada: el controlador le dice qué paso mostrar.
  */
 import { $ } from '../core/utils.js';
+import { crearBuscador } from '../core/buscador.js';
 import { opcionesMunicipios } from './login.view.js';
 
+/** Buscador del municipio del paso previo (se crea la primera vez que se usa). */
+let buscador = null;
+function comboMunicipio() {
+  if (!buscador) {
+    buscador = crearBuscador({
+      entrada: 'obMunicipioBuscar',
+      lista: 'obMunicipioOpciones',
+      fuente: 'obMunicipioSelect'
+    });
+  }
+  return buscador;
+}
+
+/**
+ * Rellena el catálogo del paso previo.
+ * El `<select>` va oculto (es la fuente de verdad del valor elegido) y el
+ * buscador es lo que se ve.
+ */
 export function renderMunicipios(municipios = [], activoId = null) {
   const selector = $('obMunicipioSelect');
   if (!selector) return;
+
   selector.innerHTML = opcionesMunicipios(municipios);
   // Solo se preselecciona si el municipio guardado sigue en el catálogo.
-  if (activoId && municipios.some((m) => m.id === activoId)) selector.value = activoId;
+  selector.value = activoId && municipios.some((m) => m.id === activoId) ? activoId : '';
+
+  comboMunicipio()?.cargar(municipios);
 }
 
 /** Muestra un paso: 'municipio' | 'terminos'. */
@@ -24,9 +46,12 @@ export function paso(nombre) {
   if (sub) {
     sub.textContent =
       nombre === 'municipio'
-        ? 'Elige el municipio en el que vas a reportar.'
+        ? 'Escribe y elige el municipio en el que vas a reportar.'
         : 'Lee y acepta los términos para continuar.';
   }
+
+  // El buscador queda listo para escribir en cuanto se abre el paso.
+  if (nombre === 'municipio') $('obMunicipioBuscar')?.focus();
 }
 
 /**

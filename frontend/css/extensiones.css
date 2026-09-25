@@ -343,3 +343,114 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* --- Buscador de municipios (combobox) ------------------------------------- */
+
+/* El <select> que guarda el valor va oculto: se ve el campo de texto. */
+.combo {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+.combo-lista {
+  position: absolute;
+  /* Dentro de la barra superior (z-index 500) y del paso previo (11000), así
+     que basta con quedar por encima del contenido de al lado. */
+  z-index: 60;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.combo-opcion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: #1a202c;
+  cursor: pointer;
+}
+
+.combo-opcion:hover,
+.combo-opcion.activo {
+  background: #e8f5f2;
+}
+
+.combo-opcion.activo {
+  outline: 1px solid #8ecdc0;
+}
+
+.combo-nombre {
+  font-weight: 600;
+}
+
+.combo-estado {
+  font-size: 10.5px;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.combo-vacio {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Campo del paso previo: ocupa el ancho de la tarjeta. */
+#obMunicipio .combo input[type='text'] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* Campo dentro de la pastilla de la barra superior (fondo oscuro). */
+.topbar .muni-picker .combo {
+  max-width: 190px;
+}
+
+.topbar .muni-picker input[type='text'] {
+  width: 150px;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.topbar .muni-picker input[type='text']::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.topbar .muni-picker input[type='text']:focus {
+  outline: none;
+}
+
+.topbar .muni-picker input[type='text']:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* La lista de la barra superior se alinea a la derecha para no salirse. */
+.topbar .muni-picker .combo-lista {
+  left: auto;
+  right: 0;
+  min-width: 260px;
+}

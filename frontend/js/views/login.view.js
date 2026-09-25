@@ -1,5 +1,22 @@
 /** Vista de login y del armazón de la aplicación. */
 import { $, $$, esc } from '../core/utils.js';
+import { crearBuscador } from '../core/buscador.js';
+
+/**
+ * Buscador del municipio activo de la barra superior.
+ * Se crea la primera vez que se usa, cuando el HTML ya está en el documento.
+ */
+let buscadorMunicipio = null;
+function comboMunicipio() {
+  if (!buscadorMunicipio) {
+    buscadorMunicipio = crearBuscador({
+      entrada: 'municipioBuscar',
+      lista: 'municipioOpciones',
+      fuente: 'municipioActivoSelect'
+    });
+  }
+  return buscadorMunicipio;
+}
 
 export function mostrarPanel(nombre) {
   $$('.login-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.valor === nombre));
@@ -114,6 +131,7 @@ export function actualizarMunicipioTitulo(municipio) {
 
   const selector = $('municipioActivoSelect');
   if (selector && municipio) selector.value = municipio.id;
+  comboMunicipio()?.sincronizar();
 
   $('loginSubtitulo').textContent = municipio
     ? `Municipio de ${municipio.nombre}, ${municipio.estado}`
@@ -161,6 +179,9 @@ export function renderMunicipios(municipios = [], activoId = null) {
   selector.innerHTML = opcionesMunicipios(municipios);
 
   if (activoId) selector.value = activoId;
+
+  // El buscador guarda el catálogo y refleja en el campo el valor del selector.
+  comboMunicipio()?.cargar(municipios);
 }
 
 /** Bloquea el selector para quien no puede cambiar de municipio. */
@@ -169,6 +190,7 @@ export function fijarSelectorMunicipio({ bloqueado = false, motivo = '' } = {}) 
   if (!selector) return;
   selector.disabled = bloqueado;
   selector.title = motivo || 'Municipio activo';
+  comboMunicipio()?.bloquear(bloqueado, selector.title);
 }
 
 export function valoresFuncionario() {

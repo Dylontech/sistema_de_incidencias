@@ -174,9 +174,14 @@
     <!-- PASO 1: MUNICIPIO -->
     <div id="obMunicipio">
       <div class="form-group">
-        <label for="obMunicipioSelect">¿En qué municipio vas a reportar? *</label>
-        <select id="obMunicipioSelect"></select>
-        <p class="campo-nota">Puedes cambiarlo después desde la barra superior.</p>
+        <label for="obMunicipioBuscar">¿En qué municipio vas a reportar? *</label>
+        <div class="combo">
+          <input type="text" id="obMunicipioBuscar" placeholder="Escribe el nombre del municipio…"
+                 autocomplete="off" role="combobox" aria-expanded="false" aria-controls="obMunicipioOpciones">
+          <ul class="combo-lista" id="obMunicipioOpciones" role="listbox" hidden></ul>
+        </div>
+        <select id="obMunicipioSelect" hidden></select>
+        <p class="campo-nota">Escribe para filtrar la lista del catálogo (también busca por estado); elige con las flechas y <kbd>Enter</kbd>. Puedes cambiarlo después desde la barra superior.</p>
       </div>
       <button class="btn btn-primary btn-block" data-action="onboarding:continuar">
         <i class="bi bi-arrow-right-circle"></i> Continuar
@@ -250,10 +255,18 @@
         <div class="muni-name" id="topbar-muni">—</div>
       </div>
     </div>
-    <label class="muni-picker" title="Municipio activo (catálogo del INEGI)">
+    <div class="muni-picker" title="Municipio activo (catálogo del INEGI)">
       <i class="bi bi-map-fill"></i>
-      <select id="municipioActivoSelect" data-change="municipio:cambiar" aria-label="Municipio activo"></select>
-    </label>
+      <div class="combo">
+        <input type="text" id="municipioBuscar" placeholder="Buscar municipio…" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-controls="municipioOpciones"
+               aria-label="Buscar municipio">
+        <ul class="combo-lista" id="municipioOpciones" role="listbox" hidden></ul>
+      </div>
+      <!-- Fuente de verdad del municipio activo: la acción `municipio:cambiar`
+           escucha su `change` (el buscador de arriba lo dispara al elegir). -->
+      <select id="municipioActivoSelect" data-change="municipio:cambiar" aria-label="Municipio activo" hidden></select>
+    </div>
     <div class="spacer"></div>
 
     <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" data-action="admin:abrir" id="btn-admin" title="Panel de administración">
@@ -361,9 +374,6 @@
     <!-- MAPA -->
     <div class="map-container">
       <div id="map"></div>
-      <button class="sidebar-toggle" data-action="sidebar:toggle" title="Mostrar/ocultar panel">
-        <i class="bi bi-layout-sidebar-inset"></i>
-      </button>
 
       <div class="floating-btns">
         <button class="fab primary" data-action="incidencias:reportar" title="Reportar incidencia">

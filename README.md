@@ -32,7 +32,7 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 
 | Capa | Carpeta | Responsabilidad |
 |---|---|---|
-| **core** | `frontend/js/core/` | Infraestructura: `api.js` (fetch + token), `session.js`, `store.js` (estado observable), `eventos.js` (delegación), `ui.js`, `utils.js`, `geocerca.js`, `aplicacion.js` (orquestación) y `errores.js`. |
+| **core** | `frontend/js/core/` | Infraestructura: `api.js` (fetch + token), `session.js`, `store.js` (estado observable), `eventos.js` (delegación), `ui.js`, `utils.js`, `geocerca.js`, `buscador.js` (combobox de municipios), `consentimiento.js` (municipio y términos aceptados), `aplicacion.js` (orquestación) y `errores.js`. |
 | **services** | `frontend/js/services/` | Una función por endpoint. |
 | **controllers** | `frontend/js/controllers/` | Orquestan store + servicios + vistas y registran las acciones de la interfaz. |
 | **views** | `frontend/js/views/` | Renderizan HTML a partir de datos. Nunca llaman a la API. |
@@ -123,11 +123,18 @@ La aplicación **no arranca sin pasar por el paso previo** (`#onboarding`,
 `views/onboarding.view.js` + `controllers/onboarding.controller.js`), que el arranque
 espera antes de pintar nada:
 
-1. **Municipio** — se pregunta en cada entrada, con el último elegido preseleccionado. Un
-   funcionario no lo ve (está atado al suyo por el servidor).
+1. **Municipio** — se pregunta en cada entrada, con el último elegido preseleccionado. Se
+   **escribe para filtrar**: el campo sugiere los municipios que coinciden por nombre o por
+   estado (`frontend/js/core/buscador.js`), sin distinguir mayúsculas ni acentos, y se eligen
+   con las flechas y `Enter` o con un clic. Un funcionario no ve el paso (está atado a su
+   municipio por el servidor).
 2. **Términos y condiciones** — se piden **una vez por versión y dispositivo**. Si no se
    marca la casilla, no se entra: el aviso no es un `.modal-overlay`, así que `Escape` no lo
    cierra, y no tiene «×».
+
+El mismo buscador sustituye al `<select>` de la barra superior (los 175 municipios del
+catálogo no se pueden recorrer a ciegas). En los dos sitios sigue habiendo un `<select>`
+**oculto con el valor elegido**, que es el que consulta el resto de la aplicación.
 
 El texto vive en `#obTerminos` de `frontend/index.html` (resumen de 4 puntos + 6 cláusulas:
 naturaleza informativa y no gubernamental, sin responsabilidad sobre la atención de los
