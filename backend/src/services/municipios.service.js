@@ -8,7 +8,7 @@ import { publica as publicaZona } from '../models/zona.model.js';
 import { enriquecerLista } from './estado.service.js';
 import { esEmpleado } from './alcance.service.js';
 import { iconosSemilla, ejemplosSemilla, politicaSemilla } from '../config/semilla.js';
-import { DIAS_LIMITES, EVIDENCIA_POLITICA, MUNICIPIO_DEFAULT } from '../config/constantes.js';
+import { DIAS_LIMITES, EVIDENCIA_POLITICA, LIMITES_TEXTO, MUNICIPIO_DEFAULT } from '../config/constantes.js';
 
 /**
  * Listado de municipios para el selector.
@@ -96,6 +96,7 @@ export async function catalogos() {
       indicaciones: 400,
       nombreTipo: 60,
       comentario: 500,
+      motivoPeligro: LIMITES_TEXTO.motivoPeligro,
       maxFotoBytes: EVIDENCIA_POLITICA.maxFotoBytes,
       maxVideoBytes: EVIDENCIA_POLITICA.maxVideoBytes,
       maxVideoSegundos: EVIDENCIA_POLITICA.maxVideoSegundos,

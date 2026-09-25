@@ -33,7 +33,9 @@ export const LIMITES_TEXTO = {
   indicaciones: 400,
   nombreTipo: 60,
   comentario: 500,
-  solucion: 600
+  solucion: 600,
+  /** Motivo por el que el personal marca un reporte como peligroso. */
+  motivoPeligro: 140
 };
 
 /** Tolerancia en grados para detectar reportes duplicados. */

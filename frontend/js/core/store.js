@@ -33,6 +33,8 @@ const estado = {
 
   /** Búsqueda del panel de administración */
   busquedaAdmin: '',
+  /** Panel de administración: mostrar solo las incidencias peligrosas */
+  soloPeligrosas: false,
 
   /** Estado del formulario de incidencia (equivale a los *Temp del monolito) */
   formulario: {

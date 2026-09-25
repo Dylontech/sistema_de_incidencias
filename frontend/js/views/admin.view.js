@@ -1,5 +1,5 @@
 /** Vista del panel de administración (6 pestañas). */
-import { $, esc, textoAntiguedad, etiquetaEstado } from '../core/utils.js';
+import { $, esc, textoAntiguedad, etiquetaEstado, fmtFechaCorta } from '../core/utils.js';
 import { renderListaTipos } from './tipos.view.js';
 
 export function activarTab(nombre) {
@@ -20,6 +20,7 @@ export function renderStats(panel) {
   }
 
   contenedor.innerHTML = `
+    <div class="stat-card peligro"><div class="stat-num">${panel.peligrosas ?? 0}</div><div class="stat-label">⚠️ Peligrosas</div></div>
     <div class="stat-card"><div class="stat-num">${panel.total}</div><div class="stat-label">Total</div></div>
     <div class="stat-card amarillo"><div class="stat-num">${panel.reportadas}</div><div class="stat-label">Reportadas</div></div>
     <div class="stat-card"><div class="stat-num">${panel.enProceso}</div><div class="stat-label">En proceso</div></div>
@@ -46,30 +47,106 @@ export function renderStats(panel) {
       .join('') || '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px;">Sin datos</div>';
 }
 
-export function renderTablaIncidencias(incidencias = [], { tipos = [], esAdmin = false, busqueda = '' } = {}) {
+/**
+ * Bloque destacado del panel: las incidencias marcadas como peligrosas se
+ * muestran EN GRANDE, por encima de la tabla y de las estadísticas, con su
+ * icono, la comunidad, los días que llevan abiertas y el motivo de la marca.
+ */
+export function renderPeligrosas(incidencias = [], { tipos = [] } = {}) {
+  const contenedor = $('peligrosasDestacadas');
+  if (!contenedor) return;
+
+  const peligrosas = incidencias
+    .filter((i) => i.peligrosa === true && i.estado !== 'resuelta')
+    .sort((a, b) => (b.dias ?? 0) - (a.dias ?? 0));
+
+  if (!peligrosas.length) {
+    contenedor.innerHTML = '';
+    return;
+  }
+
+  contenedor.innerHTML = `
+    <div class="peligro-panel">
+      <div class="peligro-panel-head">
+        <h3>
+          <i class="bi bi-exclamation-triangle-fill"></i> Incidencias peligrosas
+          <span class="peligro-contador">${peligrosas.length}</span>
+        </h3>
+        <p>Señaladas por el personal: atiéndelas antes que el resto.</p>
+      </div>
+      <div class="peligro-lista">
+        ${peligrosas.map((inc) => tarjetaPeligro(inc, tipos)).join('')}
+      </div>
+    </div>`;
+}
+
+/** Tarjeta grande de una incidencia peligrosa. */
+function tarjetaPeligro(inc, tipos = []) {
+  const tipo = tipos.find((t) => t.id === inc.tipoId);
+  const icono = inc.iconoCustom || (tipo ? tipo.icono : '❗');
+  const marcada = inc.peligrosaFecha
+    ? `Marcada ${fmtFechaCorta(inc.peligrosaFecha)}${inc.peligrosaPor ? ' por ' + inc.peligrosaPor : ''}`
+    : '';
+
+  return `
+    <article class="peligro-card">
+      <div class="peligro-icono">${icono}</div>
+      <h4>${esc(inc.titulo)}</h4>
+      <div class="peligro-meta">
+        <span><i class="bi bi-tag-fill"></i> ${esc(tipo ? tipo.nombre : '—')}</span>
+        <span><i class="bi bi-geo-fill"></i> ${esc(inc.zonaNombre || 'Sin comunidad')}</span>
+        <span><i class="bi bi-clock-history"></i> ${inc.dias === null ? 'resuelta' : textoAntiguedad(inc.dias)}</span>
+        <span><i class="bi bi-person-fill"></i> ${esc(inc.esAnonimo ? 'Anónimo' : inc.autorNombre || '—')}</span>
+        ${marcada ? `<span><i class="bi bi-exclamation-triangle-fill"></i> ${esc(marcada)}</span>` : ''}
+      </div>
+      ${
+        inc.peligrosaMotivo
+          ? `<div class="peligro-motivo"><strong>Motivo:</strong> ${esc(inc.peligrosaMotivo)}</div>`
+          : ''
+      }
+      <div class="peligro-acciones">
+        <button class="btn btn-sm btn-primary" data-action="admin:verDetalle" data-id="${esc(inc.id)}">
+          <i class="bi bi-eye"></i> Ver / atender
+        </button>
+        <button class="btn btn-sm btn-outline" data-action="admin:marcarPeligro" data-id="${esc(inc.id)}" data-valor="quitar">
+          <i class="bi bi-shield-check"></i> Quitar marca
+        </button>
+      </div>
+    </article>`;
+}
+
+export function renderTablaIncidencias(incidencias = [], { tipos = [], esAdmin = false, busqueda = '', soloPeligrosas = false } = {}) {
   const cuerpo = $('adminIncidenciasBody');
   if (!cuerpo) return;
 
   const filtro = busqueda.trim().toLowerCase();
-  const lista = filtro
-    ? incidencias.filter((i) => (i.titulo || '').toLowerCase().includes(filtro))
-    : incidencias;
+  const lista = incidencias
+    .filter((i) => (soloPeligrosas ? i.peligrosa === true : true))
+    .filter((i) => (filtro ? (i.titulo || '').toLowerCase().includes(filtro) : true));
 
   if (!lista.length) {
-    cuerpo.innerHTML =
-      '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px;">Sin incidencias</td></tr>';
+    cuerpo.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px;">${
+      soloPeligrosas ? 'No hay incidencias peligrosas' : 'Sin incidencias'
+    }</td></tr>`;
     return;
   }
 
   cuerpo.innerHTML = lista
     .slice()
-    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+    .sort(
+      (a, b) =>
+        Number(b.peligrosa === true) - Number(a.peligrosa === true) ||
+        new Date(b.fecha) - new Date(a.fecha)
+    )
     .map((inc) => {
       const tipo = tipos.find((t) => t.id === inc.tipoId);
       return `
-        <tr>
+        <tr class="${inc.peligrosa ? 'fila-peligrosa' : ''}">
           <td><code style="font-size:10.5px;">${esc(inc.id.slice(-6))}</code></td>
-          <td><strong>${esc(inc.titulo)}</strong></td>
+          <td>
+            ${inc.peligrosa ? '<span class="inc-badge badge-peligro" title="Incidencia peligrosa">⚠️ PELIGROSA</span> ' : ''}
+            <strong>${esc(inc.titulo)}</strong>
+          </td>
           <td>${tipo ? tipo.icono + ' ' + esc(tipo.nombre) : '—'}</td>
           <td><span class="inc-badge badge-${inc.color}">${etiquetaEstado(inc.estado)}</span></td>
           <td>${inc.estado === 'resuelta' ? '—' : textoAntiguedad(inc.dias)}</td>
@@ -77,6 +154,12 @@ export function renderTablaIncidencias(incidencias = [], { tipos = [], esAdmin =
           <td>
             <button class="btn btn-sm btn-outline" data-action="admin:verDetalle" data-id="${esc(inc.id)}">
               <i class="bi bi-eye"></i>
+            </button>
+            <button class="btn btn-sm ${inc.peligrosa ? 'btn-danger' : 'btn-outline'}"
+              data-action="admin:marcarPeligro" data-id="${esc(inc.id)}"
+              data-valor="${inc.peligrosa ? 'quitar' : 'marcar'}"
+              title="${inc.peligrosa ? 'Quitar la marca de peligro' : 'Marcar como peligrosa'}">
+              <i class="bi bi-exclamation-triangle-fill"></i>
             </button>
             ${
               esAdmin

@@ -34,6 +34,22 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
   }[incidencia.estado] || '';
 
   let html = `
+    ${
+      incidencia.peligrosa
+        ? `<div class="detalle-peligro">
+             <i class="bi bi-exclamation-triangle-fill" style="font-size:1.4rem;"></i>
+             <div>
+               <strong>INCIDENCIA PELIGROSA</strong>
+               ${incidencia.peligrosaMotivo ? ` · ${esc(incidencia.peligrosaMotivo)}` : ''}
+               <div style="font-size:11.5px;">
+                 Marcada por ${esc(incidencia.peligrosaPor || 'el personal')}${
+                   incidencia.peligrosaFecha ? ` el ${fmtFecha(incidencia.peligrosaFecha)}` : ''
+                 }
+               </div>
+             </div>
+           </div>`
+        : ''
+    }
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
       <span style="font-size:2.5rem;line-height:1;">${incidencia.iconoCustom || (tipo ? tipo.icono : '❗')}</span>
       <div style="flex:1;min-width:0;">
@@ -190,6 +206,17 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
     acciones.push(`<button class="btn btn-success" data-action="detalle:resolver" data-id="${esc(incidencia.id)}">
       <i class="bi bi-check-circle-fill"></i> Marcar resuelta
     </button>`);
+  }
+  if (permisos.puedeMarcarPeligro) {
+    acciones.push(
+      incidencia.peligrosa
+        ? `<button class="btn btn-outline" data-action="detalle:peligro" data-id="${esc(incidencia.id)}" data-valor="quitar">
+             <i class="bi bi-shield-check"></i> Quitar peligro
+           </button>`
+        : `<button class="btn btn-danger" data-action="detalle:peligro" data-id="${esc(incidencia.id)}" data-valor="marcar">
+             <i class="bi bi-exclamation-triangle-fill"></i> Marcar peligrosa
+           </button>`
+    );
   }
   if (permisos.puedeEliminar) {
     acciones.push(`<button class="btn btn-danger" data-action="detalle:eliminar" data-id="${esc(incidencia.id)}">

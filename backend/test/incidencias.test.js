@@ -335,3 +335,111 @@ describe('Incidencias: edición y estados', () => {
     assert.equal((await admin.get(`/api/incidencias/${id}`)).status, 404);
   });
 });
+
+describe('Incidencias: marca de peligro', () => {
+  test('solo el personal marca y desmarca, con historial y aviso al autor', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoPeligro');
+    const funcionario = await Api.funcionario(app);
+
+    const creada = await anon.post(
+      '/api/incidencias',
+      incidenciaValida({ titulo: 'Cable de alta tensión caído' })
+    );
+    assert.equal(creada.status, 201);
+    const id = creada.body.incidencia.id;
+    // Nace sin la marca.
+    assert.equal(creada.body.incidencia.peligrosa, false);
+
+    // El ciudadano no puede marcarla ni tan siquiera su propio reporte.
+    const intento = await anon.patch(`/api/incidencias/${id}/peligro`, { peligrosa: true });
+    assert.equal(intento.status, 403);
+
+    const marcada = await funcionario.patch(`/api/incidencias/${id}/peligro`, {
+      peligrosa: true,
+      motivo: 'Riesgo de electrocución para transeúntes'
+    });
+    assert.equal(marcada.status, 200);
+    const inc = marcada.body.incidencia;
+    assert.equal(inc.peligrosa, true);
+    assert.equal(inc.peligrosaPor, 'Juan López');
+    assert.ok(inc.peligrosaFecha);
+    assert.equal(inc.peligrosaMotivo, 'Riesgo de electrocución para transeúntes');
+    assert.match(inc.historial.at(-1).accion, /Marcada como peligrosa/);
+
+    // El autor recibe el aviso.
+    const notificaciones = await anon.get('/api/notificaciones');
+    assert.ok(
+      notificaciones.body.notificaciones.some(
+        (n) => n.tipo === 'alerta' && /peligroso/i.test(n.titulo)
+      )
+    );
+
+    // Aparece marcada en el listado y en el detalle.
+    const lista = await funcionario.get('/api/incidencias');
+    const enLista = lista.body.incidencias.find((i) => i.id === id);
+    assert.equal(enLista.peligrosa, true);
+
+    const detalle = await funcionario.get(`/api/incidencias/${id}`);
+    assert.equal(detalle.body.incidencia.peligrosa, true);
+    assert.equal(detalle.body.incidencia.permisos.puedeMarcarPeligro, true);
+
+    const detalleAnon = await anon.get(`/api/incidencias/${id}`);
+    assert.equal(detalleAnon.body.incidencia.permisos.puedeMarcarPeligro, false);
+
+    // Repetir la marca no tiene sentido.
+    const repetida = await funcionario.patch(`/api/incidencias/${id}/peligro`, { peligrosa: true });
+    assert.equal(repetida.status, 409);
+
+    // Y se puede retirar.
+    const limpia = await funcionario.patch(`/api/incidencias/${id}/peligro`, { peligrosa: false });
+    assert.equal(limpia.status, 200);
+    assert.equal(limpia.body.incidencia.peligrosa, false);
+    assert.equal(limpia.body.incidencia.peligrosaPor, null);
+    assert.equal(limpia.body.incidencia.peligrosaMotivo, '');
+  });
+
+  test('una edición del autor no borra la marca de peligro', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoPeligro2');
+    const funcionario = await Api.funcionario(app);
+
+    const creada = await anon.post('/api/incidencias', incidenciaValida({ titulo: 'Poste a punto de caer' }));
+    const id = creada.body.incidencia.id;
+    await funcionario.patch(`/api/incidencias/${id}/peligro`, { peligrosa: true });
+
+    const editada = await anon.put(`/api/incidencias/${id}`, { titulo: 'Poste inclinado sobre la banqueta' });
+    assert.equal(editada.status, 200);
+    assert.equal(editada.body.incidencia.peligrosa, true);
+    assert.equal(editada.body.incidencia.peligrosaPor, 'Juan López');
+  });
+
+  test('el panel cuenta las peligrosas sin resolver', async () => {
+    const anon = await Api.anonimo(app, 'ciudadanoPeligro3');
+    const funcionario = await Api.funcionario(app);
+
+    const creada = await anon.post('/api/incidencias', incidenciaValida({ titulo: 'Fuga de gas en la colonia' }));
+    const id = creada.body.incidencia.id;
+    const antes = await funcionario.get('/api/stats/panel');
+
+    await funcionario.patch(`/api/incidencias/${id}/peligro`, { peligrosa: true });
+    const conMarca = await funcionario.get('/api/stats/panel');
+    assert.equal(conMarca.body.peligrosas, (antes.body.peligrosas || 0) + 1);
+
+    // Al resolverla deja de contar como peligrosa activa.
+    await funcionario.post(`/api/incidencias/${id}/resolucion`, {
+      solucion: 'Acudió protección civil y cerró la fuga.'
+    });
+    const resuelta = await funcionario.get('/api/stats/panel');
+    assert.equal(resuelta.body.peligrosas, antes.body.peligrosas || 0);
+
+    // El motivo no puede exceder el límite.
+    const otra = await anon.post(
+      '/api/incidencias',
+      incidenciaValida({ tipoId: 'basura', titulo: 'Otro reporte para el límite' })
+    );
+    const larga = await funcionario.patch(`/api/incidencias/${otra.body.incidencia.id}/peligro`, {
+      peligrosa: true,
+      motivo: 'x'.repeat(200)
+    });
+    assert.equal(larga.status, 400);
+  });
+});

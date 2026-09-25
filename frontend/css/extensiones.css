@@ -1,0 +1,178 @@
+/* ============================================================
+   EXTENSIONES PROPIAS
+   ============================================================
+   Estilos que NO vienen del monolito: el script
+   scripts/extraer-css.mjs reescribe base.css, layout.css,
+   componentes.css y admin.css a partir de legacy/, así que
+   cualquier añadido propio debe vivir aquí para no perderse.
+   ============================================================ */
+
+/* --- Incidencias peligrosas ------------------------------------------------
+   El panel las destaca en grande: tarjetas anchas, borde rojo y el motivo
+   con el que el personal las marcó. */
+
+/* Tarjeta de estadística del panel: cuenta de peligrosas. */
+.stat-card.peligro {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #fff;
+}
+
+.stat-card.peligro .stat-num,
+.stat-card.peligro .stat-label {
+  color: #fff;
+}
+
+.peligro-panel {
+  border: 2px solid var(--rojo);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe9e9 100%);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.peligro-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.peligro-panel-head h3 {
+  font-size: 15px;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.peligro-panel-head .peligro-contador {
+  background: var(--rojo);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+.peligro-panel-head p {
+  font-size: 12px;
+  color: #7f1d1d;
+}
+
+.peligro-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.peligro-card {
+  position: relative;
+  background: #fff;
+  border: 2px solid #fecaca;
+  border-left: 6px solid var(--rojo);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.12);
+}
+
+.peligro-card .peligro-icono {
+  font-size: 2.6rem;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.peligro-card h4 {
+  font-size: 15px;
+  color: #7f1d1d;
+  margin-bottom: 6px;
+}
+
+.peligro-card .peligro-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 11.5px;
+  color: var(--gris);
+  margin-bottom: 8px;
+}
+
+.peligro-card .peligro-motivo {
+  background: #fef2f2;
+  border-left: 3px solid var(--rojo);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #7f1d1d;
+  margin-bottom: 10px;
+}
+
+.peligro-card .peligro-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.peligro-vacio {
+  font-size: 12.5px;
+  color: #7f1d1d;
+  background: #fff;
+  border: 1px dashed #fecaca;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+/* Aviso dentro del modal de detalle. */
+.detalle-peligro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 5px solid var(--rojo);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: #7f1d1d;
+  margin-bottom: 12px;
+}
+
+/* Tarjeta del listado lateral. */
+.incidencia-card.peligrosa {
+  border-left: 5px solid var(--rojo);
+  background: #fff8f8;
+}
+
+.inc-badge.badge-peligro {
+  background: var(--rojo);
+  color: #fff;
+  font-weight: 800;
+}
+
+/* Fila de la tabla de administración. */
+.data-table tr.fila-peligrosa {
+  background: #fff5f5;
+}
+
+.data-table tr.fila-peligrosa td:first-child {
+  border-left: 4px solid var(--rojo);
+}
+
+/* --- Marcador del mapa ----------------------------------------------------- */
+
+.pin.pin-peligrosa {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(220, 38, 38, 0.85);
+  animation: pulso-peligro 1.6s ease-out infinite;
+}
+
+@keyframes pulso-peligro {
+  0% {
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(220, 38, 38, 0.85);
+  }
+  70% {
+    box-shadow: 0 0 0 3px #fff, 0 0 0 14px rgba(220, 38, 38, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(220, 38, 38, 0);
+  }
+}

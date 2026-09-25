@@ -17,6 +17,7 @@ router.post('/incidencias', incidencias.crear);
 router.get('/incidencias/:id', incidencias.obtener);
 router.put('/incidencias/:id', incidencias.actualizar);
 router.patch('/incidencias/:id/estado', incidencias.cambiarEstado);
+router.patch('/incidencias/:id/peligro', incidencias.marcarPeligro);
 router.post('/incidencias/:id/resolucion', incidencias.resolver);
 router.delete('/incidencias/:id', incidencias.eliminar);
 router.post('/incidencias/:id/comentarios', incidencias.comentar);

@@ -11,6 +11,23 @@ import * as adminView from '../views/admin.view.js';
 import * as detalleController from './incidencias.controller.js';
 
 /** Carga los datos de la pestaña solicitada. */
+/**
+ * Vuelve a pintar el bloque de incidencias peligrosas y la tabla.
+ * Se hace siempre junto porque una marca de peligro cambia los dos.
+ */
+function pintarPanelIncidencias() {
+  adminView.renderPeligrosas(store.estado.incidencias, { tipos: store.estado.tipos });
+  adminView.renderTablaIncidencias(store.estado.incidencias, {
+    tipos: store.estado.tipos,
+    esAdmin: sesion.esAdmin(),
+    busqueda: adminView.valorBusqueda(),
+    soloPeligrosas: store.estado.soloPeligrosas
+  });
+
+  const boton = document.getElementById('btn-solo-peligrosas');
+  if (boton) boton.classList.toggle('btn-primary', store.estado.soloPeligrosas === true);
+}
+
 async function abrirTab(nombre) {
   adminView.activarTab(nombre);
   switch (nombre) {
@@ -19,11 +36,7 @@ async function abrirTab(nombre) {
       break;
     case 'incidencias':
       await aplicacion.recargarIncidencias();
-      adminView.renderTablaIncidencias(store.estado.incidencias, {
-        tipos: store.estado.tipos,
-        esAdmin: sesion.esAdmin(),
-        busqueda: adminView.valorBusqueda()
-      });
+      pintarPanelIncidencias();
       break;
     case 'tipos':
       await aplicacion.cargarTipos();
@@ -45,13 +58,7 @@ async function abrirTab(nombre) {
 }
 
 export function registrar() {
-  const buscarConRetraso = debounce(() => {
-    adminView.renderTablaIncidencias(store.estado.incidencias, {
-      tipos: store.estado.tipos,
-      esAdmin: sesion.esAdmin(),
-      busqueda: adminView.valorBusqueda()
-    });
-  }, 200);
+  const buscarConRetraso = debounce(() => pintarPanelIncidencias(), 200);
 
   registrarAcciones({
     'admin:abrir': () =>
@@ -99,6 +106,34 @@ export function registrar() {
       }),
 
     /** Cambio de municipio activo: exige la clave, como en el monolito. */
+    /** Marca o desmarca una incidencia como peligrosa (solo personal). */
+    'admin:marcarPeligro': ({ id, valor }) =>
+      intentar(async () => {
+        if (!sesion.esEmpleado()) {
+          toast('Solo el personal puede marcar incidencias peligrosas', 'err');
+          return;
+        }
+
+        if (valor === 'quitar') {
+          await detalleController.aplicarMarcaPeligro(id, { peligrosa: false });
+          pintarPanelIncidencias();
+          return;
+        }
+
+        // Marcar pide el motivo en un modal (el panel sigue abierto debajo).
+        detalleController.abrirMotivoPeligro(id);
+      }),
+
+    /** Alterna el filtro «solo peligrosas» de la tabla. */
+    'admin:soloPeligrosas': () => {
+      store.actualizar({ soloPeligrosas: !store.estado.soloPeligrosas }, 'admin');
+      pintarPanelIncidencias();
+      toast(
+        store.estado.soloPeligrosas ? 'Mostrando solo las peligrosas' : 'Mostrando todas',
+        'ok'
+      );
+    },
+
     // El municipio activo se cambia desde el mismo flujo público (sin clave
     // de acceso): el alcance de un administrador no está restringido.
     'admin:cambiarMunicipio': () =>

@@ -36,6 +36,14 @@ export function enriquecerLista(lista, ahora = new Date()) {
   return lista.map((i) => enriquecer(i, ahora));
 }
 
+/**
+ * Reportes marcados como peligrosos que siguen sin resolverse.
+ * Es el número que el panel destaca en grande.
+ */
+export function contarPeligrosas(lista = []) {
+  return lista.filter((i) => i.peligrosa === true && i.estado !== 'resuelta').length;
+}
+
 export function filtrarPorColor(lista, color) {
   if (!color || color === 'todos') return lista;
   return lista.filter((i) => i.color === color);

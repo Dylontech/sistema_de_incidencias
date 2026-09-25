@@ -46,6 +46,8 @@ export function generarCSV({ incidencias = [], tipos = [], municipios = [] } = {
     'Título',
     'Descripción',
     'Estado',
+    'Peligrosa',
+    'Motivo de peligro',
     'Latitud',
     'Longitud',
     'Zona',
@@ -64,6 +66,8 @@ export function generarCSV({ incidencias = [], tipos = [], municipios = [] } = {
       inc.titulo,
       inc.descripcion,
       inc.estado,
+      inc.peligrosa ? 'SÍ' : 'NO',
+      inc.peligrosa ? inc.peligrosaMotivo || '' : '',
       inc.lat,
       inc.lng,
       inc.zonaNombre || '',
@@ -141,7 +145,7 @@ export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio
             return `<tr>
               <td>${indice + 1}</td>
               <td>${tipo ? tipo.icono + ' ' + esc(tipo.nombre) : '—'}</td>
-              <td>${esc(inc.titulo)}</td>
+              <td>${inc.peligrosa ? '<strong>⚠️ PELIGROSA</strong> · ' : ''}${esc(inc.titulo)}</td>
               <td><span class="badge badge-${inc.color}">${etiquetaEstado(inc.estado)}</span></td>
               <td>${inc.estado === 'resuelta' ? '—' : textoAntiguedad(inc.dias)}</td>
               <td>${esc(inc.esAnonimo ? 'Anónimo' : inc.autorNombre)}</td>

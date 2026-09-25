@@ -35,6 +35,10 @@ export const incidenciasService = {
   cambiarEstado(id, estado) {
     return api.patch(`/incidencias/${id}/estado`, { estado });
   },
+  /** Marca o desmarca una incidencia como peligrosa (solo personal). */
+  marcarPeligro(id, { peligrosa = true, motivo = '' } = {}) {
+    return api.patch(`/incidencias/${id}/peligro`, { peligrosa, motivo });
+  },
   resolver(id, { solucion, evidenciaSolucion }) {
     return api.post(`/incidencias/${id}/resolucion`, { solucion, evidenciaSolucion });
   },

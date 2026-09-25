@@ -160,10 +160,14 @@ export async function cargarEstadisticas() {
   ]);
   store.actualizar({ estadisticas: { panel, informes } }, 'estadisticas');
   adminView.renderStats(panel);
+  // El bloque destacado y la tabla se pintan juntos: la marca de peligro
+  // afecta a los dos.
+  adminView.renderPeligrosas(store.estado.incidencias, { tipos: store.estado.tipos });
   adminView.renderTablaIncidencias(store.estado.incidencias, {
     tipos: store.estado.tipos,
     esAdmin: sesion.esAdmin(),
-    busqueda: store.estado.busquedaAdmin
+    busqueda: store.estado.busquedaAdmin,
+    soloPeligrosas: store.estado.soloPeligrosas
   });
   return { panel, informes };
 }

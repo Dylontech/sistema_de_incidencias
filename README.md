@@ -62,6 +62,15 @@ La aplicación queda disponible en **http://localhost:3100** (la API en `/api`),
 indicado en `PORT` dentro de `backend/.env`. Express sirve el frontend estático, así que no
 hay CORS ni configuración de URL base.
 
+> **El servidor vive en `backend/`.** Los comandos de arriba se ejecutan **desde la raíz** y
+delegan en esa carpeta. Si prefieres entrar en ella, usa `cd backend` antes de `npm start`:
+`node src/server.js` desde la raíz falla con `MODULE_NOT_FOUND` porque ese archivo no está ahí.
+>
+> Las variables de entorno del sistema **tienen prioridad sobre `backend/.env`** (dotenv no
+las sobrescribe), así que un `export PORT=3000` o `export STORAGE_DRIVER=mysql` en la
+terminal cambia el arranque sin tocar el archivo. Si algo «no respeta» la configuración,
+revisa primero `env | grep -E "^(PORT|DB_|STORAGE_DRIVER)"`.
+
 Si el puerto está ocupado (lo más común: otro proyecto usando el 3000) el servidor lo
 informa y no arranca volcando una traza. Para resolverlo: cambia `PORT` en `backend/.env`,
 arráncalo puntualmente con `PORT=<otro puerto> npm run dev`, o libera el puerto
@@ -72,8 +81,8 @@ arráncalo puntualmente con `PORT=<otro puerto> npm run dev`, o libera el puerto
 | Rol | Usuario | Contraseña | Clave de municipio |
 |---|---|---|---|
 | Administrador | `admin` | `admin123` | — |
-| Funcionario | `funcionario` | `func123` | `MARAVATIO-2024` |
-| Funcionario | `funcionario2` | `func123` | `MARAVATIO-2024` |
+| Funcionario | `funcionario` | `func123` | `16050` (Maravatío) |
+| Funcionario | `funcionario2` | `func123` | `16050` (Maravatío) |
 | Ciudadano | — | — | acceso anónimo |
 
 > Las contraseñas se guardan con bcrypt. En el monolito estaban en claro dentro de
@@ -156,6 +165,7 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | POST | `/api/incidencias` | sesión | Crea un reporte (valida geocerca y duplicados). |
 | PUT | `/api/incidencias/:id` | autor o empleado | Edita conservando estado, fecha e historial. |
 | PATCH | `/api/incidencias/:id/estado` | empleado | `reportada` ↔ `en_proceso`. |
+| PATCH | `/api/incidencias/:id/peligro` | empleado | Marca o desmarca como peligrosa (`{ peligrosa, motivo }`). |
 | POST | `/api/incidencias/:id/resolucion` | empleado | Marca resuelta con descripción y evidencia. |
 | DELETE | `/api/incidencias/:id` | admin | Elimina la incidencia. |
 | POST | `/api/incidencias/:id/comentarios` | sesión | Comenta y avisa al autor. |
@@ -270,6 +280,35 @@ Traduce el municipio de incidencias y usuarios del identificador antiguo
 (`maravatio`) a la clave geoestadística (`16050`) y recoloca cada reporte en la
 comunidad que contiene sus coordenadas. Antes de escribir deja copias
 `<archivo>.antes.json` en `backend/data/`.
+
+---
+
+## Incidencias peligrosas
+
+El personal del municipio puede **señalar un reporte como peligroso** (cable caído, fuga de
+gas, socavón…). La marca es un juicio del ayuntamiento, no del autor: `peligrosa`,
+`peligrosaPor`, `peligrosaFecha` y `peligrosaMotivo` (140 caracteres) se guardan en la
+incidencia, quedan en el historial y el ciudadano que reportó recibe una notificación.
+
+Qué cambia al marcarla:
+
+| Dónde | Qué se ve |
+|---|---|
+| Panel → Incidencias | Bloque **en grande** al principio: tarjetas anchas con icono, comunidad, días abiertos, quién la marcó y el motivo, más los botones «Ver / atender» y «Quitar marca». |
+| Panel → Estadísticas | Tarjeta roja con el número de peligrosas **sin resolver**. |
+| Panel → tabla | Distintivo `⚠️ PELIGROSA`, fila resaltada y botón para marcar/desmarcar. Además hay un filtro **Solo peligrosas**. |
+| Mapa | El marcador lleva un anillo rojo pulsante y el popup avisa del peligro. |
+| Listado lateral | Tarjeta con borde rojo y distintivo `⚠️ PELIGROSA`. |
+| Detalle | Aviso rojo con el motivo y quién la marcó, y botón «Marcar peligrosa» / «Quitar peligro». |
+| CSV e informes | Columnas `Peligrosa` y `Motivo de peligro`; el informe imprimible antepone `⚠️ PELIGROSA`. |
+
+Solo funcionarios y administradores pueden marcar o desmarcar (el ciudadano recibe `403`),
+y al resolver la incidencia deja de contarse como peligro activa aunque conserve el
+histórico de la marca.
+
+> Los estilos de esta funcionalidad viven en `frontend/css/extensiones.css`, que es el
+> archivo para añadidos propios: `scripts/extraer-css.mjs` reescribe los otros cuatro a
+> partir del monolito y borraría cualquier cosa escrita ahí.
 
 ---
 
@@ -425,6 +464,10 @@ defectos del monolito:
     en lugar de exigir una zona de la cuadrícula antigua.
 11. **Cambio de municipio público**: el ciudadano puede recorrer el estado con el selector
     de la barra superior; antes el municipio estaba fijo en Maravatío.
+12. **Incidencias peligrosas**: el personal puede destacar los reportes de riesgo
+    ([ver más](#incidencias-peligrosas)) y el panel los muestra en grande. Además se
+    sustituyeron los `window.prompt`/`window.confirm` de este flujo por un modal propio,
+    porque los diálogos nativos no funcionan en todos los navegadores.
 
 ---
 

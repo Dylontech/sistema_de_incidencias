@@ -11,6 +11,8 @@
 <link rel="stylesheet" href="css/componentes.css">
 <link rel="stylesheet" href="css/admin.css">
 <link rel="stylesheet" href="css/reportes.css" media="print">
+<!-- Estilos propios que no salen del monolito: el extractor no toca este archivo. -->
+<link rel="stylesheet" href="css/extensiones.css">
 </head>
 <body>
 
@@ -56,14 +58,14 @@
         </div>
         <div class="form-group">
           <label for="func-code">Clave de municipio</label>
-          <input type="text" id="func-code" name="claveMunicipio" placeholder="Ej. MARAVATIO-2024" style="text-transform:uppercase;">
+          <input type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 16050 (clave geoestadística)" style="text-transform:uppercase;">
         </div>
         <button class="btn btn-primary btn-block" type="submit">
           <i class="bi bi-shield-lock-fill"></i> Iniciar sesión
         </button>
       </form>
       <div id="notaDemoFunc" style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
-        <strong>Demo:</strong> usuario <code>funcionario</code> · contraseña <code>func123</code> · clave <code>MARAVATIO-2024</code>
+        <strong>Demo:</strong> usuario <code>funcionario</code> · contraseña <code>func123</code> · clave de municipio <code>16050</code> (Maravatío)
       </div>
     </div>
 
@@ -367,8 +369,12 @@
       </div>
 
       <div class="admin-panel" id="panel-incidencias">
+        <div id="peligrosasDestacadas"></div>
         <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
           <input type="text" class="filter-input" id="adminBuscar" placeholder="Buscar…" data-input="admin:buscar" style="max-width:280px;">
+          <button class="btn btn-outline btn-sm" data-action="admin:soloPeligrosas" id="btn-solo-peligrosas">
+            <i class="bi bi-exclamation-triangle-fill"></i> Solo peligrosas
+          </button>
           <button class="btn btn-outline btn-sm" data-action="reportes:csv"><i class="bi bi-file-earmark-spreadsheet"></i> CSV</button>
           <button class="btn btn-outline btn-sm" data-action="reportes:imprimir"><i class="bi bi-printer"></i> Imprimir</button>
         </div>
@@ -544,6 +550,33 @@
 <!-- ============================================================
      MODAL: RESOLVER INCIDENCIA
      ============================================================ -->
+<div class="modal-overlay" id="modalPeligro">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-exclamation-triangle-fill" style="color:var(--rojo);"></i> Marcar como peligrosa</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalPeligro">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;">
+        La incidencia se destacará en grande al principio del panel de administración, para
+        que se atienda antes que el resto.
+      </p>
+      <div class="form-group">
+        <label for="peligroMotivo">Motivo del peligro (opcional)</label>
+        <textarea id="peligroMotivo" rows="3" maxlength="140"
+          placeholder="Ej. Cable de alta tensión caído sobre la banqueta, riesgo de electrocución…"></textarea>
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Máximo 140 caracteres.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalPeligro">Cancelar</button>
+      <button class="btn btn-danger" data-action="peligro:confirmar">
+        <i class="bi bi-exclamation-triangle-fill"></i> Marcar peligrosa
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalResolver">
   <div class="modal-box">
     <div class="modal-head">

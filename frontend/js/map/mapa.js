@@ -200,9 +200,11 @@ export function alternarZonas() {
 function crearIcono(incidencia, tipos) {
   const tipo = tipos.find((t) => t.id === incidencia.tipoId);
   const emoji = incidencia.iconoCustom || (tipo ? tipo.icono : '❗');
+  // Las peligrosas llevan un anillo rojo pulsante para que salten a la vista.
+  const peligrosa = incidencia.peligrosa === true ? ' pin-peligrosa' : '';
   return L.divIcon({
     className: 'marker-icon',
-    html: `<div class="pin" style="background:${colorHex(incidencia.color)};">
+    html: `<div class="pin${peligrosa}" style="background:${colorHex(incidencia.color)};">
              <span class="pin-inner">${emoji}</span>
            </div>`,
     iconSize: [32, 32],
@@ -220,6 +222,11 @@ export function contenidoPopup(incidencia, tipos) {
 
   return `
     <div style="font-size:13px;min-width:200px;">
+      ${
+        incidencia.peligrosa
+          ? '<div style="background:#dc2626;color:#fff;font-size:11px;font-weight:800;border-radius:6px;padding:3px 8px;margin-bottom:6px;text-align:center;">⚠️ INCIDENCIA PELIGROSA</div>'
+          : ''
+      }
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
         <span style="font-size:1.3rem;">${tipo ? tipo.icono : '❗'}</span>
         <strong style="color:#1a202c;">${esc(incidencia.titulo)}</strong>

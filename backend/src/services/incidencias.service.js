@@ -41,6 +41,7 @@ export function permisosDe(incidencia, usuario) {
     puedeEditar: puedeEditar(incidencia, usuario) && !resuelta,
     puedeCambiarEstado: esEmpleado(usuario) && !resuelta,
     puedeResolver: esEmpleado(usuario) && !resuelta,
+    puedeMarcarPeligro: esEmpleado(usuario),
     puedeEliminar: esAdmin(usuario),
     puedeComentar: true
   };
@@ -333,9 +334,74 @@ export async function comentar(repositorio, usuario, id, texto) {
   return enriquecer(actualizada);
 }
 
+/**
+ * Marca (o desmarca) una incidencia como PELIGROSA.
+ *
+ * Es un juicio del personal del municipio, no del autor del reporte: sirve
+ * para que el panel de administración destaque esos casos en grande, por
+ * encima del resto del listado. El ciudadano que reportó recibe el aviso.
+ */
+export async function marcarPeligro(repositorio, usuario, id, { peligrosa = true, motivo = '' } = {}) {
+  if (!esEmpleado(usuario)) {
+    throw AppError.prohibido(
+      'Solo funcionarios y administradores pueden marcar incidencias como peligrosas'
+    );
+  }
+
+  const actual = await repositorio.incidenciaPorId(id);
+  exigirVisibilidad(actual, usuario);
+
+  const activar = peligrosa !== false;
+  if ((actual.peligrosa === true) === activar) {
+    throw AppError.conflicto(
+      activar
+        ? 'La incidencia ya está marcada como peligrosa'
+        : 'La incidencia no está marcada como peligrosa'
+    );
+  }
+
+  const v = recolector();
+  const razon = v.texto(motivo, 'motivo', { max: LIMITES_TEXTO.motivoPeligro });
+  v.terminar();
+
+  const ahora = ahoraIso();
+  const actualizada = {
+    ...actual,
+    actualizado: ahora,
+    peligrosa: activar,
+    peligrosaPor: activar ? usuario.nombre : null,
+    peligrosaFecha: activar ? ahora : null,
+    peligrosaMotivo: activar ? razon || '' : '',
+    historial: agregarHistorial(actual, {
+      estado: actual.estado,
+      accion: activar
+        ? `Marcada como peligrosa${razon ? ': ' + razon : ''}`
+        : 'Se retiró la marca de peligro',
+      por: usuario.nombre,
+      ahora
+    })
+  };
+
+  await repositorio.actualizarIncidencia(id, actualizada);
+
+  const destinatario = destinatarioDeIncidencia(actualizada);
+  if (destinatario && destinatario !== usuario.userKey) {
+    await notificar(
+      repositorio,
+      actualizada,
+      activar ? 'alerta' : 'estado',
+      activar ? '⚠️ Tu reporte se marcó como peligroso' : 'Tu reporte ya no está marcado como peligroso',
+      activar
+        ? `"${actualizada.titulo}" fue señalado como peligroso por el personal del municipio.`
+        : `"${actualizada.titulo}" dejó de estar señalado como peligroso.`
+    );
+  }
+
+  return enriquecer(actualizada);
+}
+
 /** Crea la notificación dirigida al autor del reporte. */
-async function notificar(repositorio, incidencia, tipo, titulo, mensaje) {
-  await repositorio.crearNotificacion(
+async function notificar(repositorio, incidencia, tipo, titulo, mensaje) {  await repositorio.crearNotificacion(
     construirNotificacion({
       tipo,
       titulo,

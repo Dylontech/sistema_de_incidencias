@@ -1,6 +1,6 @@
 /** Controlador de incidencias: reportar, editar, resolver, comentar y ver detalle. */
 import { registrarAcciones } from '../core/eventos.js';
-import { abrirModal, cerrarModal, loading, preguntar, toast } from '../core/ui.js';
+import { abrirModal, cerrarModal, loading, modalAbierto, preguntar, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
 import { debounce } from '../core/utils.js';
 import { store } from '../core/store.js';
@@ -217,6 +217,35 @@ export function abrirDesdePanel(id) {
   return intentar(() => abrirDetalle(id));
 }
 
+/* ------------------------------ peligro ----------------------------- */
+
+/** Incidencia a la que se le está pidiendo el motivo de peligro. */
+let peligroPendiente = null;
+
+/**
+ * Abre el modal que pide el motivo con el que se marca una peligrosa.
+ * Se usa un modal propio y no `window.prompt` porque los diálogos nativos no
+ * están disponibles en todos los navegadores (ni en las vistas embebidas).
+ */
+export function abrirMotivoPeligro(id) {
+  peligroPendiente = id;
+  const campo = document.getElementById('peligroMotivo');
+  if (campo) campo.value = '';
+  abrirModal('modalPeligro', { nested: true });
+}
+
+/** Marca o desmarca el peligro y refresca todo lo que depende de la marca. */
+export async function aplicarMarcaPeligro(id, { peligrosa, motivo = '' } = {}) {
+  await incidenciasService.marcarPeligro(id, { peligrosa, motivo });
+  await refrescarDatos();
+  // Si el detalle está abierto se vuelve a pintar con la marca nueva.
+  if (modalAbierto('modalDetalle')) await abrirDetalle(id);
+  toast(
+    peligrosa ? '⚠️ Incidencia marcada como peligrosa' : 'Se retiró la marca de peligro',
+    'ok'
+  );
+}
+
 export function registrar() {
   const leerFiltrosDelDom = () => ({
     texto: document.getElementById('filterText')?.value.trim() || '',
@@ -377,6 +406,28 @@ export function registrar() {
         await refrescarDatos();
         await abrirDetalle(id);
         toast('Estado actualizado', 'ok');
+      }),
+
+    /** Marca o desmarca el peligro desde el modal de detalle (solo personal). */
+    'detalle:peligro': ({ id, valor }) =>
+      intentar(async () => {
+        if (valor === 'quitar') return aplicarMarcaPeligro(id, { peligrosa: false });
+        abrirMotivoPeligro(id);
+      }),
+
+    /** Confirma la marca con el motivo escrito en el modal. */
+    'peligro:confirmar': () =>
+      intentar(async () => {
+        const id = peligroPendiente;
+        if (!id) {
+          toast('No se seleccionó ninguna incidencia', 'err');
+          return;
+        }
+        const motivo =
+          (document.getElementById('peligroMotivo')?.value || '').trim().slice(0, 140) || '';
+        peligroPendiente = null;
+        cerrarModal('modalPeligro');
+        await aplicarMarcaPeligro(id, { peligrosa: true, motivo });
       }),
 
     'detalle:resolver': ({ id }) => {

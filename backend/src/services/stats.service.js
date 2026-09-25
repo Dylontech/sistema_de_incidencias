@@ -6,7 +6,7 @@
 import { esEmpleado } from './alcance.service.js';
 import { AppError } from '../utils/AppError.js';
 import { listar } from './incidencias.service.js';
-import { contarPorEstado } from './estado.service.js';
+import { contarPorEstado, contarPeligrosas } from './estado.service.js';
 import { diasDesde } from '../utils/fechas.js';
 
 async function base(repositorio, usuario, municipioId = null) {
@@ -40,7 +40,7 @@ export async function panelAdmin(repositorio, usuario, municipioId = null) {
     .filter((fila) => fila.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  return { ...conteo, porTipo };
+  return { ...conteo, peligrosas: contarPeligrosas(incidencias), porTipo };
 }
 
 /** Tarjetas y tabla resumen del modal de informes. */
@@ -66,7 +66,7 @@ export async function informes(repositorio, usuario, municipioId = null) {
     .filter((fila) => fila.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  return { ...conteo, porTipo };
+  return { ...conteo, peligrosas: contarPeligrosas(incidencias), porTipo };
 }
 
 /**

@@ -130,6 +130,12 @@ export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora
     municipioId,
     zonaId: zona ? zona.id : null,
     zonaNombre: zona ? zona.nombre : null,
+    // Marca de peligro: solo el personal puede activarla (ver
+    // `incidencias.service.marcarPeligro`). Nace apagada.
+    peligrosa: false,
+    peligrosaPor: null,
+    peligrosaFecha: null,
+    peligrosaMotivo: '',
     evidencia: entrada.evidencia || [],
     historial: [
       {
@@ -167,6 +173,11 @@ export function aplicarEdicion(actual, entrada, { ahora = ahoraIso() } = {}) {
   editado.autorNombre = actual.autorNombre;
   editado.esAnonimo = actual.esAnonimo;
   editado.municipioId = actual.municipioId;
+  // La marca de peligro la controla el personal, no el autor del reporte.
+  editado.peligrosa = actual.peligrosa === true;
+  editado.peligrosaPor = actual.peligrosaPor ?? null;
+  editado.peligrosaFecha = actual.peligrosaFecha ?? null;
+  editado.peligrosaMotivo = actual.peligrosaMotivo ?? '';
   return editado;
 }
 

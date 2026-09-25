@@ -49,6 +49,14 @@ export const cambiarEstado = asyncHandler(async (req, res) => {
   res.json({ incidencia });
 });
 
+export const marcarPeligro = asyncHandler(async (req, res) => {
+  const incidencia = await incidencias.marcarPeligro(req.repositorio, req.usuario, req.params.id, {
+    peligrosa: req.body?.peligrosa !== false,
+    motivo: req.body?.motivo || ''
+  });
+  res.json({ incidencia });
+});
+
 export const resolver = asyncHandler(async (req, res) => {
   const incidencia = await incidencias.resolver(req.repositorio, req.usuario, req.params.id, {
     solucion: req.body?.solucion,

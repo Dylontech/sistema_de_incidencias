@@ -219,6 +219,10 @@ export class RepositorioMysql {
       municipio_id: inc.municipioId,
       zona_id: inc.zonaId ?? null,
       zona_nombre: inc.zonaNombre ?? null,
+      peligrosa: inc.peligrosa === true,
+      peligrosa_por: inc.peligrosaPor ?? null,
+      peligrosa_fecha: aFecha(inc.peligrosaFecha),
+      peligrosa_motivo: inc.peligrosaMotivo ?? null,
       fecha_resolucion: aFecha(inc.fechaResolucion),
       solucion: inc.solucion ?? null
     };
@@ -300,6 +304,10 @@ export class RepositorioMysql {
       municipioId: fila.municipio_id,
       zonaId: fila.zona_id,
       zonaNombre: fila.zona_nombre,
+      peligrosa: Boolean(fila.peligrosa),
+      peligrosaPor: fila.peligrosa_por || null,
+      peligrosaFecha: desdeFecha(fila.peligrosa_fecha),
+      peligrosaMotivo: fila.peligrosa_motivo || '',
       evidencia: hijos.evidencias.get(fila.id) || [],
       historial: hijos.historial.get(fila.id) || [],
       comentarios: hijos.comentarios.get(fila.id) || [],
