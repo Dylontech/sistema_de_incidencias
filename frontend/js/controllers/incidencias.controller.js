@@ -188,19 +188,23 @@ async function guardarIncidencia() {
 
 /* ------------------------------ detalle ----------------------------- */
 
-async function abrirDetalle(id) {
+async function abrirDetalle(id, { nested = false } = {}) {
   const { incidencia } = await incidenciasService.obtener(id);
   detalleView.renderizar(incidencia, {
     tipos: store.estado.tipos,
     zonas: store.estado.zonas,
     usuario: store.estado.usuario
   });
-  abrirModal('modalDetalle');
+  abrirModal('modalDetalle', { nested });
 }
 
-/** Abre el detalle desde el panel de administración (lo usa admin.controller). */
-export function abrirDesdePanel(id) {
-  return intentar(() => abrirDetalle(id));
+/**
+ * Abre el detalle desde el panel de administración o desde la cola de
+ * moderación (lo usan admin.controller y moderacion.controller). Con `nested`
+ * se muestra encima del panel en lugar de cerrarlo.
+ */
+export function abrirDesdePanel(id, opciones = {}) {
+  return intentar(() => abrirDetalle(id, opciones));
 }
 
 /* ------------------------------ peligro ----------------------------- */

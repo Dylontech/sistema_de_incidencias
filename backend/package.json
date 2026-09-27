@@ -12,6 +12,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test test/*.test.js",
+    "test:mysql": "sh scripts/pruebas-mysql.sh",
     "extraer-semilla": "node scripts/extraer-semilla.mjs",
     "importar-inegi": "node scripts/importar-inegi.mjs",
     "migrar-catalogo": "node scripts/migrar-catalogo.mjs",

@@ -74,6 +74,13 @@ async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
       token.borrar();
       document.dispatchEvent(new CustomEvent('sesion-expirada'));
     }
+    // Cuenta suspendida por moderación: se cubre la interfaz con el aviso (sin
+    // borrar el token, para que al recargar vuelva a verse el bloqueo).
+    if (respuesta.status === 403 && /suspendida/i.test(datos?.error || '')) {
+      document.dispatchEvent(
+        new CustomEvent('cuenta-suspendida', { detail: { mensaje: datos.error } })
+      );
+    }
     throw new ErrorApi(
       datos?.error || `Error ${respuesta.status}`,
       respuesta.status,

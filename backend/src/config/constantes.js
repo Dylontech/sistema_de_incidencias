@@ -50,8 +50,55 @@ export const LIMITES_TEXTO = {
   comentario: 500,
   solucion: 600,
   /** Motivo por el que el personal marca un reporte como peligroso. */
-  motivoPeligro: 140
+  motivoPeligro: 140,
+  /** Explicación opcional que acompaña a una denuncia ciudadana. */
+  detalleDenuncia: 400,
+  /** Nota con la que el moderador cierra una denuncia. */
+  resolucionDenuncia: 600,
+  /** Motivo por el que el personal oculta un contenido o sanciona una cuenta. */
+  motivoModeracion: 200
 };
+
+/**
+ * Motivos por los que se puede denunciar un contenido.
+ *
+ * La lista es cerrada (llega al navegador por `/api/catalogos`) para poder
+ * agrupar y contar las denuncias; el detalle libre es opcional.
+ */
+export const MOTIVOS_DENUNCIA = [
+  'spam',
+  'contenido_ofensivo',
+  'violencia_o_amenazas',
+  'datos_personales',
+  'informacion_falsa',
+  'fuera_de_tema',
+  'duplicado',
+  'otro'
+];
+
+/** Etiquetas legibles de los motivos de denuncia (viajan al frontend). */
+export const ETIQUETAS_MOTIVO_DENUNCIA = {
+  spam: 'Spam o publicidad',
+  contenido_ofensivo: 'Contenido ofensivo',
+  violencia_o_amenazas: 'Violencia o amenazas',
+  datos_personales: 'Datos personales o privacidad',
+  informacion_falsa: 'Información falsa',
+  fuera_de_tema: 'Fuera de tema',
+  duplicado: 'Duplicado',
+  otro: 'Otro motivo'
+};
+
+/** Estados del expediente de una denuncia. */
+export const ESTADOS_DENUNCIA = ['pendiente', 'atendida', 'descartada'];
+
+/** Acciones con las que el moderador puede cerrar una denuncia. */
+export const ACCIONES_MODERACION = ['ocultar', 'eliminar', 'advertir', 'suspender', 'descartar'];
+
+/**
+ * Advertencias que soporta una cuenta antes de quedar bloqueada sola.
+ * Al llegar a este número la cuenta se suspende de forma indefinida.
+ */
+export const ADVERTENCIAS_MAX = 3;
 
 /** Tolerancia en grados para detectar reportes duplicados. */
 export const PRECISION_DUPLICADO = 0.0002;
@@ -101,4 +148,11 @@ export const EVIDENCIA_POLITICA = {
 };
 
 /** Íconos disponibles para el selector (se cargan desde los datos semilla). */
-export const COLECCIONES = ['incidencias', 'tipos', 'municipios', 'usuarios', 'notificaciones'];
+export const COLECCIONES = [
+  'incidencias',
+  'tipos',
+  'municipios',
+  'usuarios',
+  'notificaciones',
+  'denuncias'
+];

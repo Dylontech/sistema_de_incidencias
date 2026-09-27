@@ -60,6 +60,31 @@ export class Api {
     return request(app).post('/api/auth/registro').send(cuerpo);
   }
 
+  /**
+   * Ciudadano con su sesión a mano: la moderación necesita el `username`
+   * (que es el `userKey` de la cuenta) para dirigir advertencias y sanciones.
+   */
+  static async ciudadanoConCuenta(app, datos = {}) {
+    const correo =
+      datos.correo || `moderacion-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}@ejemplo.mx`;
+    const password = datos.password || 'segura1234';
+    const respuesta = await request(app).post('/api/auth/registro').send({
+      correo,
+      password,
+      nombre: datos.nombre || 'Vecino Moderación',
+      pseudonimo: datos.pseudonimo === true
+    });
+    if (respuesta.status !== 201) {
+      throw new Error(`No se pudo registrar el ciudadano de prueba: ${respuesta.body?.error || respuesta.status}`);
+    }
+    return {
+      api: new Api(app, respuesta.body.token),
+      usuario: respuesta.body.usuario,
+      correo,
+      password
+    };
+  }
+
   /** Entrada de una cuenta ciudadana (correo + contraseña). */
   static entrarCiudadano(app, cuerpo = {}) {
     return request(app).post('/api/auth/ciudadano').send(cuerpo);

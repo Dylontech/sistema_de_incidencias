@@ -11,6 +11,7 @@ import { catalogosService } from '../services/catalogos.service.js';
 import { tiposService } from '../services/tipos.service.js';
 import { incidenciasService } from '../services/incidencias.service.js';
 import { notificacionesService } from '../services/notificaciones.service.js';
+import { moderacionService } from '../services/moderacion.service.js';
 import { statsService } from '../services/stats.service.js';
 import * as loginView from '../views/login.view.js';
 import * as listaView from '../views/lista.view.js';
@@ -208,6 +209,42 @@ export async function cargarResumenZonas(municipioId) {
   const { zonas } = await catalogosService.resumenZonas(municipioId);
   adminView.renderZonas(zonas);
   return zonas;
+}
+
+/**
+ * Carga la pestaña de moderación: cola de denuncias, contadores y sanciones.
+ * Es del personal; si un ciudadano la pidiera, el backend responde 403.
+ */
+export async function cargarModeracion() {
+  const municipioId = store.estado.municipioActivo?.id || null;
+  const [cola, resumen, cuentas] = await Promise.all([
+    moderacionService.cola({ estado: 'pendiente', municipio: municipioId }),
+    moderacionService.resumen(municipioId),
+    moderacionService.sanciones()
+  ]);
+
+  store.actualizar(
+    {
+      denuncias: cola.denuncias,
+      gruposDenuncia: cola.grupos,
+      resumenModeracion: resumen.resumen,
+      sanciones: cuentas.cuentas
+    },
+    'moderacion'
+  );
+
+  adminView.renderModeracion({
+    grupos: cola.grupos,
+    resumen: resumen.resumen,
+    sanciones: cuentas.cuentas,
+    // Las publicaciones ocultas ya vienen en el listado del personal.
+    ocultas: store.estado.incidencias.filter((i) => i.oculta === true),
+    tipos: store.estado.tipos,
+    motivos: store.estado.catalogos.motivosDenuncia || {},
+    puedeEliminar: sesion.esAdmin()
+  });
+
+  return { cola, resumen, cuentas };
 }
 
 export async function cargarUsuarios() {

@@ -25,13 +25,8 @@
     <h1><i class="bi bi-geo-alt-fill"></i> Sistema de Incidencias</h1>
     <p class="sub" id="loginSubtitulo">Municipio de Maravatío, Michoacán</p>
 
-    <div class="login-tabs">
-      <button class="login-tab active" data-action="auth:tab" data-valor="anon">Ciudadano</button>
-      <button class="login-tab" data-action="auth:tab" data-valor="func">Funcionario</button>
-      <button class="login-tab" data-action="auth:tab" data-valor="admin">Administrador</button>
-    </div>
-
-    <!-- ANÓNIMO / CUENTA CIUDADANA -->
+    <!-- Único acceso público: el ciudadano. El del personal vive en la página
+         /personal, que no está enlazada desde ninguna parte. -->
     <div class="login-panel active" id="panel-anon">
       <!-- Paso 1: elegir cómo entrar -->
       <div id="anonInicio">
@@ -113,49 +108,6 @@
       </div>
     </div>
 
-    <!-- FUNCIONARIO -->
-    <div class="login-panel" id="panel-func">
-      <form data-submit="auth:entrarFuncionario">
-        <div class="form-group">
-          <label for="func-user">Usuario</label>
-          <input type="text" id="func-user" name="username" placeholder="ej. jlopez" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label for="func-pass">Contraseña</label>
-          <input type="password" id="func-pass" name="password" placeholder="••••••••" autocomplete="current-password">
-        </div>
-        <div class="form-group">
-          <label for="func-code">Clave de municipio</label>
-          <input type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 16050 (clave geoestadística)" style="text-transform:uppercase;">
-        </div>
-        <button class="btn btn-primary btn-block" type="submit">
-          <i class="bi bi-shield-lock-fill"></i> Iniciar sesión
-        </button>
-      </form>
-      <div id="notaDemoFunc" style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
-        <strong>Demo:</strong> usuario <code>funcionario</code> · contraseña <code>func123</code> · clave de municipio <code>16050</code> (Maravatío)
-      </div>
-    </div>
-
-    <!-- ADMIN -->
-    <div class="login-panel" id="panel-admin">
-      <form data-submit="auth:entrarAdmin">
-        <div class="form-group">
-          <label for="admin-user">Usuario</label>
-          <input type="text" id="admin-user" name="username" placeholder="admin" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label for="admin-pass">Contraseña</label>
-          <input type="password" id="admin-pass" name="password" placeholder="••••••••" autocomplete="current-password">
-        </div>
-        <button class="btn btn-primary btn-block" type="submit">
-          <i class="bi bi-shield-fill-check"></i> Iniciar sesión
-        </button>
-      </form>
-      <div id="notaDemoAdmin" style="font-size:11px;color:#94a3b8;margin-top:12px;padding:8px;background:#f8f9fc;border-radius:6px;line-height:1.5;">
-        <strong>Demo:</strong> usuario <code>admin</code> · contraseña <code>admin123</code>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -313,9 +265,6 @@
       <i class="bi bi-person-circle"></i>
       <span id="userName">Anónimo</span>
     </div>
-    <button class="btn btn-outline btn-sm" id="btn-staff-login" data-action="auth:mostrarLogin" title="Acceso de funcionario o administrador" style="background:rgba(255,255,255,0.1);border:none;color:#fff;">
-      <i class="bi bi-shield-lock"></i> <span>Personal</span>
-    </button>
     <button class="notif-btn" id="btn-logout" data-action="auth:salir" title="Cerrar sesión" style="display:none;">
       <i class="bi bi-box-arrow-right"></i>
     </button>
@@ -566,6 +515,7 @@
         <button class="admin-tab" data-action="admin:tab" data-valor="municipios"><i class="bi bi-geo-fill"></i> Municipios</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="zonas"><i class="bi bi-bounding-box-circles"></i> Zonas</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="usuarios"><i class="bi bi-people-fill"></i> Usuarios</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="moderacion"><i class="bi bi-shield-fill-check"></i> Moderación</button>
       </div>
 
       <div class="admin-panel active" id="panel-stats">
@@ -647,6 +597,36 @@
           </button>
         </div>
         <div id="usuariosLista"></div>
+      </div>
+
+      <!-- Moderación: denuncias por atender, publicaciones ocultas y cuentas
+           advertidas o suspendidas. Ver controllers/moderacion.controller.js. -->
+      <div class="admin-panel" id="panel-moderacion">
+        <p style="font-size:12.5px;color:var(--gris);margin:0 0 12px;max-width:720px;line-height:1.45;">
+          Los vecinos pueden <strong>denunciar</strong> publicaciones y comentarios que les parezcan
+          inapropiados. Aquí se atienden esas denuncias: puedes ocultar el contenido, descartar el
+          aviso, advertir al autor o suspender su cuenta. <strong>Tres advertencias suspenden la
+          cuenta sola.</strong>
+        </p>
+        <div class="stats-grid" id="moderacionResumen"></div>
+
+        <h4 class="moderacion-titulo"><i class="bi bi-flag-fill"></i> Denuncias pendientes</h4>
+        <div id="denunciasLista"></div>
+
+        <h4 class="moderacion-titulo"><i class="bi bi-eye-slash-fill"></i> Publicaciones ocultas</h4>
+        <div id="ocultasLista"></div>
+
+        <h4 class="moderacion-titulo"><i class="bi bi-person-slash"></i> Cuentas advertidas o suspendidas</h4>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th><th>Usuario</th><th>Advertencias</th><th>Estado</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="sancionesBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -917,6 +897,97 @@
         <i class="bi bi-upload"></i> Importar respaldo
       </button>
     </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DENUNCIAR (cualquier sesión, también la anónima)
+     ============================================================ -->
+<div class="modal-overlay" id="modalDenuncia">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-flag-fill" style="color:var(--rojo);"></i> Denunciar contenido</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalDenuncia">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;" id="denunciaObjetivo"></p>
+      <div class="form-group">
+        <label for="denunciaMotivo">Motivo *</label>
+        <select id="denunciaMotivo"></select>
+      </div>
+      <div class="form-group">
+        <label for="denunciaDetalle">Detalle (opcional)</label>
+        <textarea id="denunciaDetalle" rows="3" maxlength="400"
+          placeholder="Cuéntale al personal del municipio por qué te parece inapropiado…"></textarea>
+      </div>
+      <p style="font-size:11.5px;color:#94a3b8;line-height:1.45;">
+        <i class="bi bi-shield-lock"></i> Quién denuncia solo lo ve el personal moderador.
+        El autor del contenido no sabe quién lo denunció.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalDenuncia">Cancelar</button>
+      <button class="btn btn-danger" data-action="denuncia:confirmar">
+        <i class="bi bi-flag-fill"></i> Enviar denuncia
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DECISIÓN DE MODERACIÓN
+     Un solo modal para todas las decisiones con motivo (ocultar, advertir,
+     suspender, eliminar, descartar). Ver controllers/moderacion.controller.js
+     ============================================================ -->
+<div class="modal-overlay" id="modalModeracion">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-shield-fill-check" style="color:var(--primario);"></i> <span id="moderacionTitulo">Moderar</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalModeracion">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;line-height:1.5;" id="moderacionNota"></p>
+      <div class="form-group" id="moderacionMotivoBox">
+        <label for="moderacionMotivo">Motivo *</label>
+        <textarea id="moderacionMotivo" rows="3" maxlength="200"
+          placeholder="Explica brevemente la decisión (queda en el historial y la ve el autor)…"></textarea>
+      </div>
+      <div class="form-group" id="moderacionFechaBox" hidden>
+        <label class="check-line" for="moderacionIndefinida">
+          <input type="checkbox" id="moderacionIndefinida" checked>
+          <span>Suspensión indefinida (hasta que se reactive a mano)</span>
+        </label>
+        <label for="moderacionHasta" style="margin-top:8px;">O hasta la fecha</label>
+        <input type="date" id="moderacionHasta">
+      </div>
+      <p style="font-size:11.5px;color:#94a3b8;line-height:1.45;">
+        <i class="bi bi-clock-history"></i> La decisión queda en el historial del reporte y se avisa
+        al autor y a quien denunció.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalModeracion">Cancelar</button>
+      <button class="btn btn-danger" id="moderacionConfirmar" data-action="moderacion:confirmar">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CUENTA SUSPENDIDA POR MODERACIÓN
+     Cubre toda la aplicación: una cuenta suspendida no entra (ver main.js).
+     ============================================================ -->
+<div class="bloqueo" id="bloqueoScreen" hidden>
+  <div class="bloqueo-card">
+    <div class="bloqueo-icono">🚫</div>
+    <h2>Cuenta suspendida</h2>
+    <p id="bloqueoMensaje"></p>
+    <p class="bloqueo-nota">
+      Mientras dure la suspensión no puedes entrar, reportar ni comentar. Si crees que es un
+      error, habla con el personal del municipio.
+    </p>
+    <button class="btn btn-outline btn-block" data-action="auth:salir">
+      <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+    </button>
   </div>
 </div>
 

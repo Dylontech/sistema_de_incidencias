@@ -24,7 +24,8 @@ const TABLAS = [
   'incidencia_evidencias',
   'incidencia_historial',
   'incidencia_comentarios',
-  'notificaciones'
+  'notificaciones',
+  'denuncias'
 ];
 
 const aFecha = (iso) => (iso ? new Date(iso) : null);
@@ -61,6 +62,15 @@ export class RepositorioMysql {
           'Ejecuta "npm --prefix backend run migrate" y luego "npm run seed".'
       );
     }
+  }
+
+  /**
+   * Comprobación ligera de salud (`GET /api/salud` y healthcheck del contenedor).
+   * Solo lanza si la base de datos no responde; no mira las tablas.
+   */
+  async ping() {
+    await this.knex.raw('select 1 as ok');
+    return true;
   }
 
   async cerrar() {
@@ -181,7 +191,12 @@ export class RepositorioMysql {
       municipioId: fila.municipio_id,
       activo: Boolean(fila.activo),
       pseudonimo: Boolean(fila.pseudonimo),
-      passwordHash: fila.password_hash
+      passwordHash: fila.password_hash,
+      advertencias: aNumero(fila.advertencias) || 0,
+      suspendido: Boolean(fila.suspendido),
+      suspendidoHasta: desdeFecha(fila.suspendido_hasta),
+      suspendidoMotivo: fila.suspendido_motivo || '',
+      suspendidoPor: fila.suspendido_por || null
     };
   }
 
@@ -238,6 +253,11 @@ export class RepositorioMysql {
     pon('activo', usuario.activo !== false);
     pon('pseudonimo', usuario.pseudonimo === true);
     pon('password_hash', usuario.passwordHash, 'passwordHash');
+    pon('advertencias', aNumero(usuario.advertencias) || 0);
+    pon('suspendido', usuario.suspendido === true);
+    pon('suspendido_hasta', aFecha(usuario.suspendidoHasta), 'suspendidoHasta');
+    pon('suspendido_motivo', usuario.suspendidoMotivo ?? null, 'suspendidoMotivo');
+    pon('suspendido_por', usuario.suspendidoPor ?? null, 'suspendidoPor');
     return fila;
   }
 
@@ -267,6 +287,10 @@ export class RepositorioMysql {
       peligrosa_por: inc.peligrosaPor ?? null,
       peligrosa_fecha: aFecha(inc.peligrosaFecha),
       peligrosa_motivo: inc.peligrosaMotivo ?? null,
+      oculta: inc.oculta === true,
+      oculta_por: inc.ocultaPor ?? null,
+      oculta_fecha: aFecha(inc.ocultaFecha),
+      oculta_motivo: inc.ocultaMotivo ?? null,
       fecha_resolucion: aFecha(inc.fechaResolucion),
       solucion: inc.solucion ?? null
     };
@@ -321,7 +345,12 @@ export class RepositorioMysql {
         id: fila.id,
         fecha: desdeFecha(fila.fecha),
         autor: fila.autor,
-        texto: fila.texto
+        texto: fila.texto,
+        userKey: fila.user_key || null,
+        oculto: Boolean(fila.oculto),
+        ocultoPor: fila.oculto_por || null,
+        ocultoFecha: desdeFecha(fila.oculto_fecha),
+        ocultoMotivo: fila.oculto_motivo || ''
       });
     });
 
@@ -352,6 +381,10 @@ export class RepositorioMysql {
       peligrosaPor: fila.peligrosa_por || null,
       peligrosaFecha: desdeFecha(fila.peligrosa_fecha),
       peligrosaMotivo: fila.peligrosa_motivo || '',
+      oculta: Boolean(fila.oculta),
+      ocultaPor: fila.oculta_por || null,
+      ocultaFecha: desdeFecha(fila.oculta_fecha),
+      ocultaMotivo: fila.oculta_motivo || '',
       evidencia: hijos.evidencias.get(fila.id) || [],
       historial: hijos.historial.get(fila.id) || [],
       comentarios: hijos.comentarios.get(fila.id) || [],
@@ -367,7 +400,17 @@ export class RepositorioMysql {
   }
 
   async buscarIncidencias(filtros = {}) {
-    const { municipioId, userKey, texto, estado, tipoId, zonaId, orden = 'reciente' } = filtros;
+    const {
+      municipioId,
+      userKey,
+      texto,
+      estado,
+      tipoId,
+      zonaId,
+      orden = 'reciente',
+      ocultas = 'excluir',
+      ocultasDe = null
+    } = filtros;
     const consulta = this.knex('incidencias').select('*');
 
     if (municipioId) consulta.where('municipio_id', municipioId);
@@ -377,6 +420,13 @@ export class RepositorioMysql {
     if (zonaId && zonaId !== 'todos') consulta.where('zona_id', zonaId);
     if (texto) {
       consulta.where((b) => b.where('titulo', 'like', `%${texto}%`).orWhere('descripcion', 'like', `%${texto}%`));
+    }
+
+    // El público no ve lo retirado por moderación; el personal sí, y el autor
+    // sigue viendo lo suyo con la marca de oculta.
+    if (ocultas === 'excluir') consulta.where('oculta', false);
+    else if (ocultas === 'propias' && ocultasDe) {
+      consulta.where((b) => b.where('oculta', false).orWhere('user_key', ocultasDe));
     }
 
     // `prioridad` se resuelve en el servicio (depende del color derivado).
@@ -466,7 +516,12 @@ export class RepositorioMysql {
           incidencia_id: id,
           fecha: aFecha(c.fecha),
           autor: c.autor,
-          texto: c.texto
+          texto: c.texto,
+          user_key: c.userKey ?? null,
+          oculto: c.oculto === true,
+          oculto_por: c.ocultoPor ?? null,
+          oculto_fecha: aFecha(c.ocultoFecha),
+          oculto_motivo: c.ocultoMotivo ?? null
         }))
       );
     }
@@ -558,6 +613,104 @@ export class RepositorioMysql {
   async borrarNotificaciones() {
     const total = Number((await this.knex('notificaciones').count({ n: '*' }).first())?.n || 0);
     await this.knex('notificaciones').del();
+    return total;
+  }
+
+  /* -------------------------------- denuncias ------------------------------ */
+
+  #aDenuncia(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      fecha: desdeFecha(fila.fecha),
+      objetivo: fila.objetivo,
+      incidenciaId: fila.incidencia_id,
+      comentarioId: fila.comentario_id || null,
+      municipioId: fila.municipio_id || null,
+      objetivoTitulo: fila.objetivo_titulo || '',
+      objetivoResumen: fila.objetivo_resumen || '',
+      objetivoAutor: fila.objetivo_autor || null,
+      objetivoUserKey: fila.objetivo_user_key || null,
+      autorUserKey: fila.autor_user_key || null,
+      autorNombre: fila.autor_nombre,
+      motivo: fila.motivo,
+      detalle: fila.detalle || '',
+      estado: fila.estado,
+      accion: fila.accion || null,
+      resolucion: fila.resolucion || '',
+      moderadoPor: fila.moderado_por || null,
+      moderadoFecha: desdeFecha(fila.moderado_fecha)
+    };
+  }
+
+  #aFilaDenuncia(d) {
+    return {
+      id: d.id,
+      fecha: aFecha(d.fecha),
+      objetivo: d.objetivo,
+      incidencia_id: d.incidenciaId,
+      comentario_id: d.comentarioId ?? null,
+      municipio_id: d.municipioId ?? null,
+      objetivo_titulo: d.objetivoTitulo || '',
+      objetivo_resumen: d.objetivoResumen || '',
+      objetivo_autor: d.objetivoAutor ?? null,
+      objetivo_user_key: d.objetivoUserKey ?? null,
+      autor_user_key: d.autorUserKey ?? null,
+      autor_nombre: d.autorNombre,
+      motivo: d.motivo,
+      detalle: d.detalle || '',
+      estado: d.estado,
+      accion: d.accion ?? null,
+      resolucion: d.resolucion || null,
+      moderado_por: d.moderadoPor ?? null,
+      moderado_fecha: aFecha(d.moderadoFecha)
+    };
+  }
+
+  async denunciasDe(filtros = {}) {
+    const {
+      incidenciaId,
+      comentarioId,
+      municipioId,
+      autorUserKey,
+      objetivoUserKey,
+      estado,
+      orden = 'reciente'
+    } = filtros;
+    const consulta = this.knex('denuncias').select('*');
+
+    if (incidenciaId) consulta.where('incidencia_id', incidenciaId);
+    if (comentarioId) consulta.where('comentario_id', comentarioId);
+    if (municipioId) consulta.where('municipio_id', municipioId);
+    if (autorUserKey) consulta.where('autor_user_key', autorUserKey);
+    if (objetivoUserKey) consulta.where('objetivo_user_key', objetivoUserKey);
+    if (estado) consulta.where('estado', estado);
+
+    consulta.orderBy('fecha', orden === 'antigua' ? 'asc' : 'desc');
+    const filas = await consulta;
+    return filas.map((f) => this.#aDenuncia(f));
+  }
+
+  async denunciaPorId(id) {
+    return this.#aDenuncia(await this.knex('denuncias').where({ id }).first());
+  }
+
+  async crearDenuncia(denuncia) {
+    await this.knex('denuncias').insert(this.#aFilaDenuncia(denuncia));
+    return denuncia;
+  }
+
+  async actualizarDenuncia(id, denuncia) {
+    const actualizados = await this.knex('denuncias')
+      .where({ id })
+      .update(this.#aFilaDenuncia({ ...denuncia, id }));
+    if (!actualizados) return null;
+    return denuncia;
+  }
+
+  async borrarDenuncias() {
+    const total = Number((await this.knex('denuncias').count({ n: '*' }).first())?.n || 0);
+    await this.knex('denuncias').del();
     return total;
   }
 }

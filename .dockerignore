@@ -1,0 +1,31 @@
+# Contexto de construcción: la RAÍZ del repositorio.
+# El backend resuelve el frontend como carpeta hermana (config.paths.frontend),
+# así que la imagen necesita backend/ y frontend/ juntos.
+
+# Control de versiones y documentación: no aportan nada dentro de la imagen.
+.git
+.gitignore
+.vscode
+*.md
+legacy
+
+# Dependencias: se instalan en la imagen con el lockfile (npm ci).
+node_modules
+backend/node_modules
+
+# Pruebas: usan supertest, que no se instala con --omit=dev.
+backend/test
+
+# Datos de ejecución: viven en volúmenes, nunca en la imagen.
+#   /app/backend/uploads  -> volumen `evidencia`
+#   /app/backend/data     -> solo el driver JSON (no se usa con mariadb)
+backend/data
+backend/uploads
+backend/.cache-inegi
+backend/.env
+.env
+.env.example
+
+# Artefactos de despliegue.
+compose.yaml
+compose.test.yaml

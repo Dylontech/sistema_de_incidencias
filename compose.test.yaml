@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# Base de datos efímera para correr la suite de pruebas contra MariaDB.
+#
+#   npm run test:mysql          (= sh backend/scripts/pruebas-mysql.sh)
+#
+# Vive en memoria (tmpfs) y no deja nada al bajarla. El acceso es root porque el
+# helper de pruebas (`backend/test/helpers/entorno.js`) crea y destruye una base
+# `incidencias_test_<pid>` por proceso: el usuario de la aplicación solo tiene
+# privilegios sobre su propia base, así que no le bastaría.
+#
+# La contraseña es de usar y tirar: el puerto solo se publica en 127.0.0.1.
+# ---------------------------------------------------------------------------
+name: sistema-incidencias-pruebas
+
+services:
+  mariadb-test:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: pruebas
+      # Sin esto, root solo existiría como root@localhost y las pruebas (que
+      # entran por TCP desde el host) no podrían autenticarse.
+      MARIADB_ROOT_HOST: '%'
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # Igual que en producción: la semilla inserta las comunidades por lotes.
+      - --max-allowed-packet=64M
+    tmpfs:
+      - /var/lib/mysql
+    ports:
+      - "127.0.0.1:3399:3306"
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s

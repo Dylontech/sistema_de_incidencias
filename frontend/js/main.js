@@ -21,6 +21,8 @@ import { registrar as registrarTipos } from './controllers/tipos.controller.js';
 import { registrar as registrarAdmin } from './controllers/admin.controller.js';
 import { registrar as registrarReportes } from './controllers/reportes.controller.js';
 import { registrar as registrarNotificaciones } from './controllers/notificaciones.controller.js';
+import { registrar as registrarModeracion } from './controllers/moderacion.controller.js';
+import * as bloqueoView from './views/bloqueo.view.js';
 import {
   registrar as registrarOnboarding,
   pedir as pedirConsentimiento
@@ -37,6 +39,7 @@ function registrarControladores() {
   registrarAdmin();
   registrarReportes();
   registrarNotificaciones();
+  registrarModeracion();
   registrarOnboarding();
   registrarTutorial();
 }
@@ -54,7 +57,8 @@ function pasoPrevio({ usuario, municipioActivo }) {
  *
  * Como en la versión nueva del monolito, el público NO pasa por la pantalla de
  * acceso: si no hay sesión guardada se entra directamente como ciudadano
- * anónimo. La pantalla de acceso solo se abre con el botón «Personal».
+ * anónimo. Esa pantalla solo ofrece el acceso ciudadano; el del personal vive
+ * en `/personal` (ver `js/personal.js`), una página sin enlaces.
  */
 async function iniciarSesion() {
   const guardada = sesion.cargar();
@@ -78,6 +82,12 @@ async function iniciarSesion() {
       municipioActivo: previo?.municipio || elegido || municipioActivo
     });
   } catch (error) {
+    // Cuenta suspendida por moderación: no se entra (ni siquiera como anónimo).
+    if (error?.estado === 403) {
+      sesion.limpiar();
+      bloqueoView.mostrar(error.message);
+      return;
+    }
     // Token caducado o servidor no disponible: se entra como ciudadano en
     // lugar de dejar la pantalla bloqueada.
     sesion.limpiar();
@@ -104,6 +114,12 @@ async function iniciar() {
     toast('Tu sesión expiró, vuelve a iniciar sesión', 'err');
     sesion.limpiar();
     setTimeout(() => location.reload(), 1200);
+  });
+
+  // La cuenta fue suspendida por moderación mientras la sesión estaba abierta:
+  // se cubre la interfaz con el aviso (el token se queda hasta cerrar sesión).
+  document.addEventListener('cuenta-suspendida', (evento) => {
+    bloqueoView.mostrar(evento.detail?.mensaje);
   });
 
   await iniciarSesion();

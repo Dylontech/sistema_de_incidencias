@@ -52,6 +52,12 @@ async function abrirTab(nombre) {
     case 'usuarios':
       await aplicacion.cargarUsuarios();
       break;
+    case 'moderacion':
+      // La cola se apoya en el listado ya cargado (incluye las ocultas del
+      // personal), así que se refresca antes.
+      await aplicacion.recargarIncidencias();
+      await aplicacion.cargarModeracion();
+      break;
     default:
       break;
   }

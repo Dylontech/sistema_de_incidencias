@@ -155,6 +155,12 @@ export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora
     peligrosaPor: null,
     peligrosaFecha: null,
     peligrosaMotivo: '',
+    // Ocultamiento por moderación: el personal la retira del listado público
+    // (ver `moderacion.service.ocultarIncidencia`). Nace visible.
+    oculta: false,
+    ocultaPor: null,
+    ocultaFecha: null,
+    ocultaMotivo: '',
     evidencia: entrada.evidencia || [],
     historial: [
       {
@@ -198,6 +204,11 @@ export function aplicarEdicion(actual, entrada, { ahora = ahoraIso() } = {}) {
   editado.peligrosaPor = actual.peligrosaPor ?? null;
   editado.peligrosaFecha = actual.peligrosaFecha ?? null;
   editado.peligrosaMotivo = actual.peligrosaMotivo ?? '';
+  // El ocultamiento también es cosa de moderación: editando no se levanta.
+  editado.oculta = actual.oculta === true;
+  editado.ocultaPor = actual.ocultaPor ?? null;
+  editado.ocultaFecha = actual.ocultaFecha ?? null;
+  editado.ocultaMotivo = actual.ocultaMotivo ?? '';
   return editado;
 }
 
@@ -208,10 +219,28 @@ export function agregarHistorial(incidencia, { estado, accion, por, ahora = ahor
   ];
 }
 
-export function agregarComentario(incidencia, { autor, texto, ahora = ahoraIso() }) {
+/**
+ * Añade un comentario a la incidencia.
+ *
+ * Guarda el `userKey` de quien comenta (cuando lo tiene) además del nombre
+ * visible: es lo único que permite dirigirle un aviso si el comentario se
+ * denuncia y se modera. Los comentarios anteriores al sistema de moderación no
+ * llevan el dato y quedan sin atribuir.
+ */
+export function agregarComentario(incidencia, { autor, texto, userKey = null, ahora = ahoraIso() }) {
   return [
     ...(incidencia.comentarios || []),
-    { id: nuevoId(), fecha: ahora, autor, texto }
+    {
+      id: nuevoId(),
+      fecha: ahora,
+      autor,
+      texto,
+      userKey: userKey || null,
+      oculto: false,
+      ocultoPor: null,
+      ocultoFecha: null,
+      ocultoMotivo: ''
+    }
   ];
 }
 
@@ -229,6 +258,9 @@ export function puedeEditar(incidencia, usuario) {
   if (!usuario) return false;
   if (usuario.rol === 'admin' || usuario.rol === 'funcionario') return true;
   if (incidencia.userKey !== usuario.userKey) return false;
+  // Un contenido oculto por moderación se queda congelado para su autor: si
+  // pudiera editarlo, estaría modificando algo que ya no se ve.
+  if (incidencia.oculta === true) return false;
   return incidencia.estado !== 'resuelta';
 }
 

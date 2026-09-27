@@ -364,3 +364,228 @@ export function valorMunicipioSeleccionado() {
 export function valorBusqueda() {
   return $('adminBuscar')?.value || '';
 }
+
+/* ------------------------------ moderación ------------------------------ */
+
+/** Etiquetas del expediente de una denuncia. */
+const ESTADO_DENUNCIA = {
+  pendiente: 'Pendiente',
+  atendida: 'Atendida',
+  descartada: 'Descartada'
+};
+
+/**
+ * Pestaña de moderación: contadores, cola de denuncias agrupadas por contenido,
+ * publicaciones ocultas y cuentas advertidas o suspendidas.
+ */
+export function renderModeracion({
+  grupos = [],
+  resumen = null,
+  sanciones = [],
+  ocultas = [],
+  tipos = [],
+  motivos = {},
+  puedeEliminar = false
+} = {}) {
+  renderContadoresModeracion(resumen);
+  renderColaDenuncias(grupos, { motivos, puedeEliminar });
+  renderOcultas(ocultas, { tipos });
+  renderSanciones(sanciones);
+}
+
+function renderContadoresModeracion(resumen) {
+  const contenedor = $('moderacionResumen');
+  if (!contenedor) return;
+  if (!resumen) {
+    contenedor.innerHTML = '';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="stat-card ${resumen.pendientes ? 'rojo' : ''}"><div class="stat-num">${resumen.pendientes}</div><div class="stat-label">🚩 Denuncias pendientes</div></div>
+    <div class="stat-card naranja"><div class="stat-num">${resumen.ocultas}</div><div class="stat-label">🚫 Publicaciones ocultas</div></div>
+    <div class="stat-card amarillo"><div class="stat-num">${resumen.advertidas}</div><div class="stat-label">⚠️ Cuentas advertidas</div></div>
+    <div class="stat-card"><div class="stat-num">${resumen.suspendidas}</div><div class="stat-label">⛔ Cuentas suspendidas</div></div>
+  `;
+}
+
+/** Chips con los motivos que se repiten en un grupo de denuncias. */
+function motivosHTML(grupo, motivos) {
+  return (grupo.motivos || [])
+    .map((m) => `<span class="chip-motivo">${esc(motivos[m] || m)}</span>`)
+    .join('');
+}
+
+function renderColaDenuncias(grupos, { motivos = {}, puedeEliminar = false } = {}) {
+  const contenedor = $('denunciasLista');
+  if (!contenedor) return;
+
+  if (!grupos.length) {
+    contenedor.innerHTML =
+      '<div class="moderacion-vacio"><i class="bi bi-shield-check"></i> No hay denuncias pendientes. ¡Buen trabajo!</div>';
+    return;
+  }
+
+  contenedor.innerHTML = grupos
+    .map((grupo) => {
+      const primera = grupo.denuncias[0] || {};
+      const estado = grupo.objetivo_estado || {};
+      const etiquetaObjetivo = grupo.objetivo === 'comentario' ? 'Comentario' : 'Reporte';
+      const avisos = [
+        estado.eliminada ? '<span class="chip-aviso rojo">Contenido eliminado</span>' : '',
+        !estado.eliminada && estado.oculto ? '<span class="chip-aviso naranja">Ya está oculto</span>' : '',
+        estado.estado ? `<span class="chip-aviso">${esc(etiquetaEstado(estado.estado))}</span>` : ''
+      ]
+        .filter(Boolean)
+        .join('');
+
+      const denunciantes = grupo.denuncias
+        .map(
+          (d) => `
+          <li>
+            <strong>${esc(d.autorNombre)}</strong> · ${esc(motivos[d.motivo] || d.motivo)}
+            ${d.detalle ? `<div class="denuncia-detalle">“${esc(d.detalle)}”</div>` : ''}
+            <span class="denuncia-fecha">${fmtFechaCorta(d.fecha)}</span>
+          </li>`
+        )
+        .join('');
+
+      return `
+      <article class="moderacion-card ${estado.oculto ? 'ya-oculta' : ''}">
+        <header>
+          <div class="moderacion-card-titulo">
+            <span class="chip-objetivo">${etiquetaObjetivo}</span>
+            <h4>${esc(grupo.objetivoTitulo)}</h4>
+          </div>
+          <span class="moderacion-contador">${grupo.total} ${grupo.total === 1 ? 'denuncia' : 'denuncias'}</span>
+        </header>
+        ${
+          grupo.objetivoResumen
+            ? `<p class="moderacion-resumen">“${esc(grupo.objetivoResumen)}”</p>`
+            : ''
+        }
+        <div class="moderacion-meta">
+          <span><i class="bi bi-person-fill"></i> ${esc(grupo.objetivoAutor || 'Anónimo')}</span>
+          <span><i class="bi bi-clock-history"></i> ${fmtFechaCorta(grupo.ultimaFecha)}</span>
+          ${avisos}
+        </div>
+        <div class="moderacion-motivos">${motivosHTML(grupo, motivos)}</div>
+        <details class="moderacion-detalle">
+          <summary>Ver las ${grupo.total} ${grupo.total === 1 ? 'denuncia' : 'denuncias'}</summary>
+          <ul class="denuncia-lista">${denunciantes}</ul>
+        </details>
+        <div class="moderacion-acciones">
+          <button class="btn btn-sm btn-outline" data-action="moderacion:ver" data-id="${esc(grupo.incidenciaId)}">
+            <i class="bi bi-eye"></i> Ver publicación
+          </button>
+          <button class="btn btn-sm btn-outline" data-action="moderacion:decidir" data-id="${esc(primera.id)}" data-valor="descartar">
+            <i class="bi bi-check2"></i> Descartar
+          </button>
+          ${
+            estado.oculto || estado.eliminada
+              ? ''
+              : `<button class="btn btn-sm btn-danger" data-action="moderacion:decidir" data-id="${esc(primera.id)}" data-valor="ocultar">
+                   <i class="bi bi-eye-slash-fill"></i> Ocultar
+                 </button>`
+          }
+          <button class="btn btn-sm btn-warning" data-action="moderacion:decidir" data-id="${esc(primera.id)}" data-valor="advertir">
+            <i class="bi bi-exclamation-triangle-fill"></i> Advertir
+          </button>
+          <button class="btn btn-sm btn-danger" data-action="moderacion:decidir" data-id="${esc(primera.id)}" data-valor="suspender">
+            <i class="bi bi-slash-circle-fill"></i> Suspender
+          </button>
+          ${
+            puedeEliminar && !estado.eliminada
+              ? `<button class="btn btn-sm btn-danger" data-action="moderacion:decidir" data-id="${esc(primera.id)}" data-valor="eliminar">
+                   <i class="bi bi-trash3-fill"></i> Eliminar
+                 </button>`
+              : ''
+          }
+        </div>
+      </article>`;
+    })
+    .join('');
+}
+
+/** Publicaciones retiradas por moderación, con su motivo y su autor. */
+function renderOcultas(ocultas, { tipos = [] } = {}) {
+  const contenedor = $('ocultasLista');
+  if (!contenedor) return;
+
+  if (!ocultas.length) {
+    contenedor.innerHTML =
+      '<div class="moderacion-vacio"><i class="bi bi-eye"></i> No hay publicaciones ocultas en este municipio.</div>';
+    return;
+  }
+
+  contenedor.innerHTML = ocultas
+    .map((inc) => {
+      const tipo = tipos.find((t) => t.id === inc.tipoId);
+      return `
+      <article class="moderacion-card ya-oculta">
+        <header>
+          <div class="moderacion-card-titulo">
+            <span class="chip-objetivo">${esc(tipo ? tipo.icono + ' ' + tipo.nombre : 'Reporte')}</span>
+            <h4>${esc(inc.titulo)}</h4>
+          </div>
+          <span class="moderacion-contador">${esc(inc.etiquetaEstado || '')}</span>
+        </header>
+        <div class="moderacion-meta">
+          <span><i class="bi bi-person-fill"></i> ${esc(inc.esAnonimo ? 'Anónimo' : inc.autorNombre || '—')}</span>
+          <span><i class="bi bi-eye-slash-fill"></i> ${esc(inc.ocultaPor || 'moderación')}${
+            inc.ocultaFecha ? ` · ${fmtFechaCorta(inc.ocultaFecha)}` : ''
+          }</span>
+        </div>
+        ${inc.ocultaMotivo ? `<div class="peligro-motivo"><strong>Motivo:</strong> ${esc(inc.ocultaMotivo)}</div>` : ''}
+        <div class="moderacion-acciones">
+          <button class="btn btn-sm btn-outline" data-action="moderacion:ver" data-id="${esc(inc.id)}">
+            <i class="bi bi-eye"></i> Ver publicación
+          </button>
+          <button class="btn btn-sm btn-success" data-action="moderacion:ocultar" data-id="${esc(inc.id)}" data-valor="mostrar">
+            <i class="bi bi-eye-fill"></i> Volver a mostrar
+          </button>
+        </div>
+      </article>`;
+    })
+    .join('');
+}
+
+/** Cuentas advertidas o suspendidas que el moderador puede gestionar. */
+function renderSanciones(sanciones = []) {
+  const cuerpo = $('sancionesBody');
+  if (!cuerpo) return;
+
+  if (!sanciones.length) {
+    cuerpo.innerHTML =
+      '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:18px;">No hay cuentas advertidas ni suspendidas</td></tr>';
+    return;
+  }
+
+  cuerpo.innerHTML = sanciones
+    .map((cuenta) => {
+      const estado = cuenta.suspendido
+        ? `<span class="chip-aviso rojo">Suspendida${
+            cuenta.suspendidoHasta ? ' hasta ' + fmtFechaCorta(cuenta.suspendidoHasta) : ' (indefinida)'
+          }</span>`
+        : '<span class="chip-aviso">Activa</span>';
+      return `
+      <tr class="${cuenta.suspendido ? 'fila-oculta' : ''}">
+        <td>${esc(cuenta.nombre)}</td>
+        <td><code>${esc(cuenta.username)}</code></td>
+        <td>${cuenta.advertencias || 0}</td>
+        <td>${estado}</td>
+        <td style="text-align:right;">
+          ${
+            cuenta.suspendido
+              ? `<button class="btn btn-sm btn-success" data-action="moderacion:reactivar" data-id="${esc(cuenta.username)}">
+                   <i class="bi bi-arrow-counterclockwise"></i> Reactivar
+                 </button>`
+              : `<button class="btn btn-sm btn-danger" data-action="moderacion:suspender" data-id="${esc(cuenta.username)}">
+                   <i class="bi bi-slash-circle-fill"></i> Suspender
+                 </button>`
+          }
+        </td>
+      </tr>`;
+    })
+    .join('');
+}
+

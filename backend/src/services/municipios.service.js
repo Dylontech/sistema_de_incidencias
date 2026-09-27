@@ -8,7 +8,13 @@ import { publica as publicaZona } from '../models/zona.model.js';
 import { enriquecerLista } from './estado.service.js';
 import { esEmpleado } from './alcance.service.js';
 import { iconosSemilla, ejemplosSemilla, politicaSemilla } from '../config/semilla.js';
-import { DIAS_LIMITES, EVIDENCIA_POLITICA, LIMITES_TEXTO, MUNICIPIO_DEFAULT } from '../config/constantes.js';
+import {
+  DIAS_LIMITES,
+  ETIQUETAS_MOTIVO_DENUNCIA,
+  EVIDENCIA_POLITICA,
+  LIMITES_TEXTO,
+  MUNICIPIO_DEFAULT
+} from '../config/constantes.js';
 
 /**
  * Listado de municipios para el selector.
@@ -97,10 +103,15 @@ export async function catalogos() {
       nombreTipo: 60,
       comentario: 500,
       motivoPeligro: LIMITES_TEXTO.motivoPeligro,
+      detalleDenuncia: LIMITES_TEXTO.detalleDenuncia,
+      motivoModeracion: LIMITES_TEXTO.motivoModeracion,
       maxFotoBytes: EVIDENCIA_POLITICA.maxFotoBytes,
       maxArchivosPorCarga: EVIDENCIA_POLITICA.maxArchivosPorCarga,
       mimesPermitidos: EVIDENCIA_POLITICA.mimesPermitidos
     },
+    // Lista cerrada de motivos de denuncia con sus etiquetas: así el navegador
+    // no duplica el catálogo y añadir un motivo es tocar solo las constantes.
+    motivosDenuncia: ETIQUETAS_MOTIVO_DENUNCIA,
     politicaLegacy: politicaSemilla
   };
 }

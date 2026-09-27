@@ -9,18 +9,28 @@ import { listar } from './incidencias.service.js';
 import { contarPorEstado, contarPeligrosas } from './estado.service.js';
 import { diasDesde } from '../utils/fechas.js';
 
-async function base(repositorio, usuario, municipioId = null) {
+/**
+ * Base de los informes.
+ *
+ * Las publicaciones retiradas por moderación no cuentan como trabajo del
+ * municipio: se apartan y se informan como «ocultas». El respaldo (exportación)
+ * sí las lleva, porque es una copia de la base y el dato de moderación viaja
+ * con el reporte.
+ */
+async function base(repositorio, usuario, municipioId = null, { incluirOcultas = false } = {}) {
   if (!esEmpleado(usuario)) {
     throw AppError.prohibido('Los informes solo están disponibles para funcionarios y administradores');
   }
-  const incidencias = await listar(repositorio, usuario, { municipioId });
+  const todas = await listar(repositorio, usuario, { municipioId });
   const tipos = await repositorio.todosLosTipos();
-  return { incidencias, tipos };
+  const ocultas = todas.filter((i) => i.oculta === true);
+  const incidencias = incluirOcultas ? todas : todas.filter((i) => i.oculta !== true);
+  return { incidencias, tipos, ocultas };
 }
 
 /** Tarjetas del panel de administración. */
 export async function panelAdmin(repositorio, usuario, municipioId = null) {
-  const { incidencias, tipos } = await base(repositorio, usuario, municipioId);
+  const { incidencias, tipos, ocultas } = await base(repositorio, usuario, municipioId);
   const conteo = contarPorEstado(incidencias);
 
   const porTipo = tipos
@@ -40,12 +50,12 @@ export async function panelAdmin(repositorio, usuario, municipioId = null) {
     .filter((fila) => fila.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  return { ...conteo, peligrosas: contarPeligrosas(incidencias), porTipo };
+  return { ...conteo, peligrosas: contarPeligrosas(incidencias), ocultas: ocultas.length, porTipo };
 }
 
 /** Tarjetas y tabla resumen del modal de informes. */
 export async function informes(repositorio, usuario, municipioId = null) {
-  const { incidencias, tipos } = await base(repositorio, usuario, municipioId);
+  const { incidencias, tipos, ocultas } = await base(repositorio, usuario, municipioId);
   const conteo = contarPorEstado(incidencias);
 
   const porTipo = tipos
@@ -66,7 +76,7 @@ export async function informes(repositorio, usuario, municipioId = null) {
     .filter((fila) => fila.total > 0)
     .sort((a, b) => b.total - a.total);
 
-  return { ...conteo, peligrosas: contarPeligrosas(incidencias), porTipo };
+  return { ...conteo, peligrosas: contarPeligrosas(incidencias), ocultas: ocultas.length, porTipo };
 }
 
 /**
@@ -74,7 +84,7 @@ export async function informes(repositorio, usuario, municipioId = null) {
  * igual que en el monolito).
  */
 export async function exportacion(repositorio, usuario, municipioId = null) {
-  const { incidencias, tipos } = await base(repositorio, usuario, municipioId);
+  const { incidencias, tipos } = await base(repositorio, usuario, municipioId, { incluirOcultas: true });
   const municipios = await repositorio.todosMunicipios();
   const usuarios = await repositorio.todosLosUsuarios();
   const zonas = await repositorio.todasLasZonas();

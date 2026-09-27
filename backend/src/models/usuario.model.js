@@ -117,6 +117,53 @@ export function construirUsuario({
     municipioId,
     activo: true,
     pseudonimo: pseudonimo === true,
-    passwordHash
+    passwordHash,
+    // Moderación: advertencias acumuladas y estado de la suspensión.
+    advertencias: 0,
+    suspendido: false,
+    suspendidoHasta: null,
+    suspendidoMotivo: '',
+    suspendidoPor: null
+  };
+}
+
+/**
+ * ¿La cuenta está suspendida ahora mismo?
+ *
+ * Una suspensión con fecha deja de surtir efecto sola al cumplirse el plazo;
+ * una sin fecha (`suspendidoHasta: null`) dura hasta que un moderador la
+ * levante.
+ */
+export function estaSuspendido(usuario, ahora = new Date()) {
+  if (!usuario || usuario.suspendido !== true) return false;
+  if (!usuario.suspendidoHasta) return true;
+  return new Date(usuario.suspendidoHasta).getTime() > ahora.getTime();
+}
+
+/** ¿Tenía fecha de fin y ya pasó? (para limpiar la marca sola) */
+export function suspensionVencida(usuario, ahora = new Date()) {
+  if (!usuario || usuario.suspendido !== true || !usuario.suspendidoHasta) return false;
+  return new Date(usuario.suspendidoHasta).getTime() <= ahora.getTime();
+}
+
+/** Mensaje único para comunicar una suspensión (login y middleware de sesión). */
+export function mensajeSuspension(usuario) {
+  const plazo = usuario.suspendidoHasta
+    ? `Hasta el ${String(usuario.suspendidoHasta).slice(0, 10)}.`
+    : 'Es indefinida.';
+  const motivo = usuario.suspendidoMotivo ? ` Motivo: ${usuario.suspendidoMotivo}.` : '';
+  return `Tu cuenta está suspendida por moderación. ${plazo}${motivo}`;
+}
+
+/** Campos que se limpian al reactivar una cuenta sancionada. */
+export function limpiarSancion() {
+  return {
+    suspendido: false,
+    suspendidoHasta: null,
+    suspendidoMotivo: '',
+    suspendidoPor: null,
+    // «Al reactivar la cuenta el contador vuelve a 0»: si no, la primera
+    // advertencia nueva volvería a bloquearla de inmediato.
+    advertencias: 0
   };
 }

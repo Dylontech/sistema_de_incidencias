@@ -15,12 +15,31 @@ import {
   hashearPassword,
   normalizarCorreo,
   validarRegistro,
-  construirUsuario
+  construirUsuario,
+  estaSuspendido,
+  limpiarSancion,
+  mensajeSuspension,
+  suspensionVencida
 } from '../models/usuario.model.js';
 import { coincideClave } from '../models/municipio.model.js';
 import { MUNICIPIO_DEFAULT } from '../config/constantes.js';
 
 const PATRON_ANON = /^[a-zA-Z0-9_-]{6,64}$/;
+
+/**
+ * Corta el acceso de una cuenta suspendida por moderación.
+ *
+ * Se comprueba **después** de validar la contraseña: suspender a alguien no
+ * debe revelar a un desconocido que la cuenta existe. Si la suspensión tenía
+ * fecha de fin y ya pasó, se levanta sola y se deja entrar.
+ */
+async function exigirCuentaHabilitada(repositorio, cuenta) {
+  if (suspensionVencida(cuenta)) {
+    await repositorio.actualizarUsuario(cuenta.id, limpiarSancion());
+    return;
+  }
+  if (estaSuspendido(cuenta)) throw AppError.prohibido(mensajeSuspension(cuenta));
+}
 
 /** Contexto del usuario que se inyecta en `req.usuario`. */
 function contexto({ username, nombre, rol, municipioId, userKey }) {
@@ -162,6 +181,7 @@ export async function entrarCiudadano(repositorio, { correo, password, municipio
   if (!(await verificarPassword(encontrado, password))) {
     throw AppError.noAutenticado('Correo o contraseña incorrectos');
   }
+  await exigirCuentaHabilitada(repositorio, encontrado);
 
   const usuario = contextoCiudadano(encontrado);
   // El ciudadano conserva el municipio que estaba viendo en este dispositivo.
@@ -183,6 +203,7 @@ export async function entrarCiudadano(repositorio, { correo, password, municipio
   if (!(await verificarPassword(encontrado, password))) {
     throw AppError.noAutenticado('Credenciales incorrectas');
   }
+  await exigirCuentaHabilitada(repositorio, encontrado);
 
   const municipio = await repositorio.municipioPorClave(claveMunicipio);
   if (!municipio) {
@@ -216,6 +237,7 @@ export async function entrarAdmin(repositorio, { username, password }) {
   if (!(await verificarPassword(encontrado, password))) {
     throw AppError.noAutenticado('Credenciales incorrectas');
   }
+  await exigirCuentaHabilitada(repositorio, encontrado);
 
   const usuario = {
     username: encontrado.username,

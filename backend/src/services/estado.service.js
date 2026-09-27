@@ -70,6 +70,9 @@ export async function sincronizarAlertas(repositorio, ahora = new Date()) {
   let creadas = 0;
   for (const incidencia of incidencias) {
     if (incidencia.estado === 'resuelta') continue;
+    // El aviso es global (lo ve todo el vecindario), así que un contenido
+    // oculto por moderación no puede nombrarse aquí.
+    if (incidencia.oculta === true) continue;
     if (yaAvisadas.has(incidencia.id)) continue;
     if (colorPorAntiguedad(incidencia, ahora) !== 'rojo') continue;
 

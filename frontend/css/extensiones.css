@@ -644,3 +644,333 @@
 .tutorial-saltar:hover {
   color: #4a5568;
 }
+
+/* --- Acceso del personal (`/personal`) ------------------------------------- */
+
+/* Nota al pie de la tarjeta: recuerda que la sesión queda abierta en el equipo. */
+.personal-nota {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 11.5px;
+  color: #718096;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.personal-nota a {
+  color: var(--primario);
+  font-weight: 600;
+}
+
+/* --- Moderación ------------------------------------------------------------- *
+ * Denuncias ciudadanas y decisiones del personal. Todo lo que se añade por
+ * encima del monolito vive aquí: `scripts/extraer-css.mjs` reescribe base,
+ * layout, componentes y admin desde `legacy/`.
+ */
+
+/* Publicación retirada de la vista pública (la ven su autor y el personal). */
+.detalle-oculta {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  color: #742a2a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.detalle-oculta strong {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* Aviso al personal: cuántas denuncias pendientes acumula el reporte. */
+.detalle-denuncias {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffaf0;
+  border: 1px solid #f6e05e;
+  color: #7b341e;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.incidencia-card.oculta {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.inc-badge.badge-oculta {
+  background: #718096;
+  color: #fff;
+}
+
+/* Acciones de cada comentario (denunciar / ocultar). */
+.comment-item.oculto {
+  background: #f7fafc;
+}
+
+.c-text.c-retirado {
+  color: #a0aec0;
+  font-style: italic;
+}
+
+.c-acciones {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.c-accion {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #718096;
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.c-accion:hover {
+  color: var(--primario);
+}
+
+/* Pestaña de moderación del panel de administración. */
+.moderacion-titulo {
+  font-size: 13px;
+  color: var(--primario);
+  margin: 18px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.moderacion-vacio {
+  background: #f7fafc;
+  border: 1px dashed #cbd5e0;
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12.5px;
+}
+
+.moderacion-card {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.moderacion-card.ya-oculta {
+  border-left: 4px solid #ed8936;
+}
+
+.moderacion-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.moderacion-card h4 {
+  font-size: 13.5px;
+  margin: 0;
+}
+
+.moderacion-card-titulo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.moderacion-contador {
+  background: #edf2f7;
+  color: #4a5568;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chip-objetivo {
+  background: var(--primario);
+  color: #fff;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.moderacion-resumen {
+  font-size: 12px;
+  color: #4a5568;
+  font-style: italic;
+  margin: 8px 0 0;
+}
+
+.moderacion-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 11.5px;
+  color: #718096;
+  margin-top: 8px;
+}
+
+.moderacion-motivos {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.chip-motivo {
+  background: #fefcbf;
+  color: #744210;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chip-aviso {
+  background: #e2e8f0;
+  color: #4a5568;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.chip-aviso.rojo {
+  background: #fed7d7;
+  color: #822727;
+}
+
+.chip-aviso.naranja {
+  background: #feebc8;
+  color: #7b341e;
+}
+
+.moderacion-detalle {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+.moderacion-detalle summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primario);
+}
+
+.denuncia-lista {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.denuncia-lista li {
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.denuncia-detalle {
+  color: #4a5568;
+  font-style: italic;
+  margin-top: 3px;
+}
+
+.denuncia-fecha {
+  color: #a0aec0;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+.moderacion-acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borde);
+}
+
+.data-table tr.fila-oculta {
+  background: #f7fafc;
+}
+
+/* Pantalla de bloqueo: una cuenta suspendida no entra (ver main.js). */
+.bloqueo {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  background: #1a202c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* Sin esto, `display:flex` ganaría al atributo `hidden` del elemento. */
+.bloqueo[hidden] {
+  display: none;
+}
+
+.bloqueo-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 26px;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.bloqueo-icono {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.bloqueo-card h2 {
+  font-size: 1.25rem;
+  margin-bottom: 10px;
+  color: #c53030;
+}
+
+.bloqueo-card p {
+  font-size: 13px;
+  color: #4a5568;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+
+.bloqueo-nota {
+  font-size: 11.5px !important;
+  color: #718096 !important;
+}
+

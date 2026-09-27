@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# Sistema de Incidencias Municipales — aplicación + MariaDB.
+#
+#   cp .env.example .env          (una vez: contraseñas, JWT_SECRET, puertos)
+#   docker compose up -d --wait
+#
+# La aplicación queda en http://localhost:${APP_PORT:-3100} y aplica sola las
+# migraciones pendientes al arrancar. La semilla NO se ejecuta automáticamente
+# porque borra incidencias, notificaciones y usuarios:
+#
+#   docker compose exec app npm run seed          (datos semilla, destructivo)
+#   docker compose exec app npm run datos-demo    (reportes de demostración)
+# ---------------------------------------------------------------------------
+name: sistema-incidencias
+
+services:
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-incidencias}
+      MARIADB_USER: ${DB_USER:-incidencias}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD en el .env de la raíz}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?define DB_ROOT_PASSWORD en el .env de la raíz}
+    # Las tablas no declaran charset: heredan el del servidor, y tiene que ser el
+    # mismo que el de las instalaciones existentes (utf8mb4/utf8mb4_unicode_ci)
+    # para que acentos y cadenas ISO coincidan con el driver JSON.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # La semilla inserta las comunidades en lotes de 500 polígonos.
+      - --max-allowed-packet=64M
+    volumes:
+      - datos-mariadb:/var/lib/mysql
+    # Publicado solo en 127.0.0.1: permite desarrollar en el host (backend/.env
+    # con DB_HOST=127.0.0.1 y DB_PORT=3310) sin exponer la base a la red.
+    # 3310 porque el 3306 y el 3307 los usan otros proyectos de esta máquina.
+    ports:
+      - "127.0.0.1:${DB_PORT_HOST:-3310}:3306"
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      STORAGE_DRIVER: mysql
+      JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET en el .env de la raíz}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      # Dentro de la red del compose la base se llama por su servicio.
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-incidencias}
+      DB_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD en el .env de la raíz}
+      DB_NAME: ${DB_NAME:-incidencias}
+      DB_CHARSET: utf8mb4
+      UPLOAD_DIR: /app/backend/uploads
+      MAX_FOTO_BYTES: ${MAX_FOTO_BYTES:-104857600}
+    volumes:
+      # Las fotografías de evidencia sobreviven a recrear el contenedor.
+      - evidencia:/app/backend/uploads
+    ports:
+      - "${APP_PORT:-3100}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/salud').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  datos-mariadb:
+  evidencia:

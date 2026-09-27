@@ -8,8 +8,9 @@ El sistema nació como un único archivo HTML con `localStorage` (conservado en
 [`legacy/`](legacy/) como referencia) y hoy está dividido en **backend** y **frontend**:
 
 ```
-backend/    API REST con Express siguiendo MVC + capa Repository (drivers json / MySQL)
+backend/    API REST con Express siguiendo MVC + capa Repository (drivers MySQL/MariaDB y json)
 frontend/   Aplicación de navegador en JavaScript modular (ES Modules, sin bundler)
+docker/     Dockerfile y entrypoint de la imagen de la aplicación
 legacy/     Monolito original, solo como respaldo y referencia de paridad
 ```
 
@@ -21,9 +22,9 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 
 | Capa | Carpeta | Responsabilidad |
 |---|---|---|
-| **Modelos** | `backend/src/models/` | Forma de cada entidad, validación y reglas de dominio del objeto (incidencia, tipo, municipio, zona, usuario, notificación). |
-| **Repositorios** | `backend/src/repositories/` | Acceso a datos. Contrato único en `contrato.js` con dos drivers intercambiables: `json/` (archivos en disco) y `mysql/` (Knex). |
-| **Servicios** | `backend/src/services/` | Lógica de negocio: geocerca, color por antigüedad, autenticación, alcance por rol/municipio, incidencias, estadísticas, evidencia, importación. |
+| **Modelos** | `backend/src/models/` | Forma de cada entidad, validación y reglas de dominio del objeto (incidencia, tipo, municipio, zona, usuario, notificación, denuncia). |
+| **Repositorios** | `backend/src/repositories/` | Acceso a datos. Contrato único en `contrato.js` con dos drivers intercambiables: `mysql/` (Knex, por defecto) y `json/` (archivos en disco). |
+| **Servicios** | `backend/src/services/` | Lógica de negocio: geocerca, color por antigüedad, autenticación, alcance por rol/municipio, incidencias, moderación (denuncias y sanciones), estadísticas, evidencia, importación. |
 | **Controladores** | `backend/src/controllers/` | Traducen HTTP ↔ servicios. No contienen lógica de negocio. |
 | **Rutas** | `backend/src/routes/` | Un router por recurso, montado bajo `/api`. |
 | **Middlewares** | `backend/src/middlewares/` | Autenticación JWT, roles, inyección del repositorio, carga de archivos (multer) y errores. |
@@ -37,7 +38,7 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 | **controllers** | `frontend/js/controllers/` | Orquestan store + servicios + vistas y registran las acciones de la interfaz. |
 | **views** | `frontend/js/views/` | Renderizan HTML a partir de datos. Nunca llaman a la API. |
 | **map** | `frontend/js/map/` | Todo Leaflet: capa satelital, límites, zonas, marcadores y popups. |
-| **css** | `frontend/css/` | `base`, `layout`, `componentes`, `admin` (extraídos del monolito) y `reportes` (impresión). |
+| **css** | `frontend/css/` | `base`, `layout`, `componentes`, `admin` (extraídos del monolito), `reportes` (impresión) y `extensiones` (todo lo añadido después: peligrosas, cuentas, tutorial, moderación…). |
 
 La interfaz no usa atributos `onclick`: cada elemento declara `data-action="dominio:accion"`
 (o `data-change`, `data-input`, `data-submit`) y los controladores registran su manejador.
@@ -46,14 +47,73 @@ La interfaz no usa atributos `onclick`: cada elemento declara `data-action="domi
 
 ## Requisitos
 
-- Node.js 20 o superior (probado con 22).
-- MySQL o MariaDB **solo** si se usa el driver de base de datos.
+- **Docker** con Compose (vía recomendada).
+- O bien Node.js 20 o superior (probado con 22) y una instancia de MariaDB/MySQL 10.11+.
 
-## Instalación y arranque
+## Arranque con Docker (recomendado)
+
+```bash
+cp .env.example .env      # APP_PORT, contraseñas de MariaDB y JWT_SECRET
+docker compose up -d --wait
+docker compose exec app npm run seed    # municipios, comunidades, tipos y usuarios
+```
+
+La aplicación queda en **http://localhost:3100** (`APP_PORT` en el `.env`). El contenedor
+de la aplicación **espera a MariaDB y aplica las migraciones pendientes** al arrancar, así
+que un `docker compose up` en una máquina nueva deja el esquema listo sin más pasos.
+
+| Comando | Qué hace |
+|---|---|
+| `docker compose up -d --wait` | Levanta MariaDB y la aplicación y espera a que estén sanas. |
+| `docker compose logs -f app` | Registro del servidor. |
+| `docker compose exec app npm run seed` | Carga los datos semilla (**borra** reportes, avisos y usuarios). |
+| `docker compose exec app npm run datos-demo` | Reportes de demostración para probar filtros y panel. |
+| `docker compose down` | Para los contenedores (los datos se conservan). |
+| `docker compose down -v` | Para y **borra** la base y la evidencia: vuelve a empezar de cero. |
+
+> **La semilla nunca se ejecuta sola.** `npm run seed` vacía las tablas de reportes,
+> notificaciones y usuarios, así que hay que lanzarla a propósito.
+
+Lo que se guarda fuera de los contenedores:
+
+| Volumen | Contenido |
+|---|---|
+| `sistema-incidencias_datos-mariadb` | Toda la base de datos. |
+| `sistema-incidencias_evidencia` | Las fotografías de evidencia (`/app/backend/uploads`). |
+
+### Desarrollo en el host con la base del contenedor
+
+Puede levantarse solo MariaDB y ejecutar el servidor con `node --watch`:
+
+```bash
+docker compose up -d mariadb      # publica MariaDB en 127.0.0.1:3310
+cp .env.example backend/.env      # DB_HOST=127.0.0.1, DB_PORT=3310
+npm install
+npm run dev
+```
+
+> El `.env` de la **raíz** lo lee `docker compose` (contraseñas, `APP_PORT`, `DB_PORT_HOST`);
+> el de `backend/` lo lee la aplicación cuando corre en el host. `DB_PASSWORD` tiene que
+> coincidir en los dos, porque es la misma base de datos.
+
+### Copias de seguridad
+
+```bash
+docker compose exec mariadb sh -c \
+  'mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" --single-transaction incidencias' \
+  > respaldo-$(date +%F).sql
+
+docker run --rm -v sistema-incidencias_evidencia:/datos -v "$PWD":/destino alpine \
+  tar czf /destino/evidencia-$(date +%F).tar.gz -C /datos .
+```
+
+## Arranque sin Docker
 
 ```bash
 npm install                    # instala el backend (el frontend no necesita dependencias)
 cp .env.example backend/.env   # configuración local: puerto, JWT y base de datos
+npm run migrate                # crea el esquema en MariaDB
+npm run seed                   # datos semilla
 npm run dev                    # servidor con recarga automática
 npm start                      # servidor normal
 ```
@@ -95,8 +155,8 @@ Hay tres formas de usar el sistema, y solo la primera no necesita nada:
 | Forma de entrar | Cómo | Qué consigue |
 |---|---|---|
 | **Participante anónimo** | Botón «Entrar como ciudadano anónimo» | Reportar y ver todo el municipio. **No recibe avisos**: no hay cuenta a la que dirigirlos. |
-| **Cuenta ciudadana** | Correo + contraseña (pestaña «Ciudadano» → *Crear cuenta*) | Buzón de avisos (estado, comentarios, resolución y alertas) y edición de sus reportes. |
-| **Personal** | Usuario + contraseña + clave de municipio | Funcionario: gestiona su municipio. Administrador: todo + cuentas del personal. |
+| **Cuenta ciudadana** | Correo + contraseña (*Crear cuenta* en la pantalla de acceso) | Buzón de avisos (estado, comentarios, resolución y alertas) y edición de sus reportes. |
+| **Personal** | Página interna **`/personal`**: el funcionario con usuario, contraseña y clave de municipio; el administrador con usuario y contraseña | Funcionario: gestiona su municipio. Administrador: todo + cuentas del personal. |
 
 **Identidad en cada reporte.** Al registrarse se elige entre poner el nombre real o
 pedir un **nombre generado** («Águila Nocturna», «Colibrí 07»…) que el servidor sortea y
@@ -116,6 +176,23 @@ el correo.
 **Un 401 en el login no cierra la sesión.** El cliente HTTP no confunde «credenciales
 incorrectas» con «sesión caducada» en las rutas de entrada, así que equivocarse al
 escribir la contraseña no tira la sesión ciudadana ni recarga la página.
+
+### Acceso del personal (página interna)
+
+La pantalla de acceso de la aplicación **solo ofrece el acceso ciudadano**. El de funcionarios y
+administradores vive en su propia página, `frontend/personal.html`, servida en **`/personal`**:
+
+- **No está enlazada desde ninguna parte** de la interfaz (el botón «Personal» de la barra superior
+ya no existe) y lleva `noindex, nofollow`, así que solo entra quien conoce la dirección.
+- Reutiliza las piezas de la aplicación (`services/auth.service.js`, `core/session.js` y
+`core/ui.js`) en lugar de duplicarlas: al iniciar sesión guarda la sesión y vuelve a la aplicación,
+que la restaura y aplica el paso previo (términos, y municipio solo si puede elegirlo).
+- Arranca en la pestaña *Funcionario* y cambia a *Administrador* con la otra pestaña.
+- Las vistas nuevas viven en `frontend/personal.html` + `frontend/js/personal.js`; sus estilos, en
+`frontend/css/extensiones.css`, que es el archivo que el extractor de CSS no reescribe.
+
+> Es una **página discreta, no protegida**: quien conozca la dirección ve el formulario, así que la
+> seguridad sigue estando en las credenciales y en el alcance que aplica el servidor.
 
 ### Entrada: municipio y términos de uso
 
@@ -204,7 +281,8 @@ Desde la raíz (delegan en `backend/`):
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` / `npm start` | Arranca el servidor (`node --watch` / `node`). |
-| `npm test` | Suite de pruebas de la API (node:test + supertest). |
+| `npm test` | Suite de pruebas de la API con el driver **json** (rápida, sin Docker). |
+| `npm run test:mysql` | La misma suite contra un **MariaDB efímero en contenedor** (puerto 3399). |
 | `npm run migrate` | Aplica las migraciones de Knex. |
 | `npm run migrate:rollback` | Revierte el último lote de migraciones. |
 | `npm run seed` | Carga los datos semilla (municipios, zonas, tipos, usuarios). |
@@ -228,19 +306,30 @@ Ver [`.env.example`](.env.example). Las relevantes:
 
 | Variable | Por defecto | Descripción |
 |---|---|---|
-| `PORT` | `3000` | Puerto del servidor. |
-| `STORAGE_DRIVER` | `json` | `json` (archivos en `backend/data/`) o `mysql` (Knex). |
+| `PORT` | `3000` | Puerto del servidor (en el contenedor siempre es 3000). |
+| `STORAGE_DRIVER` | `mysql` | `mysql` (MariaDB vía Knex) o `json` (archivos en `backend/data/`). |
 | `JWT_SECRET` | — | **Obligatorio cambiarlo en producción.** |
 | `JWT_EXPIRES_IN` | `8h` | Vigencia del token. |
-| `DATA_DIR` / `UPLOAD_DIR` | `backend/data`, `backend/uploads` | Datos y evidencia. |
-| `DB_HOST` … `DB_NAME` | `127.0.0.1:3306` / `incidencias` | Conexión MySQL/MariaDB. |
+| `DATA_DIR` / `UPLOAD_DIR` | `backend/data`, `backend/uploads` | Datos (solo driver json) y evidencia. |
+| `DB_HOST` … `DB_NAME` | `127.0.0.1:3310` / `incidencias` | Conexión MySQL/MariaDB (dentro del contenedor: `mariadb:3306`). |
 | `MAX_FOTO_BYTES` | 100 MB | Límite de cada foto de evidencia. |
+| `APP_PORT` | `3100` | Puerto público de la aplicación (solo compose). |
+| `DB_PORT_HOST` | `3310` | Puerto de MariaDB publicado en `127.0.0.1` (solo compose). |
+| `DB_ROOT_PASSWORD` | — | Contraseña de root de MariaDB en el contenedor (solo compose). |
+| `ESPERAR_BASE` / `MIGRAR_AL_ARRANCAR` | `true` | Ponerlos a `false` para que el contenedor no espere a la base / no migre al arrancar. |
 
 ---
 
 ## API REST
 
-Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `/api/catalogos`.
+Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login, `/api/catalogos`
+y `/api/salud`.
+
+### Estado del servicio
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| GET | `/api/salud` | público | `{ ok, fecha, driver, baseDatos }`. Comprueba de verdad el almacén (un `select 1` en MariaDB), responde **503** si no está disponible y es lo que consulta el healthcheck del contenedor. |
 
 ### Autenticación
 
@@ -282,6 +371,7 @@ Todas las rutas requieren `Authorization: Bearer <token>` salvo las de login y `
 | POST | `/api/incidencias/:id/resolucion` | empleado | Marca resuelta con descripción y evidencia. |
 | DELETE | `/api/incidencias/:id` | admin | Elimina la incidencia. |
 | POST | `/api/incidencias/:id/comentarios` | sesión | Comenta y avisa al autor. |
+| POST | `/api/incidencias/:id/denuncias` | sesión | Denuncia el reporte o un comentario suyo (`{ motivo, detalle, comentarioId }`). |
 | POST | `/api/uploads` | sesión | Sube evidencia (multipart, campo `archivos`). **Solo fotografías** (y PDF en la resolución). |
 
 #### Icono del reporte
@@ -313,6 +403,21 @@ admiten fotografías» (también si se cuela como metadato en el `POST /api/inci
 reportes antiguos o importados que tengan video **se siguen mostrando**, porque el reproductor
 se conserva en el detalle y en el formulario de edición.
 
+### Moderación
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| GET | `/api/moderacion/denuncias` | empleado | Cola de denuncias agrupadas por contenido (`?estado=pendiente`). |
+| GET | `/api/moderacion/resumen` | empleado | Contadores de la pestaña (pendientes, ocultas, advertidas, suspendidas). |
+| PATCH | `/api/moderacion/denuncias/:id` | empleado | Cierra la denuncia con la decisión: `descartar`, `ocultar`, `eliminar`, `advertir` o `suspender`. |
+| PATCH | `/api/moderacion/incidencias/:id/ocultar` | empleado | Retira o devuelve la publicación (`{ oculta, motivo }`). |
+| PATCH | `/api/moderacion/incidencias/:id/comentarios/:comentarioId/ocultar` | empleado | Retira o devuelve un comentario. |
+| POST | `/api/moderacion/incidencias/:id/advertir` | empleado | Advierte al autor (la tercera suspende la cuenta). |
+| GET | `/api/moderacion/cuentas` | empleado | Cuentas advertidas o suspendidas que puede gestionar. |
+| GET | `/api/moderacion/cuentas/:username` | empleado | Ficha de la cuenta (advertencias, publicaciones, ocultas). |
+| POST | `/api/moderacion/cuentas/:username/suspension` | empleado | Suspende (`{ motivo, hasta }`; sin `hasta` es indefinida). |
+| DELETE | `/api/moderacion/cuentas/:username/suspension` | empleado | Reactiva la cuenta y deja sus advertencias a 0. |
+
 ### Informes y administración
 
 | Método | Ruta | Rol |
@@ -329,8 +434,8 @@ se conserva en el detalle y en el formulario de edición.
 |---|---|---|
 | Ciudadano anónimo | **Todos los reportes del municipio activo** (el de la barra superior). | Solo los suyos: editar y eliminar. Puede comentar y dar seguimiento a cualquiera. |
 | Cuenta ciudadana | Lo mismo que el anónimo, y además su buzón de avisos. | Lo mismo; sus reportes pueden ir con su nombre o anónimos. |
-| Funcionario | Todo su municipio (está atado a él, no elige otro). | Estado, peligro y cualquier reporte de su municipio. Sigue sin poder editar el contenido ajeno. |
-| Administrador | Todos los municipios, o solo el que tenga activo. | Todo, incluido marcar/desmarcar peligrosas y gestionar las cuentas del personal. |
+| Funcionario | Todo su municipio (está atado a él, no elige otro). | Estado, peligro, moderación (ocultar, advertir, suspender) y cualquier reporte de su municipio. Solo alcanza a las **cuentas ciudadanas**. |
+| Administrador | Todos los municipios, o solo el que tenga activo. | Todo, incluido marcar/desmarcar peligrosas, eliminar de verdad y gestionar las cuentas del personal. |
 
 El recorte por municipio se aplica a quien **no** puede elegir municipio (el funcionario);
 el ciudadano y el administrador recorren el catálogo con el selector de la barra superior,
@@ -487,40 +592,109 @@ histórico de la marca.
 
 ---
 
-## Cambiar a MySQL / MariaDB
+## Moderación
 
-1. Crea la base de datos:
+Cualquier sesión —también el ciudadano anónimo— puede **denunciar** un reporte o uno de sus
+comentarios: elige un motivo de la lista cerrada (`spam`, contenido ofensivo, violencia o
+amenazas, datos personales, información falsa, fuera de tema, duplicado u otro) y, si
+quiere, escribe un detalle. La denuncia **no cambia nada por sí sola**: abre un expediente
+que el personal del municipio atiende desde la pestaña **Moderación** del panel.
 
-   ```sql
-   CREATE DATABASE incidencias CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   ```
+| Pieza | Cómo funciona |
+|---|---|
+| Denuncia | `POST /api/incidencias/:id/denuncias`. Se puede denunciar más de una vez el mismo contenido (se agrupan y se cuentan), pero no lo propio. |
+| Cola | Las denuncias pendientes se agrupan por contenido, con los motivos, cuántos vecinos denunciaron y el estado actual (sigue ahí, ya está oculta, se eliminó). Ver una denuncia no cierra nada. |
+| Ocultar | `oculta`/`oculto` retiran el contenido de la vista pública **sin borrarlo**. Lo siguen viendo quien lo escribió (con aviso) y el personal. En el detalle se explica el motivo, quién lo ocultó y cuándo. |
+| Descartar | Cierra el expediente avisando a quien denunció. El contenido se queda como está. |
+| Advertir | Suma una advertencia a la cuenta del autor y se lo avisa. **A la tercera, la cuenta queda suspendida sola.** |
+| Suspender | La cuenta no puede entrar, reportar ni comentar (se comprueba en cada petición, así que también corta la sesión ya abierta). Puede ser **con fecha** o **indefinida**; al reactivarla, sus advertencias vuelven a 0. Sus publicaciones **sin resolver** se ocultan. |
+| Eliminar | Borrar de verdad sigue siendo cosa de un administrador. |
 
-2. Configura `backend/.env`:
+Reglas de fondo:
 
-   ```ini
-   STORAGE_DRIVER=mysql
-   DB_HOST=127.0.0.1
-   DB_PORT=3306
-   DB_USER=incidencias
-   DB_PASSWORD=…
-   DB_NAME=incidencias
-   ```
+- **Jerarquía**: un funcionario solo advierte o suspende a **cuentas ciudadanas**; un
+  administrador también a los funcionarios. Nadie se sanciona a sí mismo.
+- **Sesiones anónimas**: no tienen cuenta, así que no se pueden sancionar (su
+  `userKey` lo genera el navegador y puede cambiarlo). Con ellas solo cabe ocultar o
+  eliminar el contenido.
+- **Historial**: cada decisión queda en el historial del reporte (público) con su motivo.
+- **La denuncia es auditoría**: `denuncias` guarda una copia del título, del autor y del
+  municipio y **no tiene clave foránea**, así que sobrevive al borrado del contenido.
+- **Informes**: las publicaciones ocultas no cuentan como trabajo del municipio en las
+  estadísticas y los informes; se informan aparte en el contador `ocultas` y el respaldo
+  JSON sí las conserva.
+- El estado de una cuenta se guarda en `usuarios` (`advertencias`, `suspendido`,
+  `suspendidoHasta`, `suspendidoMotivo`, `suspendidoPor`) y solo lo escribe la moderación:
+  `PATCH /api/usuarios` no puede tocarlo.
 
-3. Aplica el esquema y los datos semilla:
+> Como en las peligrosas, los estilos nuevos viven en `frontend/css/extensiones.css` y las
+> decisiones con motivo usan un **modal propio** (`#modalModeracion`), nunca
+> `window.prompt`/`window.confirm`, que no funcionan en todos los navegadores.
 
-   ```bash
-   npm run migrate
-   npm run seed
-   ```
+---
 
-4. Arranca: `npm run dev`. La aplicación funciona igual porque los servicios solo
-   conocen el contrato del repositorio.
+## Base de datos: MariaDB y el driver JSON
 
-Detalles de la traducción a tablas: `incidencias` guarda la cabecera; `incidencia_evidencias`
-(con `clase = reporte | solucion`), `incidencia_historial` e `incidencia_comentarios` son
-tablas hijas con `ON DELETE CASCADE`; `notificaciones.para_usuario` nulo significa
-notificación global. Las fechas son `DATETIME(3)` en UTC para que las cadenas ISO coincidan
-exactamente con las del driver JSON.
+MariaDB es el **motor por defecto** (`STORAGE_DRIVER=mysql`). Los servicios solo conocen el
+contrato del repositorio, así que cambiar de motor es cambiar una variable: el driver `json`
+(archivos en `backend/data/`) se conserva para desarrollar sin base de datos y para la suite
+rápida de pruebas.
+
+### Volver al driver JSON
+
+```ini
+STORAGE_DRIVER=json
+```
+
+`npm run dev` crea `backend/data/*.json` con el catálogo semilla la primera vez. El catálogo
+geográfico —`municipios` y `zonas`— se compara con la semilla en cada arranque y se reescribe
+si difiere, así que un cambio de contorno municipal o de comunidades se aplica solo; las
+incidencias, notificaciones y usuarios se conservan intactos.
+
+### Esquema en tablas
+
+`incidencias` guarda la cabecera; `incidencia_evidencias` (con `clase = reporte | solucion`),
+`incidencia_historial` e `incidencia_comentarios` son tablas hijas con `ON DELETE CASCADE`;
+`notificaciones.para_usuario` nulo significa notificación global. Las fechas son `DATETIME(3)`
+en UTC para que las cadenas ISO coincidan exactamente con las del driver JSON.
+
+La moderación añade la migración `009_moderacion`: la tabla `denuncias` (**sin clave foránea**,
+a propósito: guarda copia del título y del autor para que la auditoría sobreviva al borrado),
+las columnas `oculta*` en `incidencias`, `oculto*` y `user_key` en `incidencia_comentarios`, y
+`advertencias`/`suspendido*` en `usuarios`. En el driver JSON es la colección
+`backend/data/denuncias.json`.
+
+Las migraciones se aplican con `npm run migrate`, o solas cuando arranca el contenedor de la
+aplicación. Son idempotentes: `007_tipos_animales` y `008_tipos_incendio_sitio`, por ejemplo,
+añaden los conceptos nuevos y la columna `aviso` sin tocar los reportes que ya existan.
+`npm run migrate:rollback` revierte el último lote **eliminando tablas**: exporta los reportes
+antes (**Informes → Respaldo JSON**) y reimpórtalos después.
+
+### Pruebas contra MariaDB
+
+```bash
+npm test           # driver json, sin base de datos ni Docker
+npm run test:mysql # la misma suite contra un MariaDB efímero en 127.0.0.1:3399
+```
+
+`test:mysql` levanta `compose.test.yaml` (en memoria, con `tmpfs`) y lo baja al terminar. El
+acceso es con **root**: cada proceso de prueba crea y destruye su propia base
+`incidencias_test_<pid>`, y el usuario de la aplicación solo tiene privilegios sobre la suya.
+
+### Arranque del contenedor
+
+`docker/entrypoint.sh` espera a que MariaDB responda y luego aplica las migraciones. Se puede
+ajustar por servicio sin tocar la imagen:
+
+```yaml
+services:
+  app:
+    environment:
+      ESPERAR_BASE: "false"        # no esperar a la base (ya lo hace compose)
+      MIGRAR_AL_ARRANCAR: "false"  # no migrar (por ejemplo al correr pruebas)
+```
+
+La semilla **no** se ejecuta nunca al arrancar, porque borra datos.
 
 ### Actualizar una instalación existente
 
@@ -536,10 +710,8 @@ exactamente con las del driver JSON.
   La migración pasa el municipio de incidencias y usuarios a la clave geoestadística y
   recoloca cada reporte en la comunidad que contiene sus coordenadas (los que caen entre
   comunidades se conservan sin comunidad asignada).
-- **Driver JSON (por defecto)**: el catálogo geográfico —`municipios` y `zonas`— se compara
-  con los datos semilla en cada arranque y se reescribe si difiere, así que un cambio de
-  contorno municipal o de comunidades se aplica solo. Las incidencias, notificaciones y
-  usuarios se conservan intactos.
+- **Driver JSON (`STORAGE_DRIVER=json`)**: el catálogo geográfico se sincroniza solo con la
+  semilla en cada arranque (ver «Base de datos: MariaDB y el driver JSON»).
 - **Conceptos nuevos en el catálogo de tipos**: los tipos base no se pueden borrar desde el
   panel, así que los que traiga una semilla nueva se **añaden** al arranque (driver JSON) sin
   tocar los personalizados ni los reportes que ya existan; al reconstruirlos desde la semilla
@@ -583,17 +755,20 @@ npm --prefix backend run importar-legacy -- ./respaldo_2026-09-23.json
 ## Pruebas
 
 ```bash
-npm test                                                    # driver json (por defecto)
-STORAGE_DRIVER_TEST=mysql DB_PORT=3306 DB_USER=root npm test # driver mysql
+npm test           # driver json, sin base de datos ni Docker
+npm run test:mysql # driver mysql, con un MariaDB efímero en 127.0.0.1:3399
 ```
 
-La suite (`backend/test/`, **84 pruebas**) cubre autenticación y roles, ciclo de vida de
+La suite (`backend/test/`, **102 pruebas**) cubre autenticación y roles, ciclo de vida de
 la incidencia, geocerca y colores derivados, filtros y alcance por municipio, evidencia,
 estadísticas, exportación y la importación de respaldos. `cuentas.test.js` añade el
 sistema de cuentas: alta y entrada de ciudadanos, nombre generado, firma por reporte
 (el anónimo nunca firma y el buzón del anónimo está vacío) y la gestión de cuentas del
 personal con sus permisos; `colindantes.test.js` la vecindad calculada con la geometría
-del catálogo; y `incidencias.test.js` incluye la regla del icono propio (solo en «Otro»).
+del catálogo; `moderacion.test.js` el sistema de moderación (denuncias de reportes y
+comentarios, cola agrupada, ocultamiento visible solo para el autor y el personal,
+advertencias, suspensión automática a la tercera, jerarquía de roles y reactivación); y
+`incidencias.test.js` incluye la regla del icono propio (solo en «Otro»).
 Cada archivo de pruebas usa su propio directorio temporal y,
 con MySQL, su propia base de datos (`incidencias_test_<pid>`), de modo que la **misma
 suite valida los dos drivers**.
@@ -610,9 +785,9 @@ y esta aplicación se sincronizó con ella. Lo que cambió y cómo queda aquí:
 | El municipio deja de ser un rectángulo (`bbox`) y pasa a ser un **polígono real** de 18 vértices | `municipios.poligono` en el modelo, el contrato del repositorio, la migración y la semilla. El mapa encuadra el polígono, limita el desplazamiento a su envolvente y **sombrea con una máscara** todo lo de fuera. `utils/geometria.js` concentra la geometría compartida. |
 | Solo Maravatío (desaparecen Morelia y Uruapán) | Los datos semilla traen un único municipio. El alcance por municipio sigue activo para cuando se añadan más. |
 | Las 12 zonas pasan de rectángulos a **polígonos geográficos** | Mismo modelo (`zonas.poligono`); la geocerca y la detección de zona funcionan igual. |
-| El público **no pasa por la pantalla de acceso**: entra directo como ciudadano anónimo | `main.js` entra como anónimo si no hay sesión. La pantalla de acceso se abre con el botón **Personal** y se cancela con la «×». |
+| El público **no pasa por la pantalla de acceso**: entra directo como ciudadano anónimo | `main.js` entra como anónimo si no hay sesión. La pantalla de acceso (ya solo ciudadana) se abre desde el aviso de la barra lateral y se cancela con la «×». |
 | La sesión vive en `localStorage` y persiste entre visitas | `core/session.js` y `core/api.js` guardan el token en `localStorage`. |
-| Botones nuevos: **Personal** (solo ciudadanos) y **salir** (solo personal) | `#btn-staff-login` y `#btn-logout`, visibles según el rol. |
+| Botones nuevos: **Personal** (solo ciudadanos) y **salir** (solo personal) | `#btn-logout`, visible según el rol. **El botón «Personal» no se porta**: el acceso del personal se movió a la página interna `/personal` (ver «Acceso del personal»). |
 | Cambiar de rol ya no recarga la página (`App.iniciado` / `App.refrescar`) | `aplicacion.arrancar()` es idempotente: no crea un segundo mapa ni duplica el intervalo, y refresca los datos. |
 | **4 capas base** conmutables: Satélite, Calles, Relieve/Topográfico y Físico | `map/mapa.js` con `L.control.layers` en la esquina superior derecha. |
 | **Panel de leyenda** en la barra superior (icono de exclamación) | `#infoPanel` con los estados por antigüedad y las zonas; es excluyente con el panel de notificaciones. |
@@ -672,6 +847,13 @@ defectos del monolito:
     uso ([ver entrada](#entrada-municipio-y-términos-de-uso)), que dejan por escrito que la
     página es informativa, que no es una entidad gubernamental, que los datos pueden
     venderse y que el mal uso puede provocar un bloqueo permanente.
+16. **Moderación del contenido**: cualquier vecino (también la sesión anónima) puede
+    **denunciar** un reporte o un comentario, y el personal los modera desde una pestaña
+    propia del panel: ocultar, descartar la denuncia, advertir al autor o suspender su
+    cuenta (con fecha o indefinida). Tres advertencias suspenden la cuenta sola y una
+    cuenta suspendida no puede entrar siquiera a la página
+    ([ver moderación](#moderación)). Todo queda en el historial del reporte y avisado por
+    notificación; borrar de verdad sigue siendo cosa de un administrador.
 
 ---
 

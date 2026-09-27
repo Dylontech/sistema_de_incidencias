@@ -29,13 +29,26 @@ import {
 import {
   esAdmin,
   esEmpleado,
+  esAutorDe,
+  filtroOcultas,
+  puedeSancionarA,
   filtrosDeAlcance,
   municipioDeRegistro,
   exigirVisibilidad
 } from './alcance.service.js';
 
-/** Permisos que el frontend usa para decidir qué botones mostrar. */
-export function permisosDe(incidencia, usuario) {
+/**
+ * Permisos que el frontend usa para decidir qué botones mostrar.
+ *
+ * `contexto` solo lo rellena el detalle para el personal: sabe si el autor del
+ * contenido es una cuenta sancionable (y de qué rol) y cuántas denuncias tiene
+ * pendientes. Así la interfaz no tiene que adivinar la jerarquía de roles.
+ */
+export function permisosDe(
+  incidencia,
+  usuario,
+  { puedeSancionarAutor = false, denunciasPendientes = 0 } = {}
+) {
   const resuelta = incidencia.estado === 'resuelta';
   return {
     puedeEditar: puedeEditar(incidencia, usuario) && !resuelta,
@@ -43,12 +56,40 @@ export function permisosDe(incidencia, usuario) {
     puedeResolver: esEmpleado(usuario) && !resuelta,
     puedeMarcarPeligro: esEmpleado(usuario),
     puedeEliminar: esAdmin(usuario),
-    puedeComentar: true
+    puedeComentar: true,
+    // Moderación: cualquiera con sesión puede denunciar lo que no es suyo, y el
+    // personal puede retirar contenido y sancionar a su autor.
+    puedeDenunciar: Boolean(usuario) && !esAutorDe(incidencia, usuario),
+    puedeModerar: esEmpleado(usuario),
+    puedeOcultar: esEmpleado(usuario),
+    puedeSancionarAutor: esEmpleado(usuario) && puedeSancionarAutor,
+    denunciasPendientes
   };
+}
+
+/**
+ * Los comentarios retirados por moderación no viajan al cliente.
+ *
+ * Al personal y a su autor les llega el texto (para poder gestionarlo o saber
+ * qué se retiró); al resto se le manda la ficha sin texto, que el frontend
+ * pinta como «comentario oculto». Ocultar solo en la interfaz dejaría el texto
+ * a la vista de quien mirara la respuesta de la API.
+ */
+function conComentariosVisibles(incidencia, usuario) {
+  if (esEmpleado(usuario)) return incidencia;
+  const comentarios = (incidencia.comentarios || []).map((c) => {
+    if (c.oculto !== true || esAutorDe(c, usuario)) return c;
+    return { ...c, texto: '', visible: false };
+  });
+  return { ...incidencia, comentarios };
 }
 
 export async function listar(repositorio, usuario, filtros = {}) {
   const { color, orden, ...resto } = filtros;
+
+  // Las publicaciones retiradas por moderación no se mezclan con el listado
+  // público: las ve el personal y, con aviso, su propio autor.
+  const ocultas = filtroOcultas(usuario);
 
   const consulta = filtrosDeAlcance(usuario, {
     municipioId: resto.municipioId || null,
@@ -56,20 +97,45 @@ export async function listar(repositorio, usuario, filtros = {}) {
     estado: resto.estado || 'todos',
     tipoId: resto.tipoId || 'todos',
     zonaId: resto.zonaId || 'todos',
-    orden: orden === 'antigua' ? 'antigua' : 'reciente'
+    orden: orden === 'antigua' ? 'antigua' : 'reciente',
+    ocultas,
+    ocultasDe: ocultas === 'propias' ? usuario.userKey : null
   });
 
   const incidencias = await repositorio.buscarIncidencias(consulta);
-  let lista = enriquecerLista(incidencias);
+  let lista = enriquecerLista(incidencias.map((i) => conComentariosVisibles(i, usuario)));
   lista = filtrarPorColor(lista, color);
   if (orden === 'prioridad') lista = ordenarPorPrioridad(lista);
   return lista;
 }
 
+/**
+ * Permisos del detalle. Para el personal se resuelve la cuenta del autor: es lo
+ * que permite mostrar (o no) los botones de advertir y suspender según la
+ * jerarquía de roles.
+ */
+async function permisosDeDetalle(repositorio, incidencia, usuario) {
+  if (!esEmpleado(usuario)) return permisosDe(incidencia, usuario);
+  const cuentaAutor = incidencia.autor
+    ? await repositorio.usuarioPorUsername(incidencia.autor)
+    : null;
+  const pendientes = await repositorio.denunciasDe({
+    incidenciaId: incidencia.id,
+    estado: 'pendiente'
+  });
+  return permisosDe(incidencia, usuario, {
+    puedeSancionarAutor: puedeSancionarA(usuario, cuentaAutor),
+    denunciasPendientes: pendientes.length
+  });
+}
+
 export async function obtener(repositorio, usuario, id) {
   const incidencia = await repositorio.incidenciaPorId(id);
   exigirVisibilidad(incidencia, usuario);
-  return { ...enriquecer(incidencia), permisos: permisosDe(incidencia, usuario) };
+  return {
+    ...enriquecer(conComentariosVisibles(incidencia, usuario)),
+    permisos: await permisosDeDetalle(repositorio, incidencia, usuario)
+  };
 }
 
 /** Zonas donde el usuario puede ubicar un reporte (las del municipio activo). */
@@ -318,6 +384,12 @@ export async function comentar(repositorio, usuario, id, texto) {
   const incidencia = await repositorio.incidenciaPorId(id);
   exigirVisibilidad(incidencia, usuario);
 
+  // Un contenido oculto no admite comentarios nuevos: el autor ya lo ve con
+  // aviso y el personal habla por el historial, no por la conversación.
+  if (incidencia.oculta === true && !esEmpleado(usuario)) {
+    throw AppError.prohibido('Esta publicación está oculta por moderación');
+  }
+
   const v = recolector();
   const limpio = v.texto(texto, 'texto', {
     requerido: true,
@@ -328,7 +400,11 @@ export async function comentar(repositorio, usuario, id, texto) {
   const actualizada = {
     ...incidencia,
     actualizado: ahoraIso(),
-    comentarios: agregarComentario(incidencia, { autor: usuario.nombre, texto: limpio })
+    comentarios: agregarComentario(incidencia, {
+      autor: usuario.nombre,
+      texto: limpio,
+      userKey: usuario.userKey
+    })
   };
 
   await repositorio.actualizarIncidencia(id, actualizada);

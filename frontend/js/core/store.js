@@ -40,6 +40,12 @@ const estado = {
   /** Panel de administración: mostrar solo las incidencias peligrosas */
   soloPeligrosas: false,
 
+  /** Moderación: cola de denuncias, contadores y cuentas sancionadas */
+  denuncias: [],
+  gruposDenuncia: [],
+  resumenModeracion: null,
+  sanciones: [],
+
   /** Estado del formulario de incidencia (equivale a los *Temp del monolito) */
   formulario: {
     editarId: null,
@@ -94,7 +100,11 @@ export const store = {
         tipos: [],
         zonas: [],
         notificaciones: [],
-        estadisticas: { panel: null, informes: null }
+        estadisticas: { panel: null, informes: null },
+        denuncias: [],
+        gruposDenuncia: [],
+        resumenModeracion: null,
+        sanciones: []
       },
       'limpieza'
     );

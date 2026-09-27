@@ -36,6 +36,36 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
 
   let html = `
     ${
+      incidencia.oculta
+        ? `<div class="detalle-oculta">
+             <i class="bi bi-eye-slash-fill" style="font-size:1.4rem;"></i>
+             <div>
+               <strong>PUBLICACIÓN OCULTA POR MODERACIÓN</strong>
+               ${incidencia.ocultaMotivo ? ` · ${esc(incidencia.ocultaMotivo)}` : ''}
+               <div style="font-size:11.5px;">
+                 Retirada por ${esc(incidencia.ocultaPor || 'el personal')}${
+                   incidencia.ocultaFecha ? ` el ${fmtFecha(incidencia.ocultaFecha)}` : ''
+                 }. ${
+                   permisos.puedeOcultar
+                     ? 'Solo el personal y su autor pueden verla.'
+                     : 'Solo tú y el personal pueden verla.'
+                 }
+               </div>
+             </div>
+           </div>`
+        : ''
+    }
+    ${
+      permisos.denunciasPendientes
+        ? `<div class="detalle-denuncias">
+             <i class="bi bi-flag-fill"></i>
+             <span><strong>${permisos.denunciasPendientes}</strong> ${
+               permisos.denunciasPendientes === 1 ? 'denuncia pendiente' : 'denuncias pendientes'
+             } de moderar</span>
+           </div>`
+        : ''
+    }
+    ${
       incidencia.peligrosa
         ? `<div class="detalle-peligro">
              <i class="bi bi-exclamation-triangle-fill" style="font-size:1.4rem;"></i>
@@ -176,31 +206,62 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
         ${
           comentarios.length
             ? comentarios
-                .map(
-                  (c) => `
-              <div class="comment-item">
+                .map((c) => {
+                  // El texto de un comentario moderado no llega al cliente salvo
+                  // al personal y a su autor (`visible: false`).
+                  const retirado = c.visible === false;
+                  const propio = usuario?.userKey && c.userKey === usuario.userKey;
+                  const acciones = [
+                    permisos.puedeDenunciar && !propio
+                      ? `<button class="c-accion" data-action="denuncia:abrir" data-id="${esc(incidencia.id)}" data-valor="${esc(c.id)}"><i class="bi bi-flag"></i> Denunciar</button>`
+                      : '',
+                    permisos.puedeOcultar
+                      ? c.oculto
+                        ? `<button class="c-accion" data-action="moderacion:comentario" data-id="${esc(incidencia.id)}:${esc(c.id)}" data-valor="mostrar"><i class="bi bi-eye"></i> Mostrar</button>`
+                        : `<button class="c-accion" data-action="moderacion:comentario" data-id="${esc(incidencia.id)}:${esc(c.id)}" data-valor="ocultar"><i class="bi bi-eye-slash"></i> Ocultar</button>`
+                      : ''
+                  ]
+                    .filter(Boolean)
+                    .join('');
+                  return `
+              <div class="comment-item${c.oculto ? ' oculto' : ''}">
                 <div class="c-meta">
                   <span class="c-author">${esc(c.autor)}</span>
                   <span>${fmtFecha(c.fecha)}</span>
+                  ${c.oculto ? '<span class="chip-aviso naranja">Oculto por moderación</span>' : ''}
                 </div>
-                <div class="c-text">${esc(c.texto)}</div>
-              </div>`
-                )
+                ${
+                  retirado
+                    ? '<div class="c-text c-retirado"><i class="bi bi-eye-slash-fill"></i> Comentario retirado por moderación</div>'
+                    : `<div class="c-text">${esc(c.texto)}</div>`
+                }
+                ${acciones ? `<div class="c-acciones">${acciones}</div>` : ''}
+              </div>`;
+                })
                 .join('')
             : '<div style="color:#94a3b8;font-size:12px;padding:10px;text-align:center;">Sin comentarios todavía</div>'
         }
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px;">
+      ${
+        incidencia.oculta
+          ? '<div class="campo-nota"><i class="bi bi-info-circle"></i> Una publicación oculta por moderación no admite comentarios nuevos.</div>'
+          : `<div style="display:flex;gap:8px;margin-top:10px;">
         <input type="text" id="nuevoComentario" placeholder="Escribe un comentario…" maxlength="500"
           style="flex:1;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:12.5px;">
         <button class="btn btn-primary btn-sm" data-action="detalle:comentar" data-id="${esc(incidencia.id)}">
           <i class="bi bi-send-fill"></i>
         </button>
-      </div>
+      </div>`
+      }
     </div>
   `;
 
   const acciones = [];
+  if (permisos.puedeDenunciar) {
+    acciones.push(`<button class="btn btn-outline" data-action="denuncia:abrir" data-id="${esc(incidencia.id)}">
+      <i class="bi bi-flag-fill"></i> Denunciar
+    </button>`);
+  }
   if (permisos.puedeEditar) {
     acciones.push(`<button class="btn btn-outline" data-action="incidencias:editar" data-id="${esc(incidencia.id)}">
       <i class="bi bi-pencil-fill"></i> Editar
@@ -230,6 +291,25 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
   if (permisos.puedeEliminar) {
     acciones.push(`<button class="btn btn-danger" data-action="detalle:eliminar" data-id="${esc(incidencia.id)}">
       <i class="bi bi-trash3-fill"></i> Eliminar
+    </button>`);
+  }
+  if (permisos.puedeOcultar) {
+    acciones.push(
+      incidencia.oculta
+        ? `<button class="btn btn-success" data-action="moderacion:ocultar" data-id="${esc(incidencia.id)}" data-valor="mostrar">
+             <i class="bi bi-eye-fill"></i> Volver a mostrar
+           </button>`
+        : `<button class="btn btn-danger" data-action="moderacion:ocultar" data-id="${esc(incidencia.id)}" data-valor="ocultar">
+             <i class="bi bi-eye-slash-fill"></i> Ocultar
+           </button>`
+    );
+  }
+  if (permisos.puedeSancionarAutor) {
+    acciones.push(`<button class="btn btn-warning" data-action="moderacion:advertir" data-id="${esc(incidencia.id)}">
+      <i class="bi bi-exclamation-triangle-fill"></i> Advertir al autor
+    </button>`);
+    acciones.push(`<button class="btn btn-danger" data-action="moderacion:suspender" data-id="${esc(incidencia.autor)}">
+      <i class="bi bi-slash-circle-fill"></i> Suspender cuenta
     </button>`);
   }
 

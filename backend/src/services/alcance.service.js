@@ -31,6 +31,46 @@ export function esAdmin(usuario) {
   return !!usuario && usuario.rol === 'admin';
 }
 
+/** ¿El usuario es el autor del contenido (reporte o comentario)? */
+export function esAutorDe(contenido, usuario) {
+  return Boolean(contenido?.userKey) && contenido.userKey === usuario?.userKey;
+}
+
+/**
+ * ¿Puede ver un contenido retirado por moderación?
+ *
+ * El personal sí (es quien modera) y el autor también: se le muestra con un
+ * aviso para que sepa que su publicación sigue existiendo pero no es pública.
+ */
+export function puedeVerOculto(contenido, usuario) {
+  if (esEmpleado(usuario)) return true;
+  return esAutorDe(contenido, usuario);
+}
+
+/**
+ * ¿Qué hacer con las publicaciones ocultas en un listado?
+ *
+ *  - `incluir`: el personal ve todo, ocultas incluidas.
+ *  - `propias`: el autor ve las suyas ocultas (con aviso) y las visibles de todos.
+ *  - `excluir`: el resto solo ve lo visible.
+ */
+export function filtroOcultas(usuario) {
+  if (esEmpleado(usuario)) return 'incluir';
+  return usuario?.userKey ? 'propias' : 'excluir';
+}
+
+/**
+ * Jerarquía de sanciones: nadie puede advertir ni suspender a un rol igual o
+ * superior. Un funcionario solo alcanza a las cuentas ciudadanas; un admin
+ * también a los funcionarios. (Que no se sancione a sí mismo lo comprueba el
+ * servicio, que es quien conoce la cuenta objetivo.)
+ */
+export function puedeSancionarA(actor, objetivo) {
+  if (!esEmpleado(actor) || !objetivo) return false;
+  if (esAdmin(actor)) return objetivo.rol === 'ciudadano' || objetivo.rol === 'funcionario';
+  return objetivo.rol === 'ciudadano';
+}
+
 /**
  * Filtros de consulta que garantizan que nadie vea más de lo que le toca.
  *
@@ -73,6 +113,11 @@ export function exigirVisibilidad(incidencia, usuario) {
   if (!incidencia) throw AppError.noEncontrado('Incidencia no encontrada');
   if (!puedeVer(incidencia, usuario)) {
     throw AppError.prohibido('No tienes acceso a esta incidencia');
+  }
+  // Una publicación retirada por moderación solo la ven el personal y su autor.
+  // Al resto se le responde 404 (no 403): no hay que delatar que existe.
+  if (incidencia.oculta === true && !puedeVerOculto(incidencia, usuario)) {
+    throw AppError.noEncontrado('Incidencia no encontrada');
   }
   // El recorte por municipio solo se impone a quien NO puede elegir municipio
   // (el funcionario está atado al suyo). El ciudadano y el admin recorren el

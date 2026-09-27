@@ -1,5 +1,5 @@
 /** Vista de login y del armazón de la aplicación. */
-import { $, $$, esc } from '../core/utils.js';
+import { $, esc } from '../core/utils.js';
 import { crearBuscador } from '../core/buscador.js';
 
 /**
@@ -18,18 +18,10 @@ function comboMunicipio() {
   return buscadorMunicipio;
 }
 
-export function mostrarPanel(nombre) {
-  $$('.login-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.valor === nombre));
-  $$('.login-panel').forEach((panel) => panel.classList.remove('active'));
-  $(`panel-${nombre}`)?.classList.add('active');
-  // El panel ciudadano siempre abre en el paso de elección (anónimo/cuenta).
-  if (nombre === 'anon') mostrarModoAnon('inicio');
-}
-
 /**
  * Sub-pasos del panel «Ciudadano»: elegir, entrar con cuenta o registrarse.
- * Es una sola pestaña con tres vistas para no llenar la pantalla de acceso de
- * pestañas (el ciudadano de a pie es el caso más común y debe quedar primero).
+ * Es la única vía de acceso de esta pantalla: el acceso del personal vive en
+ * `/personal` (ver `js/personal.js`), una página sin enlaces.
  */
 export function mostrarModoAnon(modo = 'inicio') {
   const vistas = { inicio: 'anonInicio', login: 'anonLogin', registro: 'anonRegistro' };
@@ -60,17 +52,14 @@ export function alternarPseudonimo(activo) {
 }
 
 /**
- * Abre la pantalla de acceso del personal (funcionario/administrador) sin
- * perder la sesión ciudadana que ya está activa. Si hay sesión, se muestra la
- * «×» para volver a la aplicación. Mismo comportamiento que `Auth.mostrarLogin`.
+ * Abre la pantalla de acceso ciudadano sin perder la sesión anónima que ya está
+ * activa. Si hay sesión, se muestra la «×» para volver a la aplicación.
  */
-export function mostrarLogin({ puedeCancelar = false, panel = 'func' } = {}) {
+export function mostrarLogin({ puedeCancelar = false } = {}) {
   $('loginScreen').style.display = 'flex';
   const cancelar = $('loginCancelBtn');
   if (cancelar) cancelar.style.display = puedeCancelar ? 'block' : 'none';
-  // El acceso del personal empieza en la pestaña de funcionario; quien llega
-  // desde el aviso de «sesión anónima» aterriza en la del ciudadano.
-  mostrarPanel(panel);
+  mostrarModoAnon('inicio');
 }
 
 /** Cierra la pantalla de acceso y vuelve a la aplicación. */
@@ -84,12 +73,10 @@ export function mostrarApp({ usuario, municipioActivo }) {
   $('app').classList.add('active');
 
   const esEmpleado = usuario.rol === 'funcionario' || usuario.rol === 'admin';
-  // Cualquier cuenta (ciudadana o del personal) puede cerrar sesión; el enlace
-  // «Personal» solo tiene sentido para quien no ha entrado con cuenta.
+  // Cualquier cuenta (ciudadana o del personal) puede cerrar sesión.
   const tieneCuenta = usuario.rol !== 'anonimo';
   $('btn-admin').style.display = esEmpleado ? 'inline-flex' : 'none';
   $('btn-informes').style.display = esEmpleado ? 'inline-flex' : 'none';
-  $('btn-staff-login').style.display = esEmpleado ? 'none' : 'inline-flex';
   $('btn-logout').style.display = tieneCuenta ? 'inline-flex' : 'none';
   $('visibilidadNota').style.display = esEmpleado ? 'none' : 'block';
 
@@ -224,21 +211,6 @@ export function renderColindantes(colindantes = [], { visible = true } = {}) {
       </button>`
     )
     .join('');
-}
-
-export function valoresFuncionario() {
-  return {
-    username: $('func-user').value.trim(),
-    password: $('func-pass').value,
-    claveMunicipio: $('func-code').value.trim()
-  };
-}
-
-export function valoresAdmin() {
-  return {
-    username: $('admin-user').value.trim(),
-    password: $('admin-pass').value
-  };
 }
 
 /** Credenciales de una cuenta ciudadana (se entra con el correo). */

@@ -1,6 +1,5 @@
 /** Manejo uniforme de errores: toda la API responde { error, detalles }. */
 import { AppError } from '../utils/AppError.js';
-import { esProduccion } from '../config/index.js';
 
 export function rutaNoEncontrada(req, res, next) {
   next(AppError.noEncontrado(`Ruta no encontrada: ${req.method} ${req.originalUrl}`));
@@ -17,7 +16,9 @@ export function manejarErrores(err, req, res, next) { // eslint-disable-line no-
     else if (err.code === 'LIMIT_UNEXPECTED_FILE') mensaje = 'Campo de archivo inesperado';
   }
 
-  if (estado >= 500 && !esProduccion()) {
+  if (estado >= 500) {
+    // Siempre, también en producción: dentro del contenedor los registros son
+    // privados y sin la traza no hay forma de diagnosticar un 500.
     console.error('[error]', err);
   }
 

@@ -1,11 +1,12 @@
 /**
  * DRIVER JSON — implementación del contrato de repositorio sobre archivos.
  *
- * Es el driver por defecto (STORAGE_DRIVER=json): sustituye al localStorage del
- * monolito por archivos en backend/data/ con escrituras atómicas.
- * Su equivalente para MySQL/MariaDB está en ../mysql/repositorio.js y expone
- * exactamente los mismos métodos.
+ * Sustituye al localStorage del monolito por archivos en backend/data/ con
+ * escrituras atómicas. Desde la migración a Docker el driver por defecto es
+ * MySQL/MariaDB (../mysql/repositorio.js); este se activa con
+ * STORAGE_DRIVER=json y expone exactamente los mismos métodos.
  */
+import { constants as fsConstants, promises as fsPromesas } from 'node:fs';
 import { AlmacenJson } from './almacen.js';
 import { config } from '../../config/index.js';
 import { municipiosSemilla, zonasSemilla, tiposSemilla, usuariosSemilla } from '../../config/semilla.js';
@@ -44,7 +45,8 @@ export class RepositorioJson {
       ['zonas', zonasSemilla],
       ['tipos', tiposSemilla],
       ['incidencias', []],
-      ['notificaciones', []]
+      ['notificaciones', []],
+      ['denuncias', []]
     ];
 
     for (const [coleccion, datos] of conSemilla) {
@@ -65,7 +67,13 @@ export class RepositorioJson {
           municipioId: u.municipioId ?? null,
           activo: u.activo !== false,
           pseudonimo: u.pseudonimo === true,
-          passwordHash: await hashearPassword(u.passwordInicial)
+          passwordHash: await hashearPassword(u.passwordInicial),
+          // Moderación: mismo punto de partida que `construirUsuario`.
+          advertencias: 0,
+          suspendido: false,
+          suspendidoHasta: null,
+          suspendidoMotivo: '',
+          suspendidoPor: null
         });
       }
       await this.almacen.escribir('usuarios', usuarios);
@@ -109,6 +117,15 @@ export class RepositorioJson {
     this.catalogo.set(coleccion, semilla);
     if (JSON.stringify(actuales) === JSON.stringify(semilla)) return false;
     await this.almacen.escribir(coleccion, semilla);
+    return true;
+  }
+
+  /**
+   * Comprobación ligera de salud (`GET /api/salud`): con este driver basta con
+   * saber que el directorio de datos es accesible y escribible.
+   */
+  async ping() {
+    await fsPromesas.access(this.directorio, fsConstants.W_OK);
     return true;
   }
 
@@ -223,7 +240,17 @@ export class RepositorioJson {
   /* ------------------------------- incidencias ----------------------------- */
 
   async buscarIncidencias(filtros = {}) {
-    const { municipioId, userKey, texto, estado, tipoId, zonaId, orden = 'reciente' } = filtros;
+    const {
+      municipioId,
+      userKey,
+      texto,
+      estado,
+      tipoId,
+      zonaId,
+      orden = 'reciente',
+      ocultas = 'excluir',
+      ocultasDe = null
+    } = filtros;
     let lista = await this.almacen.leer('incidencias', []);
 
     if (userKey) lista = lista.filter((i) => i.userKey === userKey);
@@ -232,6 +259,13 @@ export class RepositorioJson {
     if (tipoId && tipoId !== 'todos') lista = lista.filter((i) => i.tipoId === tipoId);
     if (zonaId && zonaId !== 'todos') lista = lista.filter((i) => i.zonaId === zonaId);
     if (texto) lista = lista.filter((i) => coincideTexto(i, texto));
+
+    // Qué hacer con las publicaciones retiradas por moderación. `propias` deja
+    // ver las visibles de todos más las ocultas del propio autor.
+    if (ocultas === 'excluir') lista = lista.filter((i) => i.oculta !== true);
+    else if (ocultas === 'propias') {
+      lista = lista.filter((i) => i.oculta !== true || i.userKey === ocultasDe);
+    }
 
     return this.#ordenarPorFecha(lista, orden);
   }
@@ -337,6 +371,57 @@ export class RepositorioJson {
 
   async borrarNotificaciones() {
     return this.almacen.transaccion('notificaciones', [], (lista) => ({
+      datos: [],
+      resultado: lista.length
+    }));
+  }
+
+  /* -------------------------------- denuncias ------------------------------ */
+
+  /**
+   * Denuncias con filtros opcionales.
+   * `propias` se resuelve aquí igual que en las incidencias: el recorte por
+   * `userKey` deja ver las denuncias del denunciante y el recorte por
+   * `objetivoUserKey` las que ha recibido una cuenta.
+   */
+  async denunciasDe(filtros = {}) {
+    const { incidenciaId, comentarioId, municipioId, autorUserKey, objetivoUserKey, estado, orden = 'reciente' } = filtros;
+    let lista = await this.almacen.leer('denuncias', []);
+
+    if (incidenciaId) lista = lista.filter((d) => d.incidenciaId === incidenciaId);
+    if (comentarioId) lista = lista.filter((d) => d.comentarioId === comentarioId);
+    if (municipioId) lista = lista.filter((d) => d.municipioId === municipioId);
+    if (autorUserKey) lista = lista.filter((d) => d.autorUserKey === autorUserKey);
+    if (objetivoUserKey) lista = lista.filter((d) => d.objetivoUserKey === objetivoUserKey);
+    if (estado) lista = lista.filter((d) => d.estado === estado);
+
+    return this.#ordenarPorFecha(lista, orden);
+  }
+
+  async denunciaPorId(id) {
+    const lista = await this.almacen.leer('denuncias', []);
+    return lista.find((d) => d.id === id) || null;
+  }
+
+  async crearDenuncia(denuncia) {
+    return this.almacen.transaccion('denuncias', [], (lista) => ({
+      datos: [...lista, denuncia],
+      resultado: denuncia
+    }));
+  }
+
+  async actualizarDenuncia(id, denuncia) {
+    return this.almacen.transaccion('denuncias', [], (lista) => {
+      const indice = lista.findIndex((d) => d.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = denuncia;
+      return { datos: copia, resultado: denuncia };
+    });
+  }
+
+  async borrarDenuncias() {
+    return this.almacen.transaccion('denuncias', [], (lista) => ({
       datos: [],
       resultado: lista.length
     }));

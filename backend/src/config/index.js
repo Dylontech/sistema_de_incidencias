@@ -26,8 +26,12 @@ export const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || '8h'
   },
 
-  /** 'json' (archivos en disco) | 'mysql' (Knex) */
-  storageDriver: (process.env.STORAGE_DRIVER || 'json').toLowerCase(),
+  /**
+   * 'mysql' (MariaDB vía Knex, por defecto) | 'json' (archivos en disco).
+   * El driver JSON se conserva para desarrollo sin base de datos y para las
+   * pruebas: basta STORAGE_DRIVER=json.
+   */
+  storageDriver: (process.env.STORAGE_DRIVER || 'mysql').toLowerCase(),
 
   paths: {
     data: ruta(process.env.DATA_DIR, 'data'),

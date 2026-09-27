@@ -57,8 +57,6 @@ export async function entrarComoCiudadano({ silencioso = false, antesDeArrancar 
 
 export function registrar() {
   registrarAcciones({
-    'auth:tab': ({ valor }) => loginView.mostrarPanel(valor),
-
     /** Sub-pasos del panel ciudadano (inicio / entrar / crear cuenta). */
     'auth:modoAnon': ({ valor }) => loginView.mostrarModoAnon(valor || 'inicio'),
 
@@ -96,27 +94,11 @@ export function registrar() {
       return entrar(() => authService.registrarCiudadano(datos));
     },
 
-    'auth:entrarFuncionario': () => {
-      const datos = loginView.valoresFuncionario();
-      if (!datos.username || !datos.password || !datos.claveMunicipio) {
-        toast('Completa todos los campos', 'err');
-        return;
-      }
-      return entrar(() => authService.entrarFuncionario(datos));
-    },
-
-    'auth:entrarAdmin': () => {
-      const datos = loginView.valoresAdmin();
-      if (!datos.username || !datos.password) {
-        toast('Completa todos los campos', 'err');
-        return;
-      }
-      return entrar(() => authService.entrarAdmin(datos));
-    },
-
-    /** Acceso del personal sin perder la sesión ciudadana. */
-    'auth:mostrarLogin': ({ valor }) =>
-      loginView.mostrarLogin({ puedeCancelar: !!sesion.datos, panel: valor || 'func' }),
+    /**
+     * Abre la pantalla de acceso ciudadano sin perder la sesión anónima.
+     * El acceso del personal ya no está aquí: vive en `/personal`.
+     */
+    'auth:mostrarLogin': () => loginView.mostrarLogin({ puedeCancelar: !!sesion.datos }),
 
     'auth:cancelarLogin': () => loginView.cancelarLogin(),
 
