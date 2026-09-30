@@ -27,7 +27,7 @@ export function renderizarPanel(notificaciones = []) {
 
   if (!notificaciones.length) {
     contenedor.innerHTML =
-      '<div class="notif-empty"><i class="bi bi-bell-slash" style="font-size:2rem;display:block;margin-bottom:8px;"></i>Sin notificaciones</div>';
+      '<div class="notif-empty"><i class="bi bi-bell-slash icono-vacio"></i>Sin notificaciones</div>';
     return;
   }
 
@@ -36,12 +36,12 @@ export function renderizarPanel(notificaciones = []) {
       (n) => `
     <div class="notif-item ${n.leida ? '' : 'unread'}">
       <div class="n-icon">${ICONOS[n.tipo] || '🔔'}</div>
-      <div class="n-content" data-action="notificaciones:leer" data-id="${esc(n.id)}" style="cursor:pointer;">
+      <div class="n-content u-cursor" data-action="notificaciones:leer" data-id="${esc(n.id)}">
         <div class="n-title">${esc(n.titulo)}</div>
         <div class="n-msg">${esc(n.mensaje)}</div>
         <div class="n-time">${fmtFecha(n.fecha)}</div>
       </div>
-      <button class="modal-close" style="font-size:1rem;padding:0 4px;"
+      <button class="modal-close boton-cerrar-chico"
         data-action="notificaciones:eliminar" data-id="${esc(n.id)}">&times;</button>
     </div>`
     )

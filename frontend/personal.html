@@ -7,7 +7,7 @@
      a los buscadores, así que solo entra quien conoce la dirección. -->
 <meta name="robots" content="noindex, nofollow">
 <title>Acceso del personal — Sistema de Incidencias</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/componentes.css">
 <link rel="stylesheet" href="css/extensiones.css">
@@ -42,7 +42,7 @@
         </div>
         <div class="form-group">
           <label for="func-code">Clave de municipio</label>
-          <input type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 16050 (clave geoestadística)" style="text-transform:uppercase;">
+          <input class="u-mayusculas" type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 16050 (clave geoestadística)">
         </div>
         <button class="btn btn-primary btn-block" type="submit">
           <i class="bi bi-shield-lock-fill"></i> Iniciar sesión
@@ -70,13 +70,15 @@
     <p class="personal-nota">
       <i class="bi bi-info-circle"></i> La sesión queda abierta en este dispositivo:
       <a href="/">vuelve a la aplicación</a> para usarla.
+      <br>
+      <a href="/acerca" target="_blank" rel="noopener">Acerca de este sistema</a>
     </p>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 <div class="loading-overlay" id="loading">
-  <div style="text-align:center;">
+  <div class="u-centro">
     <div class="spinner"></div>
     <div id="loadingText">Procesando…</div>
   </div>

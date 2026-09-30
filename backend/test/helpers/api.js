@@ -1,6 +1,35 @@
 /** Cliente de pruebas: envuelve supertest y adjunta el token cuando existe. */
 import request from 'supertest';
 
+/**
+ * Bandeja de salida del servicio de correo.
+ *
+ * Se importa **dentro** de la función a propósito: `correo.service` arrastra
+ * `config`, que lee el entorno al cargarse. Un import estático aquí se evaluaría
+ * antes de que la prueba fije el directorio de datos y el driver (el `.env` de
+ * desarrollo apunta a MySQL), y las pruebas acabarían corriendo contra la base
+ * de datos de verdad en lugar de contra la suya.
+ */
+async function bandejaDePrueba() {
+  return import('../../src/services/correo.service.js');
+}
+
+/**
+ * Token que viaja en el último correo dirigido a una dirección.
+ *
+ * Los correos no salen de verdad en las pruebas: el servicio los deja en una
+ * bandeja en memoria, y leerlos aquí es lo que permite recorrer el flujo tal y
+ * como lo vive el ciudadano (abrir el enlace del mensaje).
+ */
+export async function tokenDelCorreo(correo, parametro = 'verificar') {
+  const { ultimoMensajePara } = await bandejaDePrueba();
+  const mensaje = ultimoMensajePara(correo);
+  if (!mensaje) throw new Error(`No se envió ningún correo a ${correo}`);
+  const valor = new URL(mensaje.enlace).searchParams.get(parametro);
+  if (!valor) throw new Error(`El correo a ${correo} no trae el parámetro ${parametro}`);
+  return valor;
+}
+
 export class Api {
   constructor(app, token = null) {
     this.app = app;
@@ -41,15 +70,9 @@ export class Api {
    * Ciudadano registrado (correo + contraseña). Es quien recibe los avisos de
    * sus reportes: la sesión anónima no tiene buzón.
    */
-  static async ciudadano(app, { correo, password = 'segura1234', nombre = 'Vecina Prueba', pseudonimo = false } = {}) {
-    const email = correo || `prueba-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}@ejemplo.mx`;
-    const r = await request(app)
-      .post('/api/auth/registro')
-      .send({ correo: email, password, nombre, pseudonimo });
-    if (r.status !== 201) {
-      throw new Error(`No se pudo registrar el ciudadano de prueba: ${r.body?.error || r.status}`);
-    }
-    return new Api(app, r.body.token);
+  static async ciudadano(app, datos = {}) {
+    const { api } = await Api.ciudadanoConCuenta(app, datos);
+    return api;
   }
 
   /**
@@ -63,6 +86,10 @@ export class Api {
   /**
    * Ciudadano con su sesión a mano: la moderación necesita el `username`
    * (que es el `userKey` de la cuenta) para dirigir advertencias y sanciones.
+   *
+   * Recorre el alta completa: registrar, confirmar el correo abriendo el enlace
+   * que el servicio dejó en su bandeja, y entrar. Es decir, lo mismo que hace
+   * una persona de verdad.
    */
   static async ciudadanoConCuenta(app, datos = {}) {
     const correo =
@@ -77,12 +104,30 @@ export class Api {
     if (respuesta.status !== 201) {
       throw new Error(`No se pudo registrar el ciudadano de prueba: ${respuesta.body?.error || respuesta.status}`);
     }
+
+    await Api.confirmarCorreo(app, correo);
+
+    const entrada = await request(app).post('/api/auth/ciudadano').send({ correo, password });
+    if (entrada.status !== 200) {
+      throw new Error(`No se pudo entrar como ciudadano: ${entrada.body?.error || entrada.status}`);
+    }
+
     return {
-      api: new Api(app, respuesta.body.token),
-      usuario: respuesta.body.usuario,
+      api: new Api(app, entrada.body.token),
+      usuario: entrada.body.usuario,
       correo,
       password
     };
+  }
+
+  /** Abre el enlace de confirmación del último correo, como el ciudadano. */
+  static async confirmarCorreo(app, correo) {
+    const token = await tokenDelCorreo(correo);
+    const r = await request(app).post('/api/auth/verificar').send({ token });
+    if (r.status !== 200) {
+      throw new Error(`No se pudo confirmar el correo: ${r.body?.error || r.status}`);
+    }
+    return r;
   }
 
   /** Entrada de una cuenta ciudadana (correo + contraseña). */

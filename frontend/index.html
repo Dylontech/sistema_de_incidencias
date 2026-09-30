@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema de Incidencias Municipales — Maravatío, Michoacán</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/componentes.css">
@@ -20,8 +20,8 @@
      LOGIN
      ============================================================ -->
 <div class="login-screen" id="loginScreen">
-  <div class="login-card" style="position:relative;">
-    <button class="modal-close" id="loginCancelBtn" data-action="auth:cancelarLogin" style="display:none;position:absolute;top:10px;right:10px;" title="Volver">&times;</button>
+  <div class="login-card u-relative">
+    <button class="modal-close u-oculto u-absoluta-cierre" id="loginCancelBtn" data-action="auth:cancelarLogin" title="Volver">&times;</button>
     <h1><i class="bi bi-geo-alt-fill"></i> Sistema de Incidencias</h1>
     <p class="sub" id="loginSubtitulo">Municipio de Maravatío, Michoacán</p>
 
@@ -30,14 +30,14 @@
     <div class="login-panel active" id="panel-anon">
       <!-- Paso 1: elegir cómo entrar -->
       <div id="anonInicio">
-        <p style="font-size:12.5px;color:#4a5568;margin-bottom:14px;line-height:1.5;">
+        <p class="u-fs-125px u-pizarra u-mb-14 u-lh-15">
           No necesitas cuenta: cualquier persona puede reportar incidencias de forma <strong>anónima</strong>.
           Este sistema recuerda tus reportes en este dispositivo automáticamente.
         </p>
         <button class="btn btn-primary btn-block" data-action="auth:entrarAnonimo">
           <i class="bi bi-person-fill"></i> Entrar como ciudadano anónimo
         </button>
-        <p style="font-size:11.5px;color:#8a5a00;background:#fff8e6;border:1px solid #ffe4a3;border-radius:6px;padding:8px 10px;margin-top:12px;line-height:1.45;">
+        <p class="nota-aviso u-mt-12">
           <i class="bi bi-bell-slash"></i> Una sesión anónima <strong>no recibe avisos</strong>:
           si quieres saber cómo va tu reporte, abre una cuenta.
         </p>
@@ -50,13 +50,16 @@
             <i class="bi bi-person-plus-fill"></i> Crear cuenta
           </button>
         </div>
-        <p style="font-size:11px;color:#94a3b8;margin-top:12px;text-align:center;">
+        <p class="u-fs-11px u-suave u-mt-12 u-centro">
           <i class="bi bi-info-circle"></i> Con cuenta sigues pudiendo reportar sin mostrar tu nombre.
+        </p>
+        <p class="u-fs-11px u-mt-6 u-centro">
+          <a class="u-azul" href="/acerca" target="_blank" rel="noopener">¿Qué es este sitio y quién lo hace?</a>
         </p>
       </div>
 
       <!-- Paso 2: entrar con correo y contraseña -->
-      <div id="anonLogin" style="display:none;">
+      <div id="anonLogin" class="u-oculto">
         <form data-submit="auth:entrarCiudadano">
           <div class="form-group">
             <label for="ciud-correo">Correo electrónico</label>
@@ -70,13 +73,80 @@
             <i class="bi bi-box-arrow-in-right"></i> Entrar a mi cuenta
           </button>
         </form>
-        <button class="btn btn-outline btn-block btn-sm" data-action="auth:modoAnon" data-valor="inicio" style="margin-top:10px;">
+        <p class="u-fs-11px u-centro u-mt-10">
+          <a class="u-azul" href="#" data-action="auth:modoAnon" data-valor="olvide">¿Olvidaste tu contraseña?</a>
+        </p>
+        <button class="btn btn-outline btn-block btn-sm u-mt-6" data-action="auth:modoAnon" data-valor="inicio">
+          <i class="bi bi-arrow-left"></i> Volver
+        </button>
+      </div>
+
+      <!-- Paso 2b: pedir el enlace de recuperación -->
+      <div id="anonOlvide" class="u-oculto">
+        <p class="u-fs-125px u-pizarra u-mb-14 u-lh-15">
+          Escribe tu correo y te enviamos un enlace para elegir una contraseña nueva.
+        </p>
+        <form data-submit="auth:olvide">
+          <div class="form-group">
+            <label for="olvide-correo">Correo electrónico</label>
+            <input type="email" id="olvide-correo" name="correo" placeholder="tu@correo.mx" autocomplete="email">
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">
+            <i class="bi bi-envelope-fill"></i> Enviarme el enlace
+          </button>
+        </form>
+        <button class="btn btn-outline btn-block btn-sm u-mt-10" data-action="auth:modoAnon" data-valor="login">
+          <i class="bi bi-arrow-left"></i> Volver
+        </button>
+      </div>
+
+      <!-- Paso 2c: elegir la contraseña nueva (llega desde el enlace del correo) -->
+      <div id="anonRestablecer" class="u-oculto">
+        <p class="u-fs-125px u-pizarra u-mb-14 u-lh-15">
+          Elige una contraseña nueva para tu cuenta. Al guardarla se cerrarán las demás
+          sesiones que tuvieras abiertas.
+        </p>
+        <form data-submit="auth:restablecer">
+          <div class="form-group">
+            <label for="rest-pass">Contraseña nueva</label>
+            <input type="password" id="rest-pass" name="password" placeholder="Al menos 8 caracteres" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label for="rest-pass2">Repite la contraseña</label>
+            <input type="password" id="rest-pass2" name="password2" placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">
+            <i class="bi bi-key-fill"></i> Guardar contraseña nueva
+          </button>
+        </form>
+        <button class="btn btn-outline btn-block btn-sm u-mt-10" data-action="auth:modoAnon" data-valor="login">
+          <i class="bi bi-arrow-left"></i> Volver
+        </button>
+      </div>
+
+      <!-- Paso 2d: el alta ha enviado el correo de confirmación -->
+      <div id="anonVerificacion" class="u-oculto">
+        <p class="nota-aviso">
+          <i class="bi bi-envelope-check-fill"></i> Te hemos enviado un correo a
+          <strong id="verif-correo">tu dirección</strong> con un enlace para activar la cuenta.
+        </p>
+        <p class="u-fs-125px u-pizarra u-mb-14 u-lh-15">
+          Ábrelo desde este mismo dispositivo y entrarás con la contraseña que acabas de elegir.
+          Si no lo encuentras, mira en la carpeta de correo no deseado.
+        </p>
+        <button class="btn btn-outline btn-block" data-action="auth:modoAnon" data-valor="login">
+          <i class="bi bi-box-arrow-in-right"></i> Ya lo he confirmado: entrar
+        </button>
+        <button class="btn btn-outline btn-block btn-sm u-mt-6" data-action="auth:reenviar">
+          <i class="bi bi-envelope-arrow-up-fill"></i> No me ha llegado: enviar otro
+        </button>
+        <button class="btn btn-outline btn-block btn-sm u-mt-6" data-action="auth:modoAnon" data-valor="inicio">
           <i class="bi bi-arrow-left"></i> Volver
         </button>
       </div>
 
       <!-- Paso 3: crear cuenta -->
-      <div id="anonRegistro" style="display:none;">
+      <div id="anonRegistro" class="u-oculto">
         <form data-submit="auth:registrar">
           <div class="form-group">
             <label for="reg-correo">Correo electrónico *</label>
@@ -92,7 +162,7 @@
               <input type="checkbox" id="reg-pseudonimo" data-change="auth:pseudonimo">
               <span>Usar un nombre generado (pseudónimo)</span>
             </label>
-            <input type="text" id="reg-nombre" name="nombre" maxlength="80" placeholder="Ej. María Ramírez" style="margin-top:8px;">
+            <input class="u-mt-8" type="text" id="reg-nombre" name="nombre" maxlength="80" placeholder="Ej. María Ramírez">
             <p class="campo-nota" id="regNombreNota">
               Si eliges el nombre generado te asignamos algo como «Águila Nocturna» y nadie
               sabrá quién eres.
@@ -102,7 +172,11 @@
             <i class="bi bi-person-plus-fill"></i> Crear mi cuenta
           </button>
         </form>
-        <button class="btn btn-outline btn-block btn-sm" data-action="auth:modoAnon" data-valor="inicio" style="margin-top:10px;">
+        <p class="nota-aviso u-mt-10">
+          <i class="bi bi-envelope-fill"></i> Te enviaremos un correo para confirmar la dirección:
+          hasta que abras el enlace, la cuenta no sirve para entrar.
+        </p>
+        <button class="btn btn-outline btn-block btn-sm u-mt-10" data-action="auth:modoAnon" data-valor="inicio">
           <i class="bi bi-arrow-left"></i> Volver
         </button>
       </div>
@@ -115,9 +189,9 @@
      PASO PREVIO: MUNICIPIO + TÉRMINOS
      Se muestra antes de la aplicación (y por encima de la pantalla de acceso).
      ============================================================ -->
-<div class="onboarding" id="onboarding" style="display:none;">
+<div class="onboarding u-oculto" id="onboarding">
   <div class="onboarding-card">
-    <button class="modal-close" id="obCerrar" data-action="onboarding:cerrar" style="display:none;position:absolute;top:10px;right:10px;" title="Cerrar">&times;</button>
+    <button class="modal-close u-oculto u-absoluta-cierre" id="obCerrar" data-action="onboarding:cerrar" title="Cerrar">&times;</button>
     <div class="onboarding-head">
       <h1><i class="bi bi-geo-alt-fill"></i> Antes de empezar</h1>
       <p class="sub" id="obSubtitulo">Elige el municipio en el que vas a reportar.</p>
@@ -141,7 +215,7 @@
     </div>
 
     <!-- PASO 2: TÉRMINOS Y CONDICIONES -->
-    <div id="obTerminos" style="display:none;">
+    <div id="obTerminos" class="u-oculto">
       <div class="terminos">
         <div class="terminos-resumen">
           <strong>Resumen en 4 puntos</strong>
@@ -176,15 +250,15 @@
         <p>Podemos actualizar estos términos en cualquier momento. Si cambian, se te pedirá aceptarlos de nuevo para seguir usando la aplicación. El uso del sitio después de un cambio implica que los aceptas.</p>
       </div>
 
-      <label class="check-line" style="margin-top:12px;">
+      <label class="check-line u-mt-12">
         <input type="checkbox" id="obAcepto">
         <span>He leído y acepto los términos: entiendo que esta página <strong>no es una entidad gubernamental</strong> y que los <strong>datos que genere pueden ser vendidos</strong>.</span>
       </label>
 
-      <button class="btn btn-primary btn-block" data-action="onboarding:aceptar" style="margin-top:12px;">
+      <button class="btn btn-primary btn-block u-mt-12" data-action="onboarding:aceptar">
         <i class="bi bi-check2-circle"></i> Aceptar y entrar
       </button>
-      <button class="btn btn-outline btn-block btn-sm" id="obVolver" data-action="onboarding:volver" style="margin-top:8px;">
+      <button class="btn btn-outline btn-block btn-sm u-mt-8" id="obVolver" data-action="onboarding:volver">
         <i class="bi bi-arrow-left"></i> Volver
       </button>
     </div>
@@ -196,7 +270,7 @@
      Foco sobre un elemento + tarjeta que lo explica (ver
      controllers/tutorial.controller.js).
      ============================================================ -->
-<div class="tutorial" id="tutorial" style="display:none;">
+<div class="tutorial u-oculto" id="tutorial">
   <div class="tutorial-foco" id="tutorialFoco"></div>
   <div class="tutorial-tarjeta" id="tutorialTarjeta" role="dialog" aria-labelledby="tutorialTitulo" aria-live="polite">
     <div class="tutorial-cabecera">
@@ -221,7 +295,7 @@
 <div class="app" id="app">
   <!-- TOPBAR -->
   <div class="topbar">
-    <button class="notif-btn" style="background:rgba(255,255,255,0.1);" data-action="sidebar:toggle" title="Menú">
+    <button class="notif-btn boton-menu-suave" data-action="sidebar:toggle" title="Menú">
       <i class="bi bi-list"></i>
     </button>
     <div class="brand">
@@ -245,10 +319,10 @@
     </div>
     <div class="spacer"></div>
 
-    <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" data-action="admin:abrir" id="btn-admin" title="Panel de administración">
+    <button class="btn btn-outline boton-cristal" data-action="admin:abrir" id="btn-admin" title="Panel de administración">
       <i class="bi bi-speedometer2"></i> <span>Panel</span>
     </button>
-    <button class="btn btn-outline" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" data-action="reportes:abrir" id="btn-informes" title="Informes">
+    <button class="btn btn-outline boton-cristal" data-action="reportes:abrir" id="btn-informes" title="Informes">
       <i class="bi bi-file-earmark-bar-graph"></i> <span>Informes</span>
     </button>
 
@@ -258,14 +332,17 @@
 
     <button class="notif-btn" data-action="notificaciones:toggle" title="Notificaciones">
       <i class="bi bi-bell-fill"></i>
-      <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+      <span class="notif-badge u-oculto" id="notif-badge">0</span>
     </button>
 
     <div class="user-info" id="userInfo">
       <i class="bi bi-person-circle"></i>
       <span id="userName">Anónimo</span>
     </div>
-    <button class="notif-btn" id="btn-logout" data-action="auth:salir" title="Cerrar sesión" style="display:none;">
+    <button class="notif-btn u-oculto" id="btn-cuenta" data-action="cuenta:abrir" title="Mi cuenta">
+      <i class="bi bi-person-gear"></i>
+    </button>
+    <button class="notif-btn u-oculto" id="btn-logout" data-action="auth:salir" title="Cerrar sesión">
       <i class="bi bi-box-arrow-right"></i>
     </button>
 
@@ -283,11 +360,11 @@
       </div>
       <div class="info-body">
         <div class="leg-title">Estado por antigüedad</div>
-        <div class="legend-item"><div class="legend-color" style="background:var(--verde);"></div> Resuelta</div>
-        <div class="legend-item"><div class="legend-color" style="background:var(--amarillo);"></div> &lt; 15 días</div>
-        <div class="legend-item"><div class="legend-color" style="background:var(--naranja);"></div> 15–30 días</div>
-        <div class="legend-item"><div class="legend-color" style="background:var(--rojo);"></div> &gt; 30 días</div>
-        <div class="leg-title" style="margin-top:12px;">Comunidades (localidades del INEGI)</div>
+        <div class="legend-item"><div class="legend-color leyenda-verde"></div> Resuelta</div>
+        <div class="legend-item"><div class="legend-color leyenda-amarillo"></div> &lt; 15 días</div>
+        <div class="legend-item"><div class="legend-color leyenda-naranja"></div> 15–30 días</div>
+        <div class="legend-item"><div class="legend-color leyenda-rojo"></div> &gt; 30 días</div>
+        <div class="leg-title u-mt-12">Comunidades (localidades del INEGI)</div>
         <div id="legendZonas"></div>
       </div>
     </div>
@@ -298,17 +375,21 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <div id="visibilidadNota" style="display:none;font-size:11px;color:#8a5a00;background:#fff8e6;border:1px solid #ffe4a3;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;">
+        <div id="visibilidadNota" class="nota-visibilidad u-oculto u-mb-8">
           <i class="bi bi-people-fill"></i> Ves <strong>todos los reportes del municipio</strong>. Solo tú puedes
           editar los que hayas creado tú.
         </div>
-        <div id="notaCuenta" style="display:none;font-size:11px;color:#1e4d6b;background:#eaf4fb;border:1px solid #bfdcf0;border-radius:6px;padding:6px 8px;margin-bottom:8px;line-height:1.4;"></div>
+        <div id="notaCuenta" class="nota-cuenta u-oculto u-mb-8"></div>
         <button type="button" class="link-terminos" data-action="onboarding:terminos">
           <i class="bi bi-file-earmark-text"></i> Términos y privacidad
         </button>
         <button type="button" class="link-terminos" data-action="tutorial:abrir">
           <i class="bi bi-question-circle"></i> ¿Cómo funciona? (tutorial)
         </button>
+        <!-- Página pública aparte: se abre en otra pestaña para no perder el estado. -->
+        <a class="link-terminos" href="/acerca" target="_blank" rel="noopener">
+          <i class="bi bi-info-circle"></i> Acerca de este sistema
+        </a>
         <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
         <div class="filters">
           <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
@@ -345,7 +426,7 @@
         </div>
 
         <!-- Atajos a los municipios que tocan las fronteras del activo -->
-        <div class="colindantes" id="colindantesBox" style="display:none;">
+        <div class="colindantes u-oculto" id="colindantesBox">
           <h3><i class="bi bi-signpost-split-fill"></i> Municipios colindantes</h3>
           <div class="colindantes-lista" id="colindantesLista"></div>
         </div>
@@ -389,34 +470,34 @@
         <div class="form-group">
           <label for="incTipo">Tipo de incidencia *</label>
           <select id="incTipo" data-change="incidencias:cambioTipo"></select>
-          <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px;" data-action="tipos:abrir">
+          <button type="button" class="btn btn-outline btn-sm u-mt-6" data-action="tipos:abrir">
             <i class="bi bi-plus-circle"></i> Agregar nuevo concepto
           </button>
         </div>
 
-        <div id="ejemploTipoBox" style="display:none;background:#f0faf8;border:1px dashed #8ecdc0;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-            <div style="font-size:11.5px;font-weight:700;color:var(--primario);text-transform:uppercase;letter-spacing:.4px;">
+        <div id="ejemploTipoBox" class="caja-ejemplo u-oculto u-mb-14">
+          <div class="u-fila-sep">
+            <div class="etiqueta-concepto">
               <i class="bi bi-lightbulb-fill"></i> Ejemplo para este tipo
             </div>
             <button type="button" class="btn btn-outline btn-sm" data-action="incidencias:usarEjemplo">
               <i class="bi bi-magic"></i> Usar este ejemplo
             </button>
           </div>
-          <div style="font-size:12.5px;color:#1a202c;font-weight:600;margin-top:6px;" id="ejemploTitulo"></div>
-          <div style="font-size:12px;color:#4a5568;margin-top:2px;line-height:1.45;" id="ejemploDescripcion"></div>
+          <div class="u-fs-125px u-tinta u-peso-600 u-mt-6" id="ejemploTitulo"></div>
+          <div class="u-fs-12px u-pizarra u-mt-2 u-lh-145" id="ejemploDescripcion"></div>
         </div>
 
         <!-- Aviso que trae el propio concepto (hoy solo «Sitio peligroso»): deja
              claro que el reporte avisa de una zona y no señala a personas. -->
-        <div class="aviso-tipo" id="avisoTipoBox" style="display:none;">
+        <div class="aviso-tipo u-oculto" id="avisoTipoBox">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <span id="avisoTipoTexto"></span>
         </div>
 
         <!-- El icono propio solo se elige en «Otro»: el resto de conceptos ya
              traen el suyo (lo muestra u oculta el formulario). -->
-        <div class="form-group" id="iconoBox" style="display:none;">
+        <div class="form-group u-oculto" id="iconoBox">
           <label>Icono</label>
           <div class="icon-picker" id="iconPicker"></div>
           <p class="campo-nota">Solo el concepto «Otro» deja elegir el icono; los demás usan el que trae su tipo.</p>
@@ -448,30 +529,30 @@
 
         <div class="form-group">
           <label>Ubicación *</label>
-          <p style="font-size:11.5px;color:#718096;margin-bottom:6px;line-height:1.4;">
+          <p class="u-fs-115px u-gris-medio u-mb-6 u-lh-14">
             <i class="bi bi-info-circle"></i> Solo se aceptan ubicaciones dentro del municipio activo (la zona sin sombrear del mapa). La comunidad se registra si el punto cae en una.
           </p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <div class="u-fila-env">
             <button type="button" class="btn btn-outline btn-sm" data-action="incidencias:miUbicacion">
               <i class="bi bi-crosshair"></i> Usar mi ubicación
             </button>
             <button type="button" class="btn btn-outline btn-sm" data-action="incidencias:elegirMapa">
               <i class="bi bi-map"></i> Elegir en el mapa
             </button>
-            <span id="incZonaBadge" style="display:none;align-items:center;gap:5px;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;"></span>
+            <span class="chip-zona u-oculto" id="incZonaBadge"></span>
           </div>
-          <div class="loc-status" id="locStatus" style="display:none;"></div>
-          <input type="text" id="incCoordsTexto" placeholder="O pega coordenadas (lat, lng)" data-change="incidencias:coords" style="margin-top:8px;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:12.5px;width:100%;">
+          <div class="loc-status u-oculto" id="locStatus"></div>
+          <input class="campo-linea u-mt-8" type="text" id="incCoordsTexto" placeholder="O pega coordenadas (lat, lng)" data-change="incidencias:coords">
         </div>
 
         <div class="form-group">
-          <label>Evidencia (fotos hasta 100 MB)</label>
+          <label>Evidencia (fotos hasta 20 MB)</label>
           <div class="evidence-drop" data-action="incidencias:elegirArchivos">
             <i class="bi bi-cloud-arrow-up-fill"></i>
             <p>Haz clic o arrastra tus fotos aquí</p>
             <small>JPG, PNG, WEBP o GIF</small>
           </div>
-          <input type="file" id="incEvidencia" multiple accept="image/*" style="display:none;" data-change="incidencias:archivos">
+          <input class="u-oculto" type="file" id="incEvidencia" multiple accept="image/*" data-change="incidencias:archivos">
           <div class="evidence-list" id="evidenceList"></div>
         </div>
       </form>
@@ -502,7 +583,7 @@
      MODAL: ADMIN PANEL
      ============================================================ -->
 <div class="modal-overlay" id="modalAdmin">
-  <div class="modal-box lg" style="max-width:1000px;">
+  <div class="modal-box lg u-max-1000">
     <div class="modal-head">
       <h3><i class="bi bi-speedometer2"></i> Panel de control</h3>
       <button class="modal-close" data-action="admin:cerrar">&times;</button>
@@ -520,8 +601,8 @@
 
       <div class="admin-panel active" id="panel-stats">
         <div class="stats-grid" id="statsGrid"></div>
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-          <h4 style="font-size:13px;margin-bottom:12px;color:var(--primario);">
+        <div class="panel-blanco">
+          <h4 class="titulo-seccion u-mb-12">
             <i class="bi bi-pie-chart-fill"></i> Incidencias por tipo
           </h4>
           <div id="statsByTipo"></div>
@@ -530,15 +611,15 @@
 
       <div class="admin-panel" id="panel-incidencias">
         <div id="peligrosasDestacadas"></div>
-        <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
-          <input type="text" class="filter-input" id="adminBuscar" placeholder="Buscar…" data-input="admin:buscar" style="max-width:280px;">
+        <div class="u-fila-env u-mb-10">
+          <input type="text" class="filter-input u-max-280" id="adminBuscar" placeholder="Buscar…" data-input="admin:buscar">
           <button class="btn btn-outline btn-sm" data-action="admin:soloPeligrosas" id="btn-solo-peligrosas">
             <i class="bi bi-exclamation-triangle-fill"></i> Solo peligrosas
           </button>
           <button class="btn btn-outline btn-sm" data-action="reportes:csv"><i class="bi bi-file-earmark-spreadsheet"></i> CSV</button>
           <button class="btn btn-outline btn-sm" data-action="reportes:imprimir"><i class="bi bi-printer"></i> Imprimir</button>
         </div>
-        <div style="overflow-x:auto;">
+        <div class="u-scroll-x">
           <table class="data-table">
             <thead>
               <tr>
@@ -552,22 +633,22 @@
       </div>
 
       <div class="admin-panel" id="panel-tipos">
-        <button class="btn btn-primary btn-sm" data-action="tipos:abrir" style="margin-bottom:12px;">
+        <button class="btn btn-primary btn-sm u-mb-12" data-action="tipos:abrir">
           <i class="bi bi-plus-circle"></i> Nuevo tipo
         </button>
         <div id="tiposLista"></div>
       </div>
 
       <div class="admin-panel" id="panel-municipios">
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;margin-bottom:12px;">
-          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+        <div class="panel-blanco u-mb-12">
+          <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-pin-map-fill"></i> Municipio activo
           </h4>
-          <p style="font-size:12.5px;color:var(--gris);margin-bottom:10px;">
+          <p class="u-fs-125px u-gris u-mb-10">
             Elige el municipio del estado que quieres monitorear. El cambio también está
             disponible en la barra superior, para cualquier usuario.
           </p>
-          <select class="filter-select" id="municipioSelect" style="max-width:400px;margin-bottom:10px;"></select>
+          <select class="filter-select u-max-400 u-mb-10" id="municipioSelect"></select>
           <br>
           <button class="btn btn-primary btn-sm" data-action="admin:cambiarMunicipio">
             <i class="bi bi-arrow-repeat"></i> Cambiar municipio
@@ -577,7 +658,7 @@
       </div>
 
       <div class="admin-panel" id="panel-zonas">
-        <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;">
+        <p class="u-fs-125px u-gris u-mb-12">
           Comunidades (localidades del INEGI) del municipio activo, con sus reportes. Los reportes
           ciudadanos se aceptan en todo el término municipal y quedan asignados a su comunidad
           cuando el punto cae en una.
@@ -586,8 +667,8 @@
       </div>
 
       <div class="admin-panel" id="panel-usuarios">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
-          <p style="font-size:12.5px;color:var(--gris);margin:0;max-width:620px;line-height:1.45;">
+        <div class="u-fila-sep-alto u-mb-10">
+          <p class="u-fs-125px u-gris u-m-0 u-max-620 u-lh-145">
             Cuentas del <strong>personal del municipio</strong> (funcionarios y administradores).
             Ellas entran por la pestaña <em>Personal</em> de la pantalla de acceso; los ciudadanos
             crean su propia cuenta con correo. El usuario de acceso no se puede cambiar después.
@@ -602,7 +683,7 @@
       <!-- Moderación: denuncias por atender, publicaciones ocultas y cuentas
            advertidas o suspendidas. Ver controllers/moderacion.controller.js. -->
       <div class="admin-panel" id="panel-moderacion">
-        <p style="font-size:12.5px;color:var(--gris);margin:0 0 12px;max-width:720px;line-height:1.45;">
+        <p class="u-fs-125px u-gris u-m-0 u-max-720 u-lh-145 u-mb-12">
           Los vecinos pueden <strong>denunciar</strong> publicaciones y comentarios que les parezcan
           inapropiados. Aquí se atienden esas denuncias: puedes ocultar el contenido, descartar el
           aviso, advertir al autor o suspender su cuenta. <strong>Tres advertencias suspenden la
@@ -617,7 +698,7 @@
         <div id="ocultasLista"></div>
 
         <h4 class="moderacion-titulo"><i class="bi bi-person-slash"></i> Cuentas advertidas o suspendidas</h4>
-        <div style="overflow-x:auto;">
+        <div class="u-scroll-x">
           <table class="data-table">
             <thead>
               <tr>
@@ -636,7 +717,7 @@
      MODAL: REPORTES
      ============================================================ -->
 <div class="modal-overlay" id="modalReportes">
-  <div class="modal-box lg" style="max-width:900px;">
+  <div class="modal-box lg u-max-900">
     <div class="modal-head">
       <h3><i class="bi bi-file-earmark-bar-graph-fill"></i> Informes y reportes</h3>
       <button class="modal-close" data-action="reportes:cerrar">&times;</button>
@@ -644,56 +725,56 @@
     <div class="modal-body">
       <div class="stats-grid" id="reporteStats"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+      <div class="u-rejilla-2 u-mt-16">
+        <div class="panel-blanco">
+          <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-filetype-csv"></i> Exportar CSV
           </h4>
-          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+          <p class="u-fs-12px u-gris u-mb-10">
             Descarga todas las incidencias en formato compatible con Excel.
           </p>
           <button class="btn btn-primary btn-block" data-action="reportes:csv">
             <i class="bi bi-download"></i> Descargar CSV
           </button>
         </div>
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+        <div class="panel-blanco">
+          <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-filetype-json"></i> Respaldo JSON
           </h4>
-          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+          <p class="u-fs-12px u-gris u-mb-10">
             Descarga un respaldo completo de los datos.
           </p>
           <button class="btn btn-primary btn-block" data-action="reportes:json">
             <i class="bi bi-download"></i> Descargar JSON
           </button>
         </div>
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+        <div class="panel-blanco">
+          <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-printer-fill"></i> Reporte imprimible
           </h4>
-          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+          <p class="u-fs-12px u-gris u-mb-10">
             Genera un reporte imprimible con estadísticas y detalle.
           </p>
           <button class="btn btn-primary btn-block" data-action="reportes:imprimible">
             <i class="bi bi-file-pdf"></i> Ver reporte
           </button>
         </div>
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+        <div class="panel-blanco">
+          <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-trash3-fill"></i> Restablecer datos
           </h4>
-          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+          <p class="u-fs-12px u-gris u-mb-10">
             Borra todas las incidencias (irreversible).
           </p>
           <button class="btn btn-danger btn-block" data-action="reportes:limpiar">
             <i class="bi bi-exclamation-triangle"></i> Borrar todo
           </button>
         </div>
-        <div style="background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-          <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+        <div class="panel-blanco">
+          <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-box-arrow-in-down"></i> Importar respaldo anterior
           </h4>
-          <p style="font-size:12px;color:var(--gris);margin-bottom:10px;">
+          <p class="u-fs-12px u-gris u-mb-10">
             Trae los datos del sistema anterior (JSON exportado) y convierte su evidencia en archivos.
           </p>
           <button class="btn btn-outline btn-block" data-action="reportes:abrirImportar">
@@ -702,11 +783,11 @@
         </div>
       </div>
 
-      <div style="margin-top:16px;background:#fff;border:1px solid var(--borde);border-radius:10px;padding:16px;">
-        <h4 style="font-size:13px;margin-bottom:10px;color:var(--primario);">
+      <div class="panel-blanco u-mt-16">
+        <h4 class="titulo-seccion u-mb-10">
           <i class="bi bi-table"></i> Resumen por tipo
         </h4>
-        <div style="overflow-x:auto;">
+        <div class="u-scroll-x">
           <table class="data-table">
             <thead><tr><th>Tipo</th><th>Total</th><th>Resueltas</th><th>Pendientes</th><th>Promedio días</th></tr></thead>
             <tbody id="reporteTablaBody"></tbody>
@@ -762,7 +843,7 @@
           <input type="password" id="usuarioPassword" placeholder="Al menos 8 caracteres" autocomplete="new-password">
           <p class="campo-nota" id="usuarioPasswordNota">Mínimo 8 caracteres.</p>
         </div>
-        <div class="form-group" id="usuarioActivoBox" style="display:none;">
+        <div class="form-group u-oculto" id="usuarioActivoBox">
           <label class="check-line">
             <input type="checkbox" id="usuarioActivo">
             <span>Cuenta activa (puede iniciar sesión)</span>
@@ -812,11 +893,11 @@
 <div class="modal-overlay" id="modalPeligro">
   <div class="modal-box">
     <div class="modal-head">
-      <h3><i class="bi bi-exclamation-triangle-fill" style="color:var(--rojo);"></i> Marcar como peligrosa</h3>
+      <h3><i class="bi bi-exclamation-triangle-fill u-rojo"></i> Marcar como peligrosa</h3>
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalPeligro">&times;</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;">
+      <p class="u-fs-125px u-gris u-mb-12">
         La incidencia se destacará en grande al principio del panel de administración, para
         que se atienda antes que el resto.
       </p>
@@ -824,7 +905,7 @@
         <label for="peligroMotivo">Motivo del peligro (opcional)</label>
         <textarea id="peligroMotivo" rows="3" maxlength="140"
           placeholder="Ej. Cable de alta tensión caído sobre la banqueta, riesgo de electrocución…"></textarea>
-        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Máximo 140 caracteres.</div>
+        <div class="u-fs-11px u-suave u-mt-4">Máximo 140 caracteres.</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -839,7 +920,7 @@
 <div class="modal-overlay" id="modalResolver">
   <div class="modal-box">
     <div class="modal-head">
-      <h3><i class="bi bi-check-circle-fill" style="color:var(--verde);"></i> Marcar como resuelta</h3>
+      <h3><i class="bi bi-check-circle-fill u-verde"></i> Marcar como resuelta</h3>
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalResolver">&times;</button>
     </div>
     <div class="modal-body">
@@ -855,7 +936,7 @@
             <i class="bi bi-cloud-arrow-up-fill"></i>
             <p>Haz clic o arrastra archivos aquí</p>
           </div>
-          <input type="file" id="resolverEvidencia" multiple accept="image/*,application/pdf" style="display:none;" data-change="incidencias:archivosResolucion">
+          <input class="u-oculto" type="file" id="resolverEvidencia" multiple accept="image/*,application/pdf" data-change="incidencias:archivosResolucion">
           <div class="evidence-list" id="resolverEvidenceList"></div>
         </div>
       </form>
@@ -879,7 +960,7 @@
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalImportar">&times;</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:12.5px;color:#4a5568;line-height:1.5;margin-bottom:12px;">
+      <p class="u-fs-125px u-pizarra u-lh-15 u-mb-12">
         Selecciona el archivo JSON que exportaba el sistema anterior (<em>Informes → Respaldo JSON</em>).
         La evidencia en base64 se convertirá en archivos y se descartará el campo obsoleto <code>colorAuto</code>.
       </p>
@@ -887,7 +968,7 @@
         <label>Archivo de respaldo (.json)</label>
         <input type="file" id="archivoRespaldo" accept="application/json,.json">
       </div>
-      <p style="font-size:11.5px;color:#94a3b8;">
+      <p class="u-fs-115px u-suave">
         <i class="bi bi-shield-lock"></i> Solo un administrador puede importar, y siempre se pide confirmación.
       </p>
     </div>
@@ -906,11 +987,11 @@
 <div class="modal-overlay" id="modalDenuncia">
   <div class="modal-box">
     <div class="modal-head">
-      <h3><i class="bi bi-flag-fill" style="color:var(--rojo);"></i> Denunciar contenido</h3>
+      <h3><i class="bi bi-flag-fill u-rojo"></i> Denunciar contenido</h3>
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalDenuncia">&times;</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;" id="denunciaObjetivo"></p>
+      <p class="u-fs-125px u-gris u-mb-12" id="denunciaObjetivo"></p>
       <div class="form-group">
         <label for="denunciaMotivo">Motivo *</label>
         <select id="denunciaMotivo"></select>
@@ -920,7 +1001,7 @@
         <textarea id="denunciaDetalle" rows="3" maxlength="400"
           placeholder="Cuéntale al personal del municipio por qué te parece inapropiado…"></textarea>
       </div>
-      <p style="font-size:11.5px;color:#94a3b8;line-height:1.45;">
+      <p class="u-fs-115px u-suave u-lh-145">
         <i class="bi bi-shield-lock"></i> Quién denuncia solo lo ve el personal moderador.
         El autor del contenido no sabe quién lo denunció.
       </p>
@@ -942,11 +1023,11 @@
 <div class="modal-overlay" id="modalModeracion">
   <div class="modal-box">
     <div class="modal-head">
-      <h3><i class="bi bi-shield-fill-check" style="color:var(--primario);"></i> <span id="moderacionTitulo">Moderar</span></h3>
+      <h3><i class="bi bi-shield-fill-check u-primario"></i> <span id="moderacionTitulo">Moderar</span></h3>
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalModeracion">&times;</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:12.5px;color:var(--gris);margin-bottom:12px;line-height:1.5;" id="moderacionNota"></p>
+      <p class="u-fs-125px u-gris u-mb-12 u-lh-15" id="moderacionNota"></p>
       <div class="form-group" id="moderacionMotivoBox">
         <label for="moderacionMotivo">Motivo *</label>
         <textarea id="moderacionMotivo" rows="3" maxlength="200"
@@ -957,10 +1038,10 @@
           <input type="checkbox" id="moderacionIndefinida" checked>
           <span>Suspensión indefinida (hasta que se reactive a mano)</span>
         </label>
-        <label for="moderacionHasta" style="margin-top:8px;">O hasta la fecha</label>
+        <label class="u-mt-8" for="moderacionHasta">O hasta la fecha</label>
         <input type="date" id="moderacionHasta">
       </div>
-      <p style="font-size:11.5px;color:#94a3b8;line-height:1.45;">
+      <p class="u-fs-115px u-suave u-lh-145">
         <i class="bi bi-clock-history"></i> La decisión queda en el historial del reporte y se avisa
         al autor y a quien denunció.
       </p>
@@ -968,6 +1049,93 @@
     <div class="modal-foot">
       <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalModeracion">Cancelar</button>
       <button class="btn btn-danger" id="moderacionConfirmar" data-action="moderacion:confirmar">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: MI CUENTA
+     Lo que el ciudadano puede hacer con su propia cuenta: cambiar la
+     contraseña, reenviar la confirmación, descargar sus datos y darse de baja.
+     Ver controllers/auth.controller.js.
+     ============================================================ -->
+<div class="modal-overlay" id="modalCuenta">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-person-gear"></i> Mi cuenta</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalCuenta">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="cuenta-resumen" id="cuentaResumen"></p>
+
+      <div class="cuenta-aviso u-oculto" id="cuentaAvisoCorreo">
+        <i class="bi bi-envelope-exclamation-fill"></i>
+        <div>
+          <strong>Tu correo no está confirmado.</strong>
+          <p class="u-fs-115px u-suave u-mt-2">
+            Sin confirmarlo no podrás entrar desde otro dispositivo.
+          </p>
+          <button class="btn btn-outline btn-sm u-mt-6" data-action="cuenta:reenviar">
+            <i class="bi bi-envelope-arrow-up-fill"></i> Enviarme el enlace otra vez
+          </button>
+        </div>
+      </div>
+
+      <h4 class="cuenta-titulo"><i class="bi bi-key-fill"></i> Cambiar la contraseña</h4>
+      <p class="u-fs-115px u-suave u-mb-8 u-lh-145">
+        Al cambiarla se cerrarán las demás sesiones abiertas en otros dispositivos. Esta seguirá
+        funcionando.
+      </p>
+      <form data-submit="cuenta:cambiarPassword">
+        <div class="form-group">
+          <label for="cuenta-actual">Contraseña actual</label>
+          <input type="password" id="cuenta-actual" name="actual" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label for="cuenta-nueva">Contraseña nueva</label>
+          <input type="password" id="cuenta-nueva" name="nueva" placeholder="Al menos 8 caracteres" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="cuenta-nueva2">Repite la contraseña nueva</label>
+          <input type="password" id="cuenta-nueva2" name="nueva2" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">
+          <i class="bi bi-shield-lock-fill"></i> Guardar contraseña
+        </button>
+      </form>
+
+      <h4 class="cuenta-titulo"><i class="bi bi-download"></i> Mis datos</h4>
+      <p class="u-fs-115px u-suave u-mb-8 u-lh-145">
+        Descarga en un archivo todo lo que el sistema guarda de tu cuenta: tus reportes,
+        tus comentarios, tus avisos y las denuncias que hayas presentado.
+      </p>
+      <button class="btn btn-outline btn-block" data-action="cuenta:descargar">
+        <i class="bi bi-filetype-json"></i> Descargar mis datos
+      </button>
+
+      <div id="cuentaBajaBox">
+        <h4 class="cuenta-titulo u-rojo"><i class="bi bi-person-x-fill"></i> Darme de baja</h4>
+        <p class="u-fs-115px u-suave u-mb-8 u-lh-145">
+          Se borra tu cuenta y tus avisos. Tus reportes <strong>siguen publicados</strong>, pero
+          pasan a ser anónimos: nadie podrá relacionarlos contigo.
+        </p>
+        <form data-submit="cuenta:eliminar">
+          <div class="form-group">
+            <label for="cuenta-baja-pass">Escribe tu contraseña para confirmar</label>
+            <input type="password" id="cuenta-baja-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <label class="check-line">
+            <input type="checkbox" id="cuenta-baja-ok">
+            <span>Entiendo que esta acción no se puede deshacer</span>
+          </label>
+          <button class="btn btn-danger btn-block u-mt-10" type="submit">
+            <i class="bi bi-trash3-fill"></i> Eliminar mi cuenta
+          </button>
+        </form>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalCuenta">Cerrar</button>
     </div>
   </div>
 </div>
@@ -993,13 +1161,13 @@
 
 <div class="toast" id="toast"></div>
 <div class="loading-overlay" id="loading">
-  <div style="text-align:center;">
+  <div class="u-centro">
     <div class="spinner"></div>
     <div id="loadingText">Procesando…</div>
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

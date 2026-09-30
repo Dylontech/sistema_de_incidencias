@@ -14,6 +14,10 @@ import * as mapa from './map/mapa.js';
 import {
   conectarCierreDePaneles,
   entrarComoCiudadano,
+  mostrarPasoDeAccesoPendiente,
+  procesarEnlaceDeRestablecimiento,
+  procesarEnlaceDeVerificacion,
+  recordarEnlaces,
   registrar as registrarAuth
 } from './controllers/auth.controller.js';
 import { registrar as registrarIncidencias } from './controllers/incidencias.controller.js';
@@ -109,6 +113,19 @@ async function iniciar() {
     alIntentarCerrar: (id) => !(id === 'modalIncidencia' && mapa.modoElegirActivo())
   });
 
+  // Los enlaces que llegan por correo apuntan a esta página con el código en la
+  // dirección (`?verificar=` o `?restablecer=`). Se leen antes de arrancar la
+  // sesión, y el código se borra de la barra de direcciones para que no quede en
+  // el historial del navegador.
+  const parametros = new URLSearchParams(location.search);
+  recordarEnlaces({
+    verificar: parametros.get('verificar'),
+    restablecer: parametros.get('restablecer')
+  });
+  if (parametros.has('verificar') || parametros.has('restablecer')) {
+    history.replaceState(null, '', location.pathname);
+  }
+
   // El token caducó en mitad de la sesión: se avisa y se recarga.
   document.addEventListener('sesion-expirada', () => {
     toast('Tu sesión expiró, vuelve a iniciar sesión', 'err');
@@ -122,7 +139,14 @@ async function iniciar() {
     bloqueoView.mostrar(evento.detail?.mensaje);
   });
 
+  // Los enlaces del correo se atienden ya (para no hacer esperar al ciudadano),
+  // pero la pantalla de acceso se deja abierta al final del arranque: el paso
+  // previo (municipio y términos) se muestra por encima y la taparía.
+  await procesarEnlaceDeVerificacion();
+  procesarEnlaceDeRestablecimiento();
+
   await iniciarSesion();
+  mostrarPasoDeAccesoPendiente();
 
   // Guía para quien entra por primera vez (una vez por versión y dispositivo).
   mostrarTutorial();

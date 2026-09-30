@@ -196,7 +196,13 @@ describe('Estadísticas y exportación', () => {
     assert.equal(Object.keys(catalogos.body.ejemplos).length, 20);
     assert.deepEqual(catalogos.body.diasLimites, { amarillo: 15, naranja: 30 });
     assert.equal(catalogos.body.limites.maxVideoSegundos, undefined);
-    assert.deepEqual(catalogos.body.limites.mimesPermitidos, ['image/', 'application/pdf']);
+    assert.deepEqual(catalogos.body.limites.mimesPermitidos, [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'application/pdf'
+    ]);
 
     // El catálogo de conceptos (tipos base) crece con la semilla: los cuatro
     // últimos añadidos son los de bienestar animal y los de emergencias.

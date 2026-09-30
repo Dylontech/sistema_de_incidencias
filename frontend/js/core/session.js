@@ -54,6 +54,27 @@ export const sesion = {
     localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
   },
 
+  /**
+   * Reemplaza el token conservando la sesión abierta.
+   *
+   * Al cambiar la contraseña el servidor sube la versión de la cuenta y devuelve
+   * un token nuevo (los demás quedan invalidados). Si no se guardara aquí, la
+   * pantalla seguiría usando el viejo y la siguiente petición daría 401.
+   */
+  renovarToken(nuevo, usuario = null) {
+    token.guardar(nuevo);
+    if (!this.datos) return;
+    if (usuario) this.datos.usuario = { ...this.datos.usuario, ...usuario };
+    localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
+  },
+
+  /** Refresca los datos del usuario guardados (p. ej. el correo confirmado). */
+  actualizarUsuario(cambios = {}) {
+    if (!this.datos) return;
+    this.datos.usuario = { ...this.datos.usuario, ...cambios };
+    localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
+  },
+
   limpiar() {
     token.borrar();
     this.datos = null;

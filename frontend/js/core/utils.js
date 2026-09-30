@@ -109,3 +109,25 @@ export function debounce(fn, ms = 250) {
 export function hoyIso() {
   return new Date().toISOString().slice(0, 10);
 }
+
+/**
+ * Aplica a un fragmento recién pintado los valores que dependen de los datos y
+ * por eso no pueden ser una clase: el color de una zona del catálogo (un hex
+ * arbitrario) o el ancho de una barra de progreso.
+ *
+ * Se hace por CSSOM (`elemento.style.x = …`), que la Content-Security-Policy SÍ
+ * permite: lo que prohíbe es declarar el estilo dentro del propio marcado.
+ * Por eso el HTML usa `data-fondo` / `data-texto` / `data-ancho` y esta función
+ * los traduce después de insertarlo.
+ */
+export function aplicarEstilosDinamicos(raiz = document) {
+  raiz.querySelectorAll('[data-fondo]').forEach((el) => {
+    el.style.background = el.dataset.fondo;
+  });
+  raiz.querySelectorAll('[data-texto]').forEach((el) => {
+    el.style.color = el.dataset.texto;
+  });
+  raiz.querySelectorAll('[data-ancho]').forEach((el) => {
+    el.style.width = el.dataset.ancho;
+  });
+}

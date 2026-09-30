@@ -9,7 +9,7 @@
  * siempre derivado de la fecha y el estado (ver services/estado.service.js),
  * de modo que existe una única fuente de verdad.
  */
-import { ESTADO_INICIAL, LIMITES_TEXTO, PRECISION_DUPLICADO } from '../config/constantes.js';
+import { ESTADO_INICIAL, LIMITES_TEXTO, PRECISION_DUPLICADO, EVIDENCIA_POLITICA } from '../config/constantes.js';
 import { recolector, normalizarBusqueda } from '../utils/validacion.js';
 import { ahoraIso } from '../utils/fechas.js';
 import { nuevoId } from '../utils/ids.js';
@@ -28,8 +28,9 @@ export const CAMPOS_ENTRADA = [
 ];
 
 // La evidencia es solo de fotografías; el PDF se admite como documento de la
-// resolución. El video ya no se acepta (los reportes antiguos se siguen viendo).
-const MIME_EVIDENCIA = /^(image\/|application\/pdf)/;
+// resolución. La lista es **cerrada** (antes `image/*` dejaba pasar SVG) y el
+// video ya no se acepta por la API, aunque los reportes antiguos se sigan viendo.
+const MIME_EVIDENCIA = EVIDENCIA_POLITICA.mimesPermitidos;
 
 /** Acepta booleanos y las cadenas que envía un formulario HTML. */
 function comoBooleano(valor) {
@@ -103,8 +104,14 @@ function normalizarEvidencia(lista, v) {
       return;
     }
     const url = v.texto(item.url, `evidencia[${i}].url`, { requerido: true, max: 400 });
+    // La evidencia se sirve desde /uploads: una URL externa sería contenido
+    // ajeno dentro del reporte (y el navegador la bloquea por la CSP).
+    if (url && !url.startsWith('/uploads/')) {
+      v.agregar(`evidencia[${i}].url`, 'La evidencia debe ser un archivo subido al sistema');
+      return;
+    }
     const tipo = v.texto(item.tipo, `evidencia[${i}].tipo`, { max: 100 });
-    if (tipo && !MIME_EVIDENCIA.test(tipo)) {
+    if (tipo && !MIME_EVIDENCIA.includes(tipo.toLowerCase())) {
       v.agregar(`evidencia[${i}].tipo`, 'Tipo de archivo no permitido');
       return;
     }

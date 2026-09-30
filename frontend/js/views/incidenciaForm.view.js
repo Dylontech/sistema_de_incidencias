@@ -170,7 +170,7 @@ export function renderZonaBadge(zona) {
   elemento.style.display = 'inline-flex';
   elemento.style.background = zona.color;
   elemento.innerHTML = `<i class="bi bi-pin-map-fill"></i> ${esc(zona.nombre)}
-    <span style="opacity:.8;text-transform:capitalize;">(${esc(zona.tipo)})</span>`;
+    <span class="u-opacidad-80 u-capitalizar">(${esc(zona.tipo)})</span>`;
 }
 
 export function textoCoordenadas() {

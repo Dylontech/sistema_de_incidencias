@@ -192,6 +192,16 @@ export class RepositorioMysql {
       activo: Boolean(fila.activo),
       pseudonimo: Boolean(fila.pseudonimo),
       passwordHash: fila.password_hash,
+      // Cuenta segura: verificación del correo, tokens de un solo uso, versión
+      // de la sesión y bloqueo por intentos fallidos.
+      correoVerificado: Boolean(fila.correo_verificado),
+      tokenVerificacionHash: fila.token_verificacion_hash || null,
+      tokenVerificacionExpira: desdeFecha(fila.token_verificacion_expira),
+      resetTokenHash: fila.reset_token_hash || null,
+      resetExpira: desdeFecha(fila.reset_expira),
+      tokenVersion: aNumero(fila.token_version) || 1,
+      intentosFallidos: aNumero(fila.intentos_fallidos) || 0,
+      bloqueadoHasta: desdeFecha(fila.bloqueado_hasta),
       advertencias: aNumero(fila.advertencias) || 0,
       suspendido: Boolean(fila.suspendido),
       suspendidoHasta: desdeFecha(fila.suspendido_hasta),
@@ -225,6 +235,22 @@ export class RepositorioMysql {
     return this.#aUsuario(fila);
   }
 
+  /** Cuenta a la que pertenece un token de verificación (se busca por su hash). */
+  async usuarioPorTokenVerificacion(hash) {
+    const buscado = String(hash || '');
+    if (!buscado) return null;
+    const fila = await this.knex('usuarios').where({ token_verificacion_hash: buscado }).first();
+    return this.#aUsuario(fila);
+  }
+
+  /** Cuenta a la que pertenece un token de restablecimiento de contraseña. */
+  async usuarioPorTokenRestablecimiento(hash) {
+    const buscado = String(hash || '');
+    if (!buscado) return null;
+    const fila = await this.knex('usuarios').where({ reset_token_hash: buscado }).first();
+    return this.#aUsuario(fila);
+  }
+
   async crearUsuario(usuario) {
     await this.knex('usuarios').insert(this.#aFilaUsuario(usuario));
     return usuario;
@@ -235,6 +261,16 @@ export class RepositorioMysql {
     const fila = this.#aFilaUsuario(cambios, { parcial: true });
     if (Object.keys(fila).length) await this.knex('usuarios').where({ id }).update(fila);
     return this.usuarioPorId(id);
+  }
+
+  /**
+   * Borra la cuenta.
+   * Sus reportes NO se van con ella: el servicio los anonimiza antes, porque el
+   * ayuntamiento conserva el expediente aunque el vecino se dé de baja.
+   */
+  async eliminarUsuario(id) {
+    const borrados = await this.knex('usuarios').where({ id }).del();
+    return borrados > 0;
   }
 
   /** Traduce el objeto de dominio a columnas (y viceversa con `parcial`). */
@@ -253,6 +289,14 @@ export class RepositorioMysql {
     pon('activo', usuario.activo !== false);
     pon('pseudonimo', usuario.pseudonimo === true);
     pon('password_hash', usuario.passwordHash, 'passwordHash');
+    pon('correo_verificado', usuario.correoVerificado === true, 'correoVerificado');
+    pon('token_verificacion_hash', usuario.tokenVerificacionHash ?? null, 'tokenVerificacionHash');
+    pon('token_verificacion_expira', aFecha(usuario.tokenVerificacionExpira), 'tokenVerificacionExpira');
+    pon('reset_token_hash', usuario.resetTokenHash ?? null, 'resetTokenHash');
+    pon('reset_expira', aFecha(usuario.resetExpira), 'resetExpira');
+    pon('token_version', Number(usuario.tokenVersion) || 1, 'tokenVersion');
+    pon('intentos_fallidos', aNumero(usuario.intentosFallidos) || 0, 'intentosFallidos');
+    pon('bloqueado_hasta', aFecha(usuario.bloqueadoHasta), 'bloqueadoHasta');
     pon('advertencias', aNumero(usuario.advertencias) || 0);
     pon('suspendido', usuario.suspendido === true);
     pon('suspendido_hasta', aFecha(usuario.suspendidoHasta), 'suspendidoHasta');
@@ -706,6 +750,12 @@ export class RepositorioMysql {
       .update(this.#aFilaDenuncia({ ...denuncia, id }));
     if (!actualizados) return null;
     return denuncia;
+  }
+
+  /** Se usa al dar de baja una cuenta: sus denuncias se van con ella. */
+  async eliminarDenuncia(id) {
+    const borrados = await this.knex('denuncias').where({ id }).del();
+    return borrados > 0;
   }
 
   async borrarDenuncias() {

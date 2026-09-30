@@ -7,7 +7,6 @@
  * firmados dentro del JWT.
  */
 import { AppError } from '../utils/AppError.js';
-import { firmarToken } from '../utils/jwt.js';
 import { nuevoId } from '../utils/ids.js';
 import { pseudonimoAleatorio } from '../utils/pseudonimos.js';
 import {
@@ -19,10 +18,18 @@ import {
   estaSuspendido,
   limpiarSancion,
   mensajeSuspension,
-  suspensionVencida
+  suspensionVencida,
+  estaBloqueada,
+  segundosDeBloqueo,
+  limpiarIntentos,
+  registrarIntentoFallido,
+  versionDeSesion
 } from '../models/usuario.model.js';
 import { coincideClave } from '../models/municipio.model.js';
 import { MUNICIPIO_DEFAULT } from '../config/constantes.js';
+import { config } from '../config/index.js';
+import { contexto, contextoCiudadano, sesion } from './sesion.service.js';
+import { emitirVerificacion } from './cuenta.service.js';
 
 const PATRON_ANON = /^[a-zA-Z0-9_-]{6,64}$/;
 
@@ -41,33 +48,54 @@ async function exigirCuentaHabilitada(repositorio, cuenta) {
   if (estaSuspendido(cuenta)) throw AppError.prohibido(mensajeSuspension(cuenta));
 }
 
-/** Contexto del usuario que se inyecta en `req.usuario`. */
-function contexto({ username, nombre, rol, municipioId, userKey }) {
-  return { username, nombre, rol, municipioId: municipioId || null, userKey };
+/**
+ * Corta el acceso mientras la cuenta esté bloqueada por intentos fallidos.
+ *
+ * Se comprueba **antes** de mirar la contraseña, que es lo único que frena la
+ * fuerza bruta. El precio es que quien ataca puede deducir que la cuenta existe
+ * (si no existiera no habría nada que bloquear); se acepta porque el registro
+ * ya responde «ya existe una cuenta con ese correo» y porque lo que está en
+ * juego aquí es que no se pueda adivinar una contraseña a base de reintentos.
+ */
+function exigirCuentaSinBloqueo(cuenta) {
+  if (!estaBloqueada(cuenta)) return;
+  const segundos = segundosDeBloqueo(cuenta);
+  const minutos = Math.max(1, Math.ceil(segundos / 60));
+  throw AppError.demasiadasPeticiones(
+    `Demasiados intentos fallidos. Vuelve a intentarlo en ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`,
+    { reintentarEnSegundos: segundos }
+  );
 }
 
-function sesion({ usuario, municipioActivo = null }) {
-  return {
-    token: firmarToken({
-      sub: usuario.username,
-      username: usuario.username,
-      nombre: usuario.nombre,
-      rol: usuario.rol,
-      municipioId: usuario.municipioId || null,
-      correo: usuario.correo || null,
-      userKey: usuario.userKey
-    }),
-    usuario: {
-      username: usuario.username,
-      nombre: usuario.nombre,
-      rol: usuario.rol,
-      municipioId: usuario.municipioId || null,
-      correo: usuario.correo || null,
-      userKey: usuario.userKey,
-      esAnonimo: usuario.rol === 'anonimo'
-    },
-    municipioActivo
-  };
+/**
+ * Anota un intento fallido y devuelve el error que hay que lanzar.
+ * El mensaje es siempre el mismo tanto si la cuenta existe como si no: lo único
+ * que cambia es que, al agotar los intentos, la cuenta queda bloqueada un rato.
+ */
+async function errorPorCredenciales(repositorio, cuenta, mensaje) {
+  if (!cuenta) return AppError.noAutenticado(mensaje);
+
+  const estado = registrarIntentoFallido(cuenta);
+  await repositorio.actualizarUsuario(cuenta.id, {
+    intentosFallidos: estado.intentosFallidos,
+    bloqueadoHasta: estado.bloqueadoHasta
+  });
+
+  if (estado.bloqueadaAhora) {
+    const minutos = Math.max(1, Number(config.cuenta.minutosBloqueo) || 15);
+    return AppError.demasiadasPeticiones(
+      `Demasiados intentos fallidos. La cuenta queda bloqueada ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`,
+      { reintentarEnSegundos: minutos * 60 }
+    );
+  }
+  return AppError.noAutenticado(mensaje);
+}
+
+/** Da por buenas las credenciales: se olvidan los intentos fallidos. */
+async function olvidarIntentos(repositorio, cuenta) {
+  if (Number(cuenta?.intentosFallidos || 0) > 0) {
+    await repositorio.actualizarUsuario(cuenta.id, limpiarIntentos());
+  }
 }
 
 /**
@@ -123,18 +151,6 @@ function usernameCiudadano() {
   return `cdad_${nuevoId().replace(/-/g, '').slice(0, 10)}`;
 }
 
-/** Contexto de sesión de una cuenta ciudadana ya guardada. */
-function contextoCiudadano(usuario) {
-  return {
-    username: usuario.username,
-    nombre: usuario.nombre,
-    rol: 'ciudadano',
-    municipioId: usuario.municipioId || null,
-    correo: usuario.correo || null,
-    userKey: usuario.username
-  };
-}
-
 /**
  * Alta de cuenta ciudadana: correo + contraseña, con nombre real o pseudónimo.
  *
@@ -162,6 +178,21 @@ export async function registrarCiudadano(repositorio, datos = {}) {
 
   await repositorio.crearUsuario(usuario);
 
+  // El enlace de confirmación sale ya: hasta que se abra, la cuenta no sirve
+  // para entrar. Si no se exigiera, cualquiera podría registrarse con el correo
+  // de otra persona y quedarse con sus avisos.
+  await emitirVerificacion(repositorio, usuario);
+
+  if (config.cuenta.exigirCorreoVerificado) {
+    // Sin sesión: el ciudadano entra cuando confirme. Devolver un token aquí
+    // dejaría pasar justo a quien todavía no ha demostrado que el correo es suyo.
+    return {
+      requiereVerificacion: true,
+      correo: usuario.correo,
+      mensaje: `Te hemos enviado un enlace a ${usuario.correo}. Ábrelo para activar la cuenta.`
+    };
+  }
+
   // La cuenta nueva se queda en el municipio que el ciudadano estaba viendo.
   const municipioActivo =
     (datos.municipioId ? await repositorio.municipioPorId(datos.municipioId) : null) ||
@@ -173,17 +204,31 @@ export async function registrarCiudadano(repositorio, datos = {}) {
 export async function entrarCiudadano(repositorio, { correo, password, municipioId } = {}) {
   if (!correo || !password) throw AppError.solicitudInvalida('Completa todos los campos');
 
+  // Un solo mensaje para «no existe», «contraseña mal» y «no es ciudadana».
+  const noValidas = 'Correo o contraseña incorrectos';
   const email = normalizarCorreo(correo);
   const encontrado = email ? await repositorio.usuarioPorCorreo(email) : null;
-  if (!encontrado || encontrado.rol !== 'ciudadano' || encontrado.activo === false) {
-    throw AppError.noAutenticado('Correo o contraseña incorrectos');
-  }
-  if (!(await verificarPassword(encontrado, password))) {
-    throw AppError.noAutenticado('Correo o contraseña incorrectos');
-  }
-  await exigirCuentaHabilitada(repositorio, encontrado);
+  const cuenta =
+    encontrado && encontrado.rol === 'ciudadano' && encontrado.activo !== false ? encontrado : null;
 
-  const usuario = contextoCiudadano(encontrado);
+  if (cuenta) exigirCuentaSinBloqueo(cuenta);
+
+  if (!cuenta || !(await verificarPassword(cuenta, password))) {
+    throw await errorPorCredenciales(repositorio, cuenta, noValidas);
+  }
+
+  // El correo sin confirmar se avisa DESPUÉS de comprobar la contraseña: así
+  // nadie descubre que la cuenta existe sin saber ya la contraseña.
+  if (config.cuenta.exigirCorreoVerificado && cuenta.correoVerificado === false) {
+    throw AppError.prohibido(
+      'Todavía no has confirmado tu correo. Abre el enlace que te enviamos o pide que te lo reenviemos.'
+    );
+  }
+
+  await exigirCuentaHabilitada(repositorio, cuenta);
+  await olvidarIntentos(repositorio, cuenta);
+
+  const usuario = contextoCiudadano(cuenta);
   // El ciudadano conserva el municipio que estaba viendo en este dispositivo.
   const activo =
     (municipioId ? await repositorio.municipioPorId(municipioId) : null) ||
@@ -197,29 +242,37 @@ export async function entrarCiudadano(repositorio, { correo, password, municipio
   }
 
   const encontrado = await repositorio.usuarioPorUsername(username);
-  if (!encontrado || encontrado.rol !== 'funcionario' || encontrado.activo === false) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
-  }
-  if (!(await verificarPassword(encontrado, password))) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
-  }
-  await exigirCuentaHabilitada(repositorio, encontrado);
+  const cuenta =
+    encontrado && encontrado.rol === 'funcionario' && encontrado.activo !== false ? encontrado : null;
 
+  if (cuenta) exigirCuentaSinBloqueo(cuenta);
+
+  // La clave del municipio se comprueba antes de dar la contraseña por mala:
+  // si no, un intento sin clave válida contaría como fallo de contraseña y
+  // bloquearía la cuenta a quien solo se equivocó de municipio.
   const municipio = await repositorio.municipioPorClave(claveMunicipio);
   if (!municipio) {
     throw AppError.noAutenticado('Clave de municipio incorrecta');
   }
-  if (encontrado.municipioId && encontrado.municipioId !== municipio.id) {
+
+  if (!cuenta || !(await verificarPassword(cuenta, password))) {
+    throw await errorPorCredenciales(repositorio, cuenta, 'Credenciales incorrectas');
+  }
+  await exigirCuentaHabilitada(repositorio, cuenta);
+  await olvidarIntentos(repositorio, cuenta);
+
+  if (cuenta.municipioId && cuenta.municipioId !== municipio.id) {
     throw AppError.prohibido('No tienes acceso a este municipio');
   }
 
-  const usuario = {
-    username: encontrado.username,
-    nombre: encontrado.nombre,
+  const usuario = contexto({
+    username: cuenta.username,
+    nombre: cuenta.nombre,
     rol: 'funcionario',
     municipioId: municipio.id,
-    userKey: encontrado.username
-  };
+    userKey: cuenta.username,
+    version: versionDeSesion(cuenta)
+  });
 
   return sesion({ usuario, municipioActivo: municipio });
 }
@@ -231,21 +284,25 @@ export async function entrarAdmin(repositorio, { username, password }) {
   }
 
   const encontrado = await repositorio.usuarioPorUsername(username);
-  if (!encontrado || encontrado.rol !== 'admin' || encontrado.activo === false) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
-  }
-  if (!(await verificarPassword(encontrado, password))) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
-  }
-  await exigirCuentaHabilitada(repositorio, encontrado);
+  const cuenta =
+    encontrado && encontrado.rol === 'admin' && encontrado.activo !== false ? encontrado : null;
 
-  const usuario = {
-    username: encontrado.username,
-    nombre: encontrado.nombre,
+  if (cuenta) exigirCuentaSinBloqueo(cuenta);
+
+  if (!cuenta || !(await verificarPassword(cuenta, password))) {
+    throw await errorPorCredenciales(repositorio, cuenta, 'Credenciales incorrectas');
+  }
+  await exigirCuentaHabilitada(repositorio, cuenta);
+  await olvidarIntentos(repositorio, cuenta);
+
+  const usuario = contexto({
+    username: cuenta.username,
+    nombre: cuenta.nombre,
     rol: 'admin',
-    municipioId: encontrado.municipioId || null, // ya no se fuerza a 'maravatio'
-    userKey: encontrado.username
-  };
+    municipioId: cuenta.municipioId || null, // ya no se fuerza a 'maravatio'
+    userKey: cuenta.username,
+    version: versionDeSesion(cuenta)
+  });
 
   const municipioActivo = await municipioSugerido(repositorio, usuario);
   return sesion({ usuario, municipioActivo });
@@ -260,7 +317,11 @@ export function usuarioDesdeToken(payload) {
     rol: payload.rol,
     municipioId: payload.municipioId || null,
     correo: payload.correo || null,
-    userKey: payload.userKey || payload.username
+    userKey: payload.userKey || payload.username,
+    // Versión de la sesión con la que se firmó: el middleware la compara con la
+    // guardada en la cuenta para detectar tokens emitidos antes de un cambio de
+    // contraseña.
+    version: Number(payload.v) || 1
   };
 }
 

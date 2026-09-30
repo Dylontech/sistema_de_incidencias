@@ -45,7 +45,7 @@ export function renderizar(incidencias = [], { tipos = [], esCiudadano = false }
     contenedor.innerHTML = `<div class="empty-state">
       <i class="bi bi-inbox"></i>
       <div>${esCiudadano ? 'Todavía no hay reportes en este municipio' : 'No hay incidencias que mostrar'}</div>
-      <div style="font-size:11.5px;margin-top:6px;">
+      <div class="u-fs-115px u-mt-6">
         ${esCiudadano ? 'Usa el botón + para reportar el primero' : 'Prueba ajustar los filtros o reporta una nueva'}
       </div>
     </div>`;
@@ -69,7 +69,7 @@ export function renderizar(incidencias = [], { tipos = [], esCiudadano = false }
             ${inc.peligrosa ? '<span class="inc-badge badge-peligro" title="Marcada por el personal como peligrosa">⚠️ PELIGROSA</span>' : ''}
             ${inc.oculta ? '<span class="inc-badge badge-oculta" title="Retirada de la vista pública por moderación">🚫 OCULTA</span>' : ''}
           </div>
-          <div class="inc-meta" style="margin-top:4px;">
+          <div class="inc-meta u-mt-4">
             <span><i class="bi bi-person"></i> ${esc(autor)}</span>
             <span>${esc(tipo ? tipo.nombre : '—')}</span>
           </div>

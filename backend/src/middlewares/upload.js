@@ -11,15 +11,19 @@ const almacenamiento = multer.diskStorage({
       .then(() => cb(null, config.paths.uploads))
       .catch(cb);
   },
-  // Nombre aleatorio (UUID) para que la URL sea impredecible.
-  filename: (req, file, cb) => cb(null, `${nuevoId()}${extensionDe(file.mimetype, file.originalname)}`)
+  // Nombre aleatorio (UUID) para que la URL sea impredecible. La extensión sale
+  // del tipo permitido, nunca del nombre que envía el cliente.
+  filename: (req, file, cb) => cb(null, `${nuevoId()}${extensionDe(file.mimetype)}`)
 });
 
 export const recibirArchivos = multer({
   storage: almacenamiento,
   limits: {
-    // Solo fotografías (y el PDF de la resolución): el tope absoluto es el de
-    // una foto, así que no se escribe en disco ningún archivo mayor.
+    // Solo fotografías (y el PDF de la resolución): el tope por archivo lo
+    // aplica busboy mientras llega el cuerpo, así que no se escribe en disco
+    // nada mayor. El tope del CONJUNTO se comprueba al terminar la carga
+    // (`validarArchivos`), porque multer atiende los archivos en paralelo y no
+    // hay un punto intermedio fiable donde cortar sin romper el flujo.
     fileSize: config.evidencia.maxFotoBytes,
     files: EVIDENCIA_POLITICA.maxArchivosPorCarga
   },

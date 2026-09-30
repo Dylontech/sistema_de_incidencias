@@ -42,7 +42,12 @@ const RUTAS_ENTRADA = [
   '/auth/registro',
   '/auth/ciudadano',
   '/auth/funcionario',
-  '/auth/admin'
+  '/auth/admin',
+  // Verificación y recuperación: se llega desde el enlace de un correo, sin
+  // sesión, así que un 401 aquí no significa «sesión caducada».
+  '/auth/verificar',
+  '/auth/olvide',
+  '/auth/restablecer'
 ];
 
 async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
@@ -96,7 +101,7 @@ export const api = {
   post: (ruta, cuerpo) => peticion(ruta, { metodo: 'POST', cuerpo }),
   put: (ruta, cuerpo) => peticion(ruta, { metodo: 'PUT', cuerpo }),
   patch: (ruta, cuerpo) => peticion(ruta, { metodo: 'PATCH', cuerpo }),
-  del: (ruta) => peticion(ruta, { metodo: 'DELETE' }),
+  del: (ruta, cuerpo) => peticion(ruta, { metodo: 'DELETE', cuerpo }),
   /** Sube archivos al endpoint de evidencia (campo `archivos`). */
   subir: (ruta, archivos) => {
     const formulario = new FormData();

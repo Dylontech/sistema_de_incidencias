@@ -7,7 +7,8 @@ import {
   estaSuspendido,
   limpiarSancion,
   mensajeSuspension,
-  suspensionVencida
+  suspensionVencida,
+  versionDeSesion
 } from '../models/usuario.model.js';
 import { obtenerRepositorio } from '../repositories/index.js';
 
@@ -33,6 +34,14 @@ export async function autenticar(req, res, next) {
     if (!cuenta || cuenta.activo === false) {
       req.usuario = null;
       return next(AppError.noAutenticado('Tu cuenta ya no está activa'));
+    }
+
+    // Cambiar la contraseña sube la versión de la cuenta. Los tokens emitidos
+    // antes llevan la versión vieja, así que esta comprobación es lo que cierra
+    // las demás sesiones sin tener que guardar la lista de tokens vivos.
+    if (Number(req.usuario.version || 1) !== versionDeSesion(cuenta)) {
+      req.usuario = null;
+      return next(AppError.noAutenticado('Tu sesión ha caducado. Vuelve a entrar.'));
     }
 
     if (estaSuspendido(cuenta)) {

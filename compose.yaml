@@ -66,12 +66,37 @@ services:
       DB_NAME: ${DB_NAME:-incidencias}
       DB_CHARSET: utf8mb4
       UPLOAD_DIR: /app/backend/uploads
-      MAX_FOTO_BYTES: ${MAX_FOTO_BYTES:-104857600}
+      MAX_FOTO_BYTES: ${MAX_FOTO_BYTES:-20971520}
+      MAX_CARGA_BYTES: ${MAX_CARGA_BYTES:-62914560}
+      # Si algún día se pone un proxy inverso delante, hay que declarar cuántos
+      # saltos hay (TRUST_PROXY=1) para que la IP del cliente sea la real.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Actívalo solo cuando la app se sirva por HTTPS (HSTS + upgrade-insecure-requests).
+      ASUMIR_HTTPS: ${ASUMIR_HTTPS:-false}
+      CSP_MODO: ${CSP_MODO:-estricto}
+      RATE_LIMIT_ACTIVO: ${RATE_LIMIT_ACTIVO:-true}
+      # ---------------------------------------------------------------
+      # Cuentas ciudadanas: enlaces de confirmación y de recuperación.
+      #
+      # Sin SMTP_HOST los correos se escriben en el registro del contenedor
+      # (`docker compose logs app`), que es lo que permite probar el flujo
+      # completo sin servidor de correo. En producción, configúralo.
+      # ---------------------------------------------------------------
+      URL_PUBLICA: ${URL_PUBLICA:-http://localhost:3100}
+      EXIGIR_CORREO_VERIFICADO: ${EXIGIR_CORREO_VERIFICADO:-true}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SEGURO: ${SMTP_SEGURO:-false}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_REMITENTE: ${SMTP_REMITENTE:-Incidencias Municipales <no-responder@localhost>}
     volumes:
       # Las fotografías de evidencia sobreviven a recrear el contenedor.
       - evidencia:/app/backend/uploads
+    # Publicado solo en 127.0.0.1 por omisión: la aplicación no queda expuesta a
+    # la red local. Para probarla desde el móvil, APP_BIND=0.0.0.0 en el .env.
     ports:
-      - "${APP_PORT:-3100}:3000"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3100}:3000"
     healthcheck:
       test:
         - CMD

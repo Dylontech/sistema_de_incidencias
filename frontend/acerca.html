@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acerca de — Sistema de Incidencias Municipales</title>
+<meta name="description" content="Qué es, cómo funciona y con qué está hecho el Sistema de Incidencias Municipales: características, tecnologías y dependencias, agradecimientos al INEGI y a Leaflet, y datos de contacto de DylonTech.">
+<!-- Página pública: se puede enlazar y aparecer en buscadores (al revés que /personal). -->
+<meta name="robots" content="index, follow">
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/componentes.css">
+<link rel="stylesheet" href="css/extensiones.css">
+</head>
+<body class="acerca-cuerpo">
+
+<div class="acerca-pagina">
+
+  <!-- ============================================================
+       CABECERA
+       ============================================================ -->
+  <header class="acerca-cabecera">
+    <a class="acerca-volver" href="/"><i class="bi bi-arrow-left"></i> Volver a la aplicación</a>
+    <div class="acerca-marca"><i class="bi bi-geo-alt-fill"></i></div>
+    <h1>Sistema de Incidencias Municipales</h1>
+    <p class="acerca-sub">
+      Un mapa ciudadano para reportar y dar seguimiento a los problemas del municipio:
+      baches, fugas de agua, luminarias, basura, animales, incendios y más.
+    </p>
+    <div class="acerca-distintivos">
+      <span class="acerca-distintivo"><i class="bi bi-stars"></i> Hecha con asistencia de IA</span>
+      <span class="acerca-distintivo"><i class="bi bi-cone-striped"></i> Versión preliminar</span>
+      <span class="acerca-distintivo"><i class="bi bi-people-fill"></i> Proyecto ciudadano independiente</span>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       AVISO: VERSIÓN PRELIMINAR HECHA CON IA
+       ============================================================ -->
+  <section class="acerca-aviso">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+      <strong>Todavía está en construcción y puede tener errores.</strong>
+      Esta es una <strong>versión preliminar</strong> desarrollada con <strong>asistencia de
+      inteligencia artificial</strong>: aunque se prueba antes de cada cambio, puede haber
+      fallos, funciones a medias o información desactualizada, así que <strong>verifica lo que
+      veas aquí antes de tomar decisiones con ello</strong>. Y, sobre todo: esta página
+      <strong>no es una entidad gubernamental</strong>, no pertenece a ningún ayuntamiento ni
+      dependencia pública y no atiende ni resuelve los reportes. Los datos que generes pueden
+      compartirse o venderse; el detalle está en los
+      <a href="/">Términos y privacidad</a> de la aplicación.
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ¿QUÉ ES?
+       ============================================================ -->
+  <section class="acerca-seccion">
+    <h2><i class="bi bi-info-circle-fill"></i> ¿Qué es?</h2>
+    <p class="acerca-texto">
+      Es una plataforma <strong>informativa y ciudadana</strong>: cualquiera puede reportar un
+      problema en su municipio, verlo en el mapa y seguir su avance, sin necesidad de cuenta ni
+      de instalar nada. El objetivo es hacer visibles los problemas de la calle y dejar
+      constancia pública de ellos. No sustituye a los servicios municipales ni a una denuncia
+      formal: es la fotografía ciudadana de qué está pendiente y desde cuándo.
+    </p>
+  </section>
+
+  <!-- ============================================================
+       ¿CÓMO FUNCIONA?
+       ============================================================ -->
+  <section class="acerca-seccion">
+    <h2><i class="bi bi-signpost-split-fill"></i> ¿Cómo funciona?</h2>
+    <p class="acerca-intro">
+      Seis pasos, de la ubicación del problema a su resolución:
+    </p>
+    <ol class="acerca-pasos">
+      <li>
+        <strong>Elige tu municipio</strong>
+        Al entrar se pregunta dónde vas a reportar, con un buscador del catálogo del INEGI
+        (también se filtra por estado). Puedes cambiarlo después desde la barra superior; el
+        personal, en cambio, queda fijo al municipio que le asigna el servidor.
+      </li>
+      <li>
+        <strong>Ubica el problema</strong>
+        El punto se marca en el mapa y el sistema solo acepta los que caen dentro del contorno
+        del municipio. Si además cae en una comunidad del INEGI, la guarda como referencia
+        («junto a la plaza de…»), aunque la comunidad es opcional.
+      </li>
+      <li>
+        <strong>Descríbelo y documentalo</strong>
+        Concepto (con un ejemplo guía que puedes copiar), título, descripción, indicaciones
+        para llegar y fotografías. La evidencia es <strong>solo de fotografías</strong>.
+      </li>
+      <li>
+        <strong>Sigue su avance</strong>
+        Cada reporte es una tarjeta y un marcador, coloreados por antigüedad: amarillo menos de
+        15 días, naranja entre 15 y 30, rojo más de 30 y verde cuando está resuelto. El estado
+        avanza de <em>reportada</em> a <em>en proceso</em> y de ahí a <em>resuelta</em>.
+      </li>
+      <li>
+        <strong>Recibe avisos</strong>
+        Con una cuenta (correo y contraseña) te llega al buzón cada cambio de estado, comentario
+        o resolución de tus reportes. Una sesión anónima no recibe avisos: no hay a quién
+        dirigirlos.
+      </li>
+      <li>
+        <strong>Se atiende y se modera</strong>
+        El personal del municipio cambia estados, marca lo peligroso y resuelve. Cualquiera
+        puede denunciar contenido; el personal decide si se oculta, se advierte o se suspende
+        una cuenta.
+      </li>
+    </ol>
+
+    <h3 class="acerca-subtitulo"><i class="bi bi-person-badge-fill"></i> Quién puede hacer qué</h3>
+    <table class="acerca-tabla">
+      <thead>
+        <tr>
+          <th>Forma de entrar</th>
+          <th>Cómo</th>
+          <th>Qué puede hacer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Ciudadano anónimo</strong></td>
+          <td>Sin cuenta, directo desde el navegador</td>
+          <td>Reportar y ver todos los reportes del municipio. No recibe avisos.</td>
+        </tr>
+        <tr>
+          <td><strong>Cuenta ciudadana</strong></td>
+          <td>Correo y contraseña, desde la aplicación</td>
+          <td>Reportar con tu nombre, con un pseudónimo o como anónimo; buzón de avisos; editar
+            y eliminar tus propios reportes y comentar los demás.</td>
+        </tr>
+        <tr>
+          <td><strong>Funcionario</strong></td>
+          <td>Página interna de acceso del personal, con usuario, contraseña y clave de
+            municipio</td>
+          <td>Gestionar los reportes de su municipio: estados, resolución, marca de peligro y
+            moderación.</td>
+        </tr>
+        <tr>
+          <td><strong>Administrador</strong></td>
+          <td>Página interna de acceso del personal</td>
+          <td>Todo lo del funcionario y, además, catálogos (conceptos, municipios,
+            comunidades), cuentas del personal, panel de estadísticas e informes.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="acerca-nota">
+      <i class="bi bi-shield-lock"></i>
+      Las contraseñas se guardan cifradas y las sesiones viajan firmadas. El acceso del personal
+      vive en <code>/personal</code>, una página sin enlaces desde la aplicación.
+    </p>
+  </section>
+
+  <!-- ============================================================
+       CARACTERÍSTICAS
+       ============================================================ -->
+  <section class="acerca-seccion">
+    <h2><i class="bi bi-grid-1x2-fill"></i> Características</h2>
+    <p class="acerca-intro">Lo que trae hoy, sin adornos:</p>
+    <div class="acerca-rejilla">
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-map-fill"></i> Mapa con cuatro capas</h3>
+        <p>Satélite, calles y mapa físico de Esri, y relieve de OpenTopoMap, conmutables desde
+          el propio mapa. El límite del municipio se dibuja con una máscara que oscurece todo lo
+          de fuera, y las comunidades del INEGI se pueden mostrar encima.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-geo-fill"></i> Catálogo del INEGI</h3>
+        <p>Michoacán, Guanajuato y Ciudad de México: 175 municipios y más de 6 300 comunidades
+          con sus polígonos reales, usados como geocerca para validar cada reporte. Además,
+          atajos a los municipios colindantes para saltar de uno a otro.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-tags-fill"></i> 20 conceptos de reporte</h3>
+        <p>Bache, fuga de agua, luminaria, basura, alcantarilla, incendio forestal, sitio
+          peligroso, crueldad animal… Cada concepto trae su icono y un ejemplo guía para
+          describirlo, y los temas delicados muestran un aviso propio.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-camera-fill"></i> Evidencia en fotografías</h3>
+        <p>JPG, PNG, WEBP o GIF de hasta 20 MB por archivo y 60 MB por reporte, con vista previa,
+          reemplazo y borrado. El PDF se admite solo como documento de la resolución.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-palette-fill"></i> Color por antigüedad</h3>
+        <p>El color no se guarda: se calcula. Amarillo menos de 15 días, naranja de 15 a 30,
+          rojo más de 30, y verde cuando el reporte queda resuelto. De un vistazo se ve qué se
+          está quedando viejo.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-funnel-fill"></i> Filtros y búsqueda</h3>
+        <p>Por texto, estado, concepto, color y comunidad, con orden por más recientes, más
+          antiguas o prioridad (lo más urgente y viejo primero). Los filtros conviven con el
+          mapa: la lista y los marcadores siempre concuerdan.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-bell-fill"></i> Buzón de avisos</h3>
+        <p>Cada cambio de estado, comentario, resolución o alerta global llega como notificación
+          a quien tenga cuenta, con su contador de pendientes.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-incognito"></i> Identidad a tu manera</h3>
+        <p>Nombre real, un pseudónimo que sortea el servidor («Águila Nocturna») o «Anónimo»
+          reporte por reporte. En los listados públicos nunca aparece el correo: solo un
+          identificador opaco.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-people-fill"></i> Reportes públicos del municipio</h3>
+        <p>Todos ven los problemas del municipio activo, tengan cuenta o no: para eso está el
+          mapa. Escribir es lo que queda restringido: solo el autor edita o elimina lo suyo, y
+          el personal puede moderarlo.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-cone-striped"></i> Marca de «peligrosa»</h3>
+        <p>El personal puede destacar un reporte que representa riesgo (con su motivo y fecha):
+          sale con distintivo propio, fila resaltada, anillo en el mapa y aviso al autor.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-shield-check"></i> Moderación</h3>
+        <p>Cualquiera puede denunciar un reporte o un comentario. La cola agrupa las denuncias
+          por contenido y el personal decide: ocultar, eliminar, advertir o suspender. Tres
+          advertencias suspenden la cuenta; una cuenta suspendida no puede entrar.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-speedometer2"></i> Panel e informes</h3>
+        <p>El panel reúne estadísticas, el panel de reportes, los catálogos, las comunidades,
+          las cuentas del personal y la moderación. De ahí también salen la exportación a CSV y
+          el informe imprimible.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-question-circle-fill"></i> Tutorial guiado</h3>
+        <p>Al entrar por primera vez, una guía ilumina cada elemento y lo explica en 9 a 11
+          pasos según el rol, y se puede repetir cuando quieras desde la barra lateral.</p>
+      </article>
+
+      <article class="acerca-tarjeta">
+        <h3><i class="bi bi-box-seam-fill"></i> Fácil de levantar</h3>
+        <p>Una imagen con Docker Compose que incluye la base de datos y aplica las migraciones
+          al arrancar, o Node.js contra un MariaDB propio. La API es REST y todo el frontend es
+          estático: no hace falta configurar CORS ni una URL base.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       TECNOLOGÍAS Y DEPENDENCIAS
+       ============================================================ -->
+  <section class="acerca-seccion">
+    <h2><i class="bi bi-cpu-fill"></i> Tecnologías y dependencias</h2>
+    <p class="acerca-intro">
+      Nada de magia: estas son las piezas sobre las que está construido.
+    </p>
+    <div class="acerca-tec">
+
+      <div class="acerca-tec-bloque">
+        <h3><i class="bi bi-window-sidebar"></i> Frontend</h3>
+        <ul class="acerca-lista">
+          <li><b>JavaScript moderno en módulos ES</b>, sin bundler ni framework: el navegador
+            carga los archivos tal cual.</li>
+          <li><b><a href="https://leafletjs.com/" target="_blank" rel="noopener noreferrer">Leaflet 1.9.4</a></b>
+            para el mapa, los marcadores, los polígonos y las capas base.</li>
+          <li><b><a href="https://icons.getbootstrap.com/" target="_blank" rel="noopener noreferrer">Bootstrap Icons 1.11.1</a></b>
+            para la iconografía de la interfaz.</li>
+          <li><b>Leaflet y Bootstrap Icons servidos desde este mismo sitio</b> (carpeta
+            <code>/vendor/</code>, con la versión y el <code>sha256</code> de cada archivo
+            anotados en <code>vendor.lock.json</code>). El navegador no depende de ninguna CDN
+            externa para funcionar.</li>
+          <li><b>HTML y CSS propios</b> (siete hojas: base, layout, componentes, admin,
+            reportes de impresión y extensiones), con atributos <code>data-action</code> en
+            lugar de <code>onclick</code>.</li>
+          <li><b>API REST consumida con <code>fetch</code></b> y token en la cabecera, con el
+            estado de la aplicación en un store propio.</li>
+        </ul>
+      </div>
+
+      <div class="acerca-tec-bloque">
+        <h3><i class="bi bi-hdd-stack-fill"></i> Backend</h3>
+        <ul class="acerca-lista">
+          <li><b><a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">Node.js</a> 20 o superior</b>
+            (la imagen usa <code>node:22-alpine</code>).</li>
+          <li><b><a href="https://expressjs.com/" target="_blank" rel="noopener noreferrer">Express 4</a></b>
+            con arquitectura MVC (modelos, servicios, controladores y rutas) y una capa de
+            repositorios con dos drivers intercambiables.</li>
+          <li><b><a href="https://mariadb.org/" target="_blank" rel="noopener noreferrer">MariaDB 11</a></b>
+            como motor por defecto (vía <code>mysql2</code> y <a href="https://knexjs.org/" target="_blank" rel="noopener noreferrer">Knex 3</a>
+            para las migraciones). También puede correr con <b>archivos JSON en disco</b>
+            (<code>STORAGE_DRIVER=json</code>).</li>
+          <li><b>jsonwebtoken</b> para las sesiones, <b>bcryptjs</b> para las contraseñas,
+            <b>multer</b> para la evidencia y <b>dotenv</b> para la configuración.</li>
+        </ul>
+      </div>
+
+      <div class="acerca-tec-bloque">
+        <h3><i class="bi bi-terminal-fill"></i> Pruebas y despliegue</h3>
+        <ul class="acerca-lista">
+          <li><b><code>node:test</code> y <a href="https://github.com/ladjs/supertest" target="_blank" rel="noopener noreferrer">Supertest</a></b>:
+            una suite de pruebas de API que se ejecuta completa contra los dos drivers, sin
+            necesidad de base de datos en el caso JSON.</li>
+          <li><b><a href="https://www.docker.com/" target="_blank" rel="noopener noreferrer">Docker</a> y Docker Compose</b>:
+            un contenedor para la aplicación y otro para MariaDB, con <i>healthcheck</i>
+            (<code>/api/salud</code>), migraciones automáticas al arrancar y volúmenes para la
+            base y para las fotografías.</li>
+          <li><b>Sin dependencias de pago</b>: todo el software es libre y de código abierto.</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       AGRADECIMIENTOS
+       ============================================================ -->
+  <section class="acerca-seccion">
+    <h2><i class="bi bi-heart-fill"></i> Agradecimientos</h2>
+    <p class="acerca-intro">
+      Este proyecto se apoya en el trabajo de mucha gente. Sin ellos, nada de esto existiría:
+    </p>
+    <div class="acerca-rejilla acerca-rejilla-creditos">
+
+      <article class="acerca-tarjeta acerca-credito">
+        <h3><i class="bi bi-building-fill"></i> INEGI</h3>
+        <p>
+          Los contornos de municipios y comunidades vienen del
+          <a href="https://www.inegi.org.mx/temas/mg/" target="_blank" rel="noopener noreferrer">Marco Geoestadístico Nacional</a>
+          y de su <a href="https://gaia.inegi.org.mx/wscatgeo/v2/" target="_blank" rel="noopener noreferrer">catálogo geoestadístico (wscatgeo)</a>
+          del INEGI. Son la base de la geocerca: sin ellos el mapa no sabría qué punto pertenece
+          a qué municipio ni a qué comunidad. Los polígonos se descargan del espejo público
+          <a href="https://github.com/MacWilliXD/INEGI-geojson" target="_blank" rel="noopener noreferrer">MacWilliXD/INEGI-geojson</a>,
+          que convierte el dato oficial a un formato ligero.
+        </p>
+      </article>
+
+      <article class="acerca-tarjeta acerca-credito">
+        <h3><i class="bi bi-geo-alt-fill"></i> Leaflet</h3>
+        <p>
+          Toda la parte de mapas es
+          <a href="https://leafletjs.com/" target="_blank" rel="noopener noreferrer">Leaflet</a>:
+          una biblioteca de mapas interactivos ligera y de código abierto que hace fácil lo que
+          parecería imposible. Gracias a su equipo y a su comunidad por mantenerla (y por el
+          ecosistema de complementos que ha crecido a su alrededor).
+        </p>
+      </article>
+
+      <article class="acerca-tarjeta acerca-credito">
+        <h3><i class="bi bi-globe-americas"></i> OpenStreetMap y OpenTopoMap</h3>
+        <p>
+          La capa de relieve usa
+          <a href="https://opentopomap.org" target="_blank" rel="noopener noreferrer">OpenTopoMap</a>,
+          construido con los datos de
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+          y del SRTM. Gracias a la comunidad de mapeo abierto por hacer un mapa del mundo que
+          cualquiera puede usar.
+        </p>
+      </article>
+
+      <article class="acerca-tarjeta acerca-credito">
+        <h3><i class="bi bi-satellite"></i> Esri y sus fuentes</h3>
+        <p>
+          Las capas satelital, de calles y física son servicios de
+          <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>
+          (World Imagery, World Street Map y World Physical Map), con datos de Maxar, Earthstar
+          Geographics, HERE, Garmin, FAO, USGS y NOAA. Gracias por permitir su uso en mapas como
+          este.
+        </p>
+      </article>
+
+      <article class="acerca-tarjeta acerca-credito">
+        <h3><i class="bi bi-bootstrap-fill"></i> Bootstrap Icons</h3>
+        <p>
+          Los iconos son de
+          <a href="https://icons.getbootstrap.com/" target="_blank" rel="noopener noreferrer">Bootstrap Icons</a>,
+          mantenidos por el equipo de Bootstrap y liberados bajo licencia MIT.
+        </p>
+      </article>
+
+      <article class="acerca-tarjeta acerca-credito">
+        <h3><i class="bi bi-cpu-fill"></i> Software libre</h3>
+        <p>
+          Y al resto del andamiaje:
+          <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">Node.js</a>,
+          <a href="https://expressjs.com/" target="_blank" rel="noopener noreferrer">Express</a>,
+          <a href="https://knexjs.org/" target="_blank" rel="noopener noreferrer">Knex</a>,
+          <a href="https://mariadb.org/" target="_blank" rel="noopener noreferrer">MariaDB</a>,
+          <a href="https://www.docker.com/" target="_blank" rel="noopener noreferrer">Docker</a>,
+          <a href="https://github.com/ladjs/supertest" target="_blank" rel="noopener noreferrer">Supertest</a>
+          y sus dependencias. Mantener infraestructura abierta es trabajo silencioso de mucha
+          gente.
+        </p>
+      </article>
+
+    </div>
+    <p class="acerca-nota">
+      <i class="bi bi-info-circle"></i>
+      Los datos, las teselas del mapa y las bibliotecas pertenecen a sus autores y se usan con
+      sus respectivas atribuciones y licencias; aquí solo se les reconoce y se enlaza a su
+      trabajo. Los datos del INEGI son de dominio público (uso informativo), mientras que las
+      teselas de Esri y OpenTopoMap tienen sus propias condiciones de uso.
+    </p>
+  </section>
+
+  <!-- ============================================================
+       CONTACTO
+       ============================================================ -->
+  <section class="acerca-seccion">
+    <h2><i class="bi bi-envelope-fill"></i> Contacto</h2>
+    <p class="acerca-intro">
+      Detrás de este sistema está <strong>DylonTech</strong> (Dylon Gabriel Mandujano Gonzalez),
+      ingeniero en sistemas y desarrollador web. ¿Quieres implementarlo en tu municipio, reportar
+      un error o proponer una mejora? Escríbenos:
+    </p>
+    <div class="acerca-contacto">
+      <a href="https://www.dylontech.com" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-globe2"></i>
+        <span>Sitio web<small>www.dylontech.com</small></span>
+      </a>
+      <a href="https://github.com/Dylontech" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-github"></i>
+        <span>GitHub<small>github.com/Dylontech</small></span>
+      </a>
+      <a href="https://github.com/Dylontech/sistema_de_incidencias" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-code-slash"></i>
+        <span>Código del proyecto<small>github.com/Dylontech/sistema_de_incidencias</small></span>
+      </a>
+      <a href="mailto:dylongabrielm@dylontech.com">
+        <i class="bi bi-envelope-at-fill"></i>
+        <span>Correo<small>dylongabrielm@dylontech.com</small></span>
+      </a>
+    </div>
+    <p class="acerca-nota">
+      <i class="bi bi-people-fill"></i>
+      Cualquier gobierno, dependencia, empresa u organización que quiera usar la plataforma está
+      invitada a colaborar para implementarla correctamente. Escríbenos y lo revisamos juntos.
+    </p>
+  </section>
+
+  <!-- ============================================================
+       PIE
+       ============================================================ -->
+  <footer class="acerca-pie">
+    <p>
+      <strong>Sistema de Incidencias Municipales</strong> ·
+      versión preliminar 1.0.0 · última actualización: 26 de septiembre de 2026
+    </p>
+    <p>
+      Página informativa y ciudadana. <strong>No es una entidad gubernamental</strong>, no
+      pertenece a ningún ayuntamiento ni dependencia pública y no atiende los reportes. Los
+      datos que generes pueden compartirse o venderse: el detalle está en los
+      <a href="/">Términos y privacidad</a> de la aplicación.
+    </p>
+    <p>
+      Textos, código y diseño se desarrollaron con asistencia de inteligencia artificial. Es una
+      versión preliminar y puede tener errores: verifica la información antes de usarla.
+    </p>
+    <p class="acerca-firma">
+      Hecho por <a href="https://www.dylontech.com" target="_blank" rel="noopener noreferrer">DylonTech</a>
+      · <a href="https://github.com/Dylontech" target="_blank" rel="noopener noreferrer">github.com/Dylontech</a>
+    </p>
+  </footer>
+
+</div>
+
+</body>
+</html>

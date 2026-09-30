@@ -10,7 +10,7 @@ import { constants as fsConstants, promises as fsPromesas } from 'node:fs';
 import { AlmacenJson } from './almacen.js';
 import { config } from '../../config/index.js';
 import { municipiosSemilla, zonasSemilla, tiposSemilla, usuariosSemilla } from '../../config/semilla.js';
-import { hashearPassword } from '../../models/usuario.model.js';
+import { hashearPassword, conCamposDeCuenta } from '../../models/usuario.model.js';
 import { coincideTexto } from '../../models/incidencia.model.js';
 
 export class RepositorioJson {
@@ -68,6 +68,16 @@ export class RepositorioJson {
           activo: u.activo !== false,
           pseudonimo: u.pseudonimo === true,
           passwordHash: await hashearPassword(u.passwordInicial),
+          // Cuenta segura: el personal se crea desde dentro, así que su correo
+          // no pasa por el enlace de confirmación.
+          correoVerificado: true,
+          tokenVerificacionHash: null,
+          tokenVerificacionExpira: null,
+          resetTokenHash: null,
+          resetExpira: null,
+          tokenVersion: 1,
+          intentosFallidos: 0,
+          bloqueadoHasta: null,
           // Moderación: mismo punto de partida que `construirUsuario`.
           advertencias: 0,
           suspendido: false,
@@ -192,8 +202,16 @@ export class RepositorioJson {
 
   /* -------------------------------- usuarios ------------------------------- */
 
+  /**
+   * Todas las cuentas, ya con los campos de cuenta segura.
+   *
+   * Los archivos guardados antes de que existieran esos campos no los traen
+   * (aquí no hay migraciones), así que se rellenan al leer: si no, una cuenta
+   * antigua quedaría como «correo sin verificar» y no podría entrar.
+   */
   async todosLosUsuarios() {
-    return this.almacen.leer('usuarios', []);
+    const lista = await this.almacen.leer('usuarios', []);
+    return lista.map(conCamposDeCuenta);
   }
 
   async usuarioPorUsername(username) {
@@ -215,6 +233,22 @@ export class RepositorioJson {
     return lista.find((u) => u.id === id) || null;
   }
 
+  /** Cuenta a la que pertenece un token de verificación (se busca por su hash). */
+  async usuarioPorTokenVerificacion(hash) {
+    const buscado = String(hash || '');
+    if (!buscado) return null;
+    const lista = await this.todosLosUsuarios();
+    return lista.find((u) => u.tokenVerificacionHash === buscado) || null;
+  }
+
+  /** Cuenta a la que pertenece un token de restablecimiento de contraseña. */
+  async usuarioPorTokenRestablecimiento(hash) {
+    const buscado = String(hash || '');
+    if (!buscado) return null;
+    const lista = await this.todosLosUsuarios();
+    return lista.find((u) => u.resetTokenHash === buscado) || null;
+  }
+
   async crearUsuario(usuario) {
     return this.almacen.transaccion('usuarios', [], (lista) => ({
       datos: [...lista, usuario],
@@ -234,6 +268,19 @@ export class RepositorioJson {
       const datos = lista.slice();
       datos[indice] = actualizado;
       return { datos, resultado: actualizado };
+    });
+  }
+
+  /**
+   * Borra la cuenta.
+   * Sus reportes NO se van con ella: el servicio los anonimiza antes, porque el
+   * ayuntamiento conserva el expediente aunque el vecino se dé de baja.
+   */
+  async eliminarUsuario(id) {
+    return this.almacen.transaccion('usuarios', [], (lista) => {
+      const quedan = lista.filter((u) => u.id !== id);
+      if (quedan.length === lista.length) return { datos: undefined, resultado: false };
+      return { datos: quedan, resultado: true };
     });
   }
 
@@ -417,6 +464,15 @@ export class RepositorioJson {
       const copia = lista.slice();
       copia[indice] = denuncia;
       return { datos: copia, resultado: denuncia };
+    });
+  }
+
+  /** Se usa al dar de baja una cuenta: sus denuncias se van con ella. */
+  async eliminarDenuncia(id) {
+    return this.almacen.transaccion('denuncias', [], (lista) => {
+      const quedan = lista.filter((d) => d.id !== id);
+      if (quedan.length === lista.length) return { datos: undefined, resultado: false };
+      return { datos: quedan, resultado: true };
     });
   }
 

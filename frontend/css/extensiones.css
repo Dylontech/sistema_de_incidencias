@@ -974,3 +974,810 @@
   color: #718096 !important;
 }
 
+/* --- Página «Acerca de» (/acerca) ------------------------------------------
+   Página pública e independiente (acerca.html). Su contenido es estático; aquí
+   solo vive la presentación: cabecera con distintivos, aviso de versión
+   preliminar, pasos, rejillas de características, tecnologías, agradecimientos
+   y contacto. */
+
+.acerca-cuerpo {
+  background: #f4f6f9;
+  /* base.css deja el body SIN desplazamiento (`overflow: hidden; height: 100vh`)
+     porque la aplicación gestiona sus paneles con scroll propio. La página
+     «Acerca de» sí es un documento largo, así que se devuelve el scroll normal:
+     sin esto el contenido se veía recortado y la rueda no hacía nada. */
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+.acerca-pagina {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 18px 56px;
+}
+
+.acerca-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  color: #1e4d6b;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.acerca-volver:hover {
+  text-decoration: underline;
+}
+
+.acerca-cabecera {
+  padding-bottom: 20px;
+  text-align: center;
+}
+
+.acerca-marca {
+  margin-bottom: 6px;
+  color: var(--primario);
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.acerca-cabecera h1 {
+  margin-bottom: 6px;
+  font-size: 1.6rem;
+  color: var(--primario);
+}
+
+.acerca-sub {
+  max-width: 640px;
+  margin: 0 auto 14px;
+  color: #4a5568;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.acerca-distintivos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.acerca-distintivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  color: #2d3748;
+  font-size: 11.5px;
+}
+
+/* Aviso de versión preliminar hecha con IA: el bloque más visible de la página. */
+.acerca-aviso {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 26px;
+  padding: 14px 16px;
+  background: #fff8e6;
+  border: 1px solid #ffe4a3;
+  border-radius: 10px;
+  color: #7c4a03;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.acerca-aviso i {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.acerca-aviso strong {
+  color: #5f3a02;
+}
+
+.acerca-seccion {
+  margin-bottom: 30px;
+}
+
+.acerca-seccion > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--primario);
+  font-size: 15px;
+}
+
+.acerca-intro,
+.acerca-texto {
+  margin-bottom: 14px;
+  color: #4a5568;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.acerca-subtitulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 20px 0 8px;
+  color: #1a202c;
+  font-size: 13px;
+}
+
+/* Flujo de uso: tarjetas numeradas de forma automática (contador CSS). */
+.acerca-pasos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: acerca-paso;
+}
+
+.acerca-pasos li {
+  position: relative;
+  padding: 12px 12px 12px 44px;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  color: #4a5568;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.acerca-pasos li::before {
+  counter-increment: acerca-paso;
+  content: counter(acerca-paso);
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  background: var(--primario);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.acerca-pasos strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #1a202c;
+  font-size: 12.5px;
+}
+
+/* Tabla de roles. */
+.acerca-tabla {
+  width: 100%;
+  border: 1px solid var(--borde);
+  border-collapse: collapse;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  font-size: 12px;
+}
+
+.acerca-tabla th,
+.acerca-tabla td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--borde);
+  color: #4a5568;
+  line-height: 1.5;
+  text-align: left;
+  vertical-align: top;
+}
+
+.acerca-tabla th {
+  background: #f8f9fc;
+  color: #718096;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.acerca-tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.acerca-tabla td strong {
+  color: #1a202c;
+}
+
+/* Nota al pie de una sección (aviso corto con icono). */
+.acerca-nota {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  color: #718096;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.acerca-nota i {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-size: 13px;
+}
+
+/* Rejillas de tarjetas: características, agradecimientos y tecnologías. */
+.acerca-rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+}
+
+.acerca-tarjeta {
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+}
+
+.acerca-tarjeta h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: #1a202c;
+  font-size: 12.5px;
+}
+
+.acerca-tarjeta h3 i {
+  color: var(--primario);
+  font-size: 14px;
+}
+
+.acerca-tarjeta p {
+  color: #4a5568;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.acerca-tarjeta a,
+.acerca-lista a,
+.acerca-nota a,
+.acerca-pie a {
+  color: #1e4d6b;
+}
+
+/* Los créditos traen más texto: se reparten en tarjetas algo más anchas. */
+.acerca-rejilla-creditos {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.acerca-credito h3 {
+  font-size: 13px;
+}
+
+.acerca-tec {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.acerca-tec-bloque {
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+}
+
+.acerca-tec-bloque h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  color: var(--primario);
+  font-size: 12.5px;
+}
+
+.acerca-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.acerca-lista li {
+  position: relative;
+  padding: 6px 0 6px 18px;
+  border-bottom: 1px dashed #edf2f7;
+  color: #4a5568;
+  line-height: 1.5;
+}
+
+.acerca-lista li:last-child {
+  border-bottom: none;
+}
+
+.acerca-lista li::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 5px;
+  width: 5px;
+  height: 5px;
+  background: var(--primario);
+  border-radius: 50%;
+}
+
+.acerca-lista b {
+  color: #1a202c;
+}
+
+.acerca-contacto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.acerca-contacto a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  color: #1a202c;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.acerca-contacto a:hover {
+  border-color: var(--primario);
+}
+
+.acerca-contacto i {
+  flex-shrink: 0;
+  color: var(--primario);
+  font-size: 18px;
+}
+
+.acerca-contacto small {
+  display: block;
+  margin-top: 1px;
+  color: #718096;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.acerca-pie {
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+  color: #718096;
+  font-size: 11.5px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.acerca-pie p {
+  margin-bottom: 8px;
+}
+
+.acerca-firma {
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .acerca-pagina {
+    padding: 18px 12px 44px;
+  }
+
+  .acerca-cabecera h1 {
+    font-size: 1.3rem;
+  }
+
+  .acerca-aviso {
+    font-size: 12px;
+  }
+
+  .acerca-tabla th,
+  .acerca-tabla td {
+    padding: 8px 9px;
+  }
+}
+
+/* Enlace de la barra lateral a la página «Acerca de»: es un <a> y comparte la
+   clase de los botones que releen los términos, así que se alinea con ellos. */
+a.link-terminos {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Marcado sin estilos en línea
+   --------------------------------------------------------------------------
+   La Content-Security-Policy no admite el atributo `style="…"` (style-src-attr
+   'none'), así que todo lo que antes iba ahí vive aquí: utilidades de un solo
+   propósito (`u-…`) y las piezas concretas de la interfaz.
+
+   Los valores que dependen de los datos (el color de una zona, el ancho de una
+   barra) NO pueden ser clases: se aplican por CSSOM desde `core/ui.js` con
+   `aplicarEstilosDinamicos()`, que la CSP sí permite (no es un atributo en
+   línea).
+
+   Este archivo es el único seguro para añadidos: `extraer-css.mjs` reescribe
+   base/layout/componentes/admin desde el monolito.
+   ========================================================================== */
+
+/* --- Visibilidad ---------------------------------------------------------- */
+/* Un `style.display` puesto por JavaScript gana a esta clase (es estilo en
+   línea aplicado por CSSOM), así que los toggles existentes siguen valiendo. */
+.u-oculto { display: none; }
+
+/* --- Color de texto ------------------------------------------------------- */
+.u-suave { color: #94a3b8; }
+.u-gris { color: var(--gris); }
+.u-gris-medio { color: #718096; }
+.u-pizarra { color: #4a5568; }
+.u-tinta { color: #1a202c; }
+.u-primario { color: var(--primario); }
+.u-verde { color: var(--verde); }
+.u-rojo { color: var(--rojo); }
+.u-azul { color: #1e4d6b; }
+.u-verde-oscuro { color: #006657; }
+.u-verde-exito { color: #155724; }
+
+/* --- Tamaño de letra ------------------------------------------------------ */
+.u-fs-10px { font-size: 10px; }
+.u-fs-105px { font-size: 10.5px; }
+.u-fs-11px { font-size: 11px; }
+.u-fs-115px { font-size: 11.5px; }
+.u-fs-12px { font-size: 12px; }
+.u-fs-125px { font-size: 12.5px; }
+.u-fs-13px { font-size: 13px; }
+.u-fs-15px { font-size: 15px; }
+.u-fs-1rem { font-size: 1rem; }
+.u-fs-115rem { font-size: 1.15rem; }
+.u-fs-13rem { font-size: 1.3rem; }
+.u-fs-14rem { font-size: 1.4rem; }
+.u-fs-15rem { font-size: 1.5rem; }
+.u-fs-2rem { font-size: 2rem; }
+.u-fs-25rem { font-size: 2.5rem; }
+
+/* --- Énfasis y tipografía ------------------------------------------------- */
+.u-peso-600 { font-weight: 600; }
+.u-peso-700 { font-weight: 700; }
+.u-peso-800 { font-weight: 800; }
+.u-centro { text-align: center; }
+.u-derecha { text-align: right; }
+.u-mayusculas { text-transform: uppercase; }
+.u-capitalizar { text-transform: capitalize; }
+.u-espaciado { letter-spacing: .4px; }
+.u-lh-14 { line-height: 1.4; }
+.u-lh-145 { line-height: 1.45; }
+.u-lh-15 { line-height: 1.5; }
+.u-lh-1 { line-height: 1; }
+.u-opacidad-80 { opacity: .8; }
+.u-cursor { cursor: pointer; }
+
+/* --- Espaciado ------------------------------------------------------------ */
+/* El reinicio va primero: los `u-mb-*`/`u-mt-*` de después tienen que poder
+   sobrescribirlo (misma especificidad, gana el último). */
+.u-m-0 { margin: 0; }
+.u-mt-2 { margin-top: 2px; }
+.u-mt-4 { margin-top: 4px; }
+.u-mt-6 { margin-top: 6px; }
+.u-mt-8 { margin-top: 8px; }
+.u-mt-10 { margin-top: 10px; }
+.u-mt-12 { margin-top: 12px; }
+.u-mt-16 { margin-top: 16px; }
+.u-mb-0 { margin-bottom: 0; }
+.u-mb-4 { margin-bottom: 4px; }
+.u-mb-6 { margin-bottom: 6px; }
+.u-mb-8 { margin-bottom: 8px; }
+.u-mb-10 { margin-bottom: 10px; }
+.u-mb-12 { margin-bottom: 12px; }
+.u-mb-14 { margin-bottom: 14px; }
+.u-mb-16 { margin-bottom: 16px; }
+.u-ml-8 { margin-left: 8px; }
+.u-p-10 { padding: 10px; }
+.u-p-16 { padding: 16px; }
+.u-p-18 { padding: 18px; }
+.u-p-20 { padding: 20px; }
+
+/* --- Caja y disposición --------------------------------------------------- */
+.u-scroll-x { overflow-x: auto; }
+.u-relative { position: relative; }
+.u-absoluta-cierre { position: absolute; top: 10px; right: 10px; }
+.u-ancho-100 { width: 100%; }
+.u-max-1000 { max-width: 1000px; }
+.u-max-900 { max-width: 900px; }
+.u-max-720 { max-width: 720px; }
+.u-max-620 { max-width: 620px; }
+.u-max-400 { max-width: 400px; }
+.u-max-280 { max-width: 280px; }
+.u-min-200 { min-width: 200px; }
+.u-flex-1 { flex: 1; }
+.u-min-0 { min-width: 0; }
+.u-fila { display: flex; align-items: center; gap: 8px; }
+.u-fila-alto { display: flex; align-items: flex-start; gap: 12px; }
+.u-fila-sep { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.u-fila-sep-alto { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.u-fila-env { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.u-fila-simple { display: flex; gap: 8px; }
+.u-fila-fin { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.u-rejilla-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* --- Piezas concretas de la interfaz -------------------------------------- */
+
+/* Tarjeta blanca de los paneles del administrador. */
+.panel-blanco {
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+/* Título de un bloque dentro de un panel. */
+.titulo-seccion {
+  font-size: 13px;
+  color: var(--primario);
+}
+
+/* Etiqueta en mayúsculas de la caja de ejemplo del concepto. */
+.etiqueta-concepto {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primario);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+/* Aviso ámbar (nota de la pantalla de acceso y de visibilidad del listado). */
+.nota-aviso {
+  font-size: 11.5px;
+  color: #8a5a00;
+  background: #fff8e6;
+  border: 1px solid #ffe4a3;
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.45;
+}
+
+.nota-visibilidad {
+  font-size: 11px;
+  color: #8a5a00;
+  background: #fff8e6;
+  border: 1px solid #ffe4a3;
+  border-radius: 6px;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+/* Nota azul de la barra lateral según el tipo de cuenta. */
+.nota-cuenta {
+  font-size: 11px;
+  color: #1e4d6b;
+  background: #eaf4fb;
+  border: 1px solid #bfdcf0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
+/* Caja verde discontinua con el ejemplo del concepto elegido. */
+.caja-ejemplo {
+  background: #f0faf8;
+  border: 1px dashed #8ecdc0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+/* Distintivo de la comunidad del reporte (el color lo pone el dato). */
+.chip-zona {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* Variante del detalle: más compacta que la del formulario. */
+.chip-zona-lg { padding: 2px 10px; border-radius: 12px; font-size: 11.5px; }
+
+/* Campo de texto suelto (coordenadas, filtro de zona). */
+.campo-linea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+/* Botón verde a lo ancho de su columna (filtro de zonas). */
+.boton-verde-ancho {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  background: #006657;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Iconos de los modales (peligro, resolución, denuncia, moderación). */
+.icono-14rem { font-size: 1.4rem; }
+.icono-13rem { font-size: 1.3rem; }
+.icono-25rem { font-size: 2.5rem; line-height: 1; }
+.icono-vacio { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+/* Cabeceras del detalle de un reporte. */
+.titulo-detalle { font-size: 15px; color: #006657; margin-bottom: 8px; }
+.titulo-incidencia { font-size: 1.15rem; margin-bottom: 4px; }
+
+/* Filas y pilas reutilizadas en listas, tablas e historial. */
+.pila-filas { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.pila-filas-chica { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; }
+.fila-detalle { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.fila-icono { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.meta-fila { font-size: 12px; color: #718096; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.zona-linea { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.icono-tipo { min-width: 200px; display: flex; align-items: center; gap: 6px; }
+
+/* Pie de los modales con las acciones (cancelar / guardar). */
+.pie-modal {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borde);
+}
+
+/* Caja verde de la resolución aplicada. */
+.caja-resuelto {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+/* Distintivo rojo de «publicación retirada por moderación». */
+.insignia-oculta {
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+/* Muestra de color del catálogo de municipios. */
+.muestra-color {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+/* Pastillas de estado y de comunidad (color fijo por estado). El fondo gris del
+   respaldo es el mismo que devuelve `colorHex` para un color desconocido. */
+.pastilla-estado {
+  background: #6c757d;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.pastilla-estado.verde { background: var(--verde); color: #fff; }
+.pastilla-estado.amarillo { background: var(--amarillo); color: #333; }
+.pastilla-estado.naranja { background: var(--naranja); color: #fff; }
+.pastilla-estado.rojo { background: var(--rojo); color: #fff; }
+
+.inc-badge.estado-proceso { background: #d1ecf1; color: #0c5460; }
+
+.pastilla-activo { font-size: 10px; background: #e8f5f2; color: #006657; padding: 2px 8px; border-radius: 10px; }
+.pastilla-personalizado { font-size: 10px; color: #006657; }
+
+/* Aspa de cerrar reducida (listado de notificaciones y detalle). */
+.boton-cerrar-chico { font-size: 1rem; padding: 0 4px; }
+
+/* Colores de la leyenda del mapa (los cuatro del semáforo de antigüedad). */
+.legend-color.leyenda-verde { background: var(--verde); }
+.legend-color.leyenda-amarillo { background: var(--amarillo); }
+.legend-color.leyenda-naranja { background: var(--naranja); }
+.legend-color.leyenda-rojo { background: var(--rojo); }
+
+/* Marcador del mapa: el color del pin es el del semáforo de antigüedad.
+   `pin-otro` es el gris de respaldo cuando el estado no es uno de los cuatro. */
+.marker-icon .pin.pin-verde { background: var(--verde); }
+.marker-icon .pin.pin-amarillo { background: var(--amarillo); }
+.marker-icon .pin.pin-naranja { background: var(--naranja); }
+.marker-icon .pin.pin-rojo { background: var(--rojo); }
+.marker-icon .pin.pin-otro { background: #6c757d; }
+
+/* Botones translúcidos de la barra superior (sobre fondo oscuro). */
+.boton-cristal {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+}
+
+.boton-menu-suave { background: rgba(255, 255, 255, 0.1); }
+
+/* Barra de progreso de los informes: el ancho lo pone el dato. */
+.barra-progreso {
+  height: 8px;
+  background: #f0f4f8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.barra-relleno {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primario), var(--primario-claro));
+}
+
+/* Celdas vacías de las tablas del panel. */
+.celda-vacia { text-align: center; color: #94a3b8; }
+
+/* Texto vacío de los bloques que aún no tienen datos. */
+.vacio-suave { color: #94a3b8; font-size: 12px; }
+
+
+/* ------------------------------------------------------------------
+   Cuenta ciudadana: modal «Mi cuenta» y avisos del correo.
+   ------------------------------------------------------------------ */
+
+/* Datos de la sesión que encabezan el modal. */
+.cuenta-resumen { font-size: 12px; color: #475569; margin-bottom: 12px; }
+
+/* Aviso de correo sin confirmar: llama la atención sin ser un error. */
+.cuenta-aviso {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 11.5px;
+  color: #8a5a00;
+  background: #fff8e6;
+  border: 1px solid #ffe4a3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.cuenta-aviso i { font-size: 16px; line-height: 1.2; }
+
+/* Separadores de los bloques del modal (contraseña, datos, baja). */
+.cuenta-titulo {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #334155;
+  margin: 18px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cuenta-titulo i { margin-right: 4px; }
+
+/* El aviso de arriba fija `display: flex`, y esa regla va después de `.u-oculto`
+   en este archivo: sin esta pareja explícita, ocultarlo con la utilidad no
+   funcionaría (misma especificidad, gana la última). */
+.cuenta-aviso.u-oculto { display: none; }

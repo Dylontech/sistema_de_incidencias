@@ -14,8 +14,11 @@ export const entrarAnonimo = asyncHandler(async (req, res) => {
 
 /** Alta de una cuenta ciudadana (correo + contraseña, nombre o pseudónimo). */
 export const registrarCiudadano = asyncHandler(async (req, res) => {
-  const sesion = await auth.registrarCiudadano(req.repositorio, req.body || {});
-  res.status(201).json({ ...sesion, municipioActivo: publico(sesion.municipioActivo) });
+  const resultado = await auth.registrarCiudadano(req.repositorio, req.body || {});
+  // Con la confirmación del correo obligatoria no hay sesión todavía: la cuenta
+  // queda esperando a que el ciudadano abra el enlace.
+  if (resultado.requiereVerificacion) return res.status(201).json(resultado);
+  res.status(201).json({ ...resultado, municipioActivo: publico(resultado.municipioActivo) });
 });
 
 /** Entrada de una cuenta ciudadana ya existente. */
@@ -55,12 +58,22 @@ export const yo = asyncHandler(async (req, res) => {
   // cae al municipio por defecto, no al primero del listado.
   const municipioActivo =
     propio || municipios.find((m) => m.id === MUNICIPIO_DEFAULT) || municipios[0] || null;
+
+  // El estado de la confirmación del correo no viaja en el token (cambia sin
+  // volver a entrar), así que se lee de la cuenta: es lo que permite avisar en
+  // la interfaz de que el correo sigue sin confirmar.
+  const cuenta =
+    req.usuario.rol === 'ciudadano'
+      ? await req.repositorio.usuarioPorUsername(req.usuario.username)
+      : null;
+
   res.json({
     usuario: {
       ...req.usuario,
       // Se mantiene la misma forma que devuelve el login, para que la interfaz
       // pueda preguntar «¿es anónimo?» sin ramificar por rol.
-      esAnonimo: req.usuario.rol === 'anonimo'
+      esAnonimo: req.usuario.rol === 'anonimo',
+      ...(cuenta ? { correoVerificado: cuenta.correoVerificado !== false } : {})
     },
     municipioActivo: publico(municipioActivo)
   });

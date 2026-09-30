@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import * as moderacion from '../controllers/moderacion.controller.js';
 import { requiereEmpleado, requiereSesion } from '../middlewares/auth.js';
+import { limiteEscritura } from '../middlewares/limitadores.js';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.use(requiereSesion);
 
 /* ---------------------------------- denuncias ----------------------------- */
 
-router.post('/incidencias/:id/denuncias', moderacion.denunciar);
+router.post('/incidencias/:id/denuncias', limiteEscritura, moderacion.denunciar);
 router.get('/denuncias/mias', moderacion.misDenuncias);
 
 /* ------------------------------- cola de trabajo -------------------------- */

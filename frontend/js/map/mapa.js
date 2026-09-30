@@ -8,7 +8,15 @@
  *  - hay 4 capas base conmutables (Satélite, Calles, Relieve, Físico);
  *  - las zonas (colonias/tenencias) se dibujan como polígonos de geocerca.
  */
-import { $, esc, fmtFechaCorta, textoAntiguedad, colorHex, etiquetaEstado } from '../core/utils.js';
+import {
+  $,
+  esc,
+  fmtFechaCorta,
+  textoAntiguedad,
+  COLOR_HEX,
+  etiquetaEstado,
+  aplicarEstilosDinamicos
+} from '../core/utils.js';
 import { anillosDe, boundsDePoligono } from '../core/geocerca.js';
 
 let mapa = null;
@@ -168,7 +176,7 @@ export function dibujarZonas(zonas = []) {
       fillOpacity: 0.14
     });
     poligono.bindTooltip(
-      `<strong>${esc(zona.nombre)}</strong><br><span style="font-size:10.5px;text-transform:capitalize;">${esc(zona.tipo)}</span>`,
+      `<strong>${esc(zona.nombre)}</strong><br><span class="u-fs-105px u-capitalizar">${esc(zona.tipo)}</span>`,
       { sticky: true }
     );
     poligono.zonaId = zona.id;
@@ -181,10 +189,12 @@ export function dibujarZonas(zonas = []) {
     leyenda.innerHTML =
       zonas
         .map(
-          (z) => `<div class="legend-item"><div class="legend-color" style="background:${z.color};"></div>
-            ${esc(z.nombre)} <span style="color:#94a3b8;text-transform:capitalize;">· ${esc(z.tipo)}</span></div>`
+          (z) => `<div class="legend-item"><div class="legend-color" data-fondo="${esc(z.color)}"></div>
+            ${esc(z.nombre)} <span class="u-suave u-capitalizar">· ${esc(z.tipo)}</span></div>`
         )
-        .join('') || '<div style="font-size:11px;color:#94a3b8;">Sin zonas definidas</div>';
+        .join('') || '<div class="u-fs-11px u-suave">Sin zonas definidas</div>';
+    // El color de cada zona es un hex del catálogo: se aplica por CSSOM.
+    aplicarEstilosDinamicos(leyenda);
   }
 }
 
@@ -202,9 +212,12 @@ function crearIcono(incidencia, tipos) {
   const emoji = incidencia.iconoCustom || (tipo ? tipo.icono : '❗');
   // Las peligrosas llevan un anillo rojo pulsante para que salten a la vista.
   const peligrosa = incidencia.peligrosa === true ? ' pin-peligrosa' : '';
+  // El color del marcador es el del semáforo de antigüedad: una clase y no un
+  // estilo en línea. Un valor inesperado cae en el gris de respaldo.
+  const color = COLOR_HEX[incidencia.color] ? incidencia.color : 'otro';
   return L.divIcon({
     className: 'marker-icon',
-    html: `<div class="pin${peligrosa}" style="background:${colorHex(incidencia.color)};">
+    html: `<div class="pin pin-${color}${peligrosa}">
              <span class="pin-inner">${emoji}</span>
            </div>`,
     iconSize: [32, 32],
@@ -218,35 +231,33 @@ export function contenidoPopup(incidencia, tipos) {
   const tipo = tipos.find((t) => t.id === incidencia.tipoId);
   const autor = incidencia.esAnonimo ? 'Anónimo' : esc(incidencia.autorNombre || incidencia.autor || '—');
   const descripcion = esc(incidencia.descripcion);
-  const color = colorHex(incidencia.color);
 
   return `
-    <div style="font-size:13px;min-width:200px;">
+    <div class="u-fs-13px u-min-200">
       ${
         incidencia.peligrosa
-          ? '<div style="background:#dc2626;color:#fff;font-size:11px;font-weight:800;border-radius:6px;padding:3px 8px;margin-bottom:6px;text-align:center;">⚠️ INCIDENCIA PELIGROSA</div>'
+          ? '<div class="insignia-oculta">⚠️ INCIDENCIA PELIGROSA</div>'
           : ''
       }
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-        <span style="font-size:1.3rem;">${tipo ? tipo.icono : '❗'}</span>
-        <strong style="color:#1a202c;">${esc(incidencia.titulo)}</strong>
+      <div class="fila-icono">
+        <span class="icono-13rem">${tipo ? tipo.icono : '❗'}</span>
+        <strong class="u-tinta">${esc(incidencia.titulo)}</strong>
       </div>
-      <div style="font-size:11px;color:#718096;margin-bottom:4px;">
+      <div class="u-fs-11px u-gris-medio u-mb-4">
         ${esc(tipo ? tipo.nombre : '—')} · ${fmtFechaCorta(incidencia.fecha)}${
           incidencia.zonaNombre ? ' · ' + esc(incidencia.zonaNombre) : ''
         }
       </div>
-      <div style="font-size:12px;color:#4a5568;line-height:1.4;margin-bottom:8px;">
+      <div class="u-fs-12px u-pizarra u-lh-14 u-mb-8">
         ${descripcion.slice(0, 160)}${descripcion.length > 160 ? '…' : ''}
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;">
-        <span style="background:${color};color:${incidencia.color === 'amarillo' ? '#333' : '#fff'};padding:2px 8px;border-radius:8px;font-weight:700;">
+      <div class="pila-filas-chica">
+        <span class="pastilla-estado ${esc(incidencia.color)}">
           ${incidencia.estado === 'resuelta' ? 'RESUELTA' : textoAntiguedad(incidencia.dias)}
         </span>
-        <span style="color:#94a3b8;">${autor}</span>
+        <span class="u-suave">${autor}</span>
       </div>
-      <button data-action="detalle:abrir" data-id="${esc(incidencia.id)}"
-        style="margin-top:8px;width:100%;padding:6px;background:#006657;color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;">
+      <button class="boton-verde-ancho" data-action="detalle:abrir" data-id="${esc(incidencia.id)}">
         Ver detalles (${etiquetaEstado(incidencia.estado)})
       </button>
     </div>

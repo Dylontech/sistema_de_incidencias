@@ -19,19 +19,43 @@ function comboMunicipio() {
 }
 
 /**
- * Sub-pasos del panel «Ciudadano»: elegir, entrar con cuenta o registrarse.
+ * Sub-pasos del panel «Ciudadano»: elegir, entrar con cuenta, registrarse,
+ * pedir el enlace de recuperación, elegir contraseña nueva y el aviso de
+ * «revisa tu correo» tras el alta.
  * Es la única vía de acceso de esta pantalla: el acceso del personal vive en
  * `/personal` (ver `js/personal.js`), una página sin enlaces.
  */
+const PASOS_ANON = {
+  inicio: 'anonInicio',
+  login: 'anonLogin',
+  registro: 'anonRegistro',
+  olvide: 'anonOlvide',
+  restablecer: 'anonRestablecer',
+  verificacion: 'anonVerificacion'
+};
+
 export function mostrarModoAnon(modo = 'inicio') {
-  const vistas = { inicio: 'anonInicio', login: 'anonLogin', registro: 'anonRegistro' };
-  Object.entries(vistas).forEach(([nombre, id]) => {
+  const elegido = PASOS_ANON[modo] ? modo : 'inicio';
+  Object.entries(PASOS_ANON).forEach(([nombre, id]) => {
     const elemento = $(id);
-    if (elemento) elemento.style.display = nombre === modo ? 'block' : 'none';
+    if (elemento) elemento.style.display = nombre === elegido ? 'block' : 'none';
   });
-  if (modo === 'registro') alternarPseudonimo(false);
-  if (modo === 'login') $('ciud-correo')?.focus();
-  if (modo === 'registro') $('reg-correo')?.focus();
+  if (elegido === 'registro') alternarPseudonimo(false);
+  const focos = {
+    login: 'ciud-correo',
+    registro: 'reg-correo',
+    olvide: 'olvide-correo',
+    restablecer: 'rest-pass'
+  };
+  if (focos[elegido]) $(focos[elegido])?.focus();
+}
+
+/** Pantalla que se ve tras el alta: hay que abrir el enlace del correo. */
+export function mostrarAvisoDeVerificacion(correo, { puedeCancelar = false } = {}) {
+  const destino = $('verif-correo');
+  if (destino) destino.textContent = correo || 'tu dirección';
+  mostrarLogin({ puedeCancelar });
+  mostrarModoAnon('verificacion');
 }
 
 /**
@@ -78,6 +102,9 @@ export function mostrarApp({ usuario, municipioActivo }) {
   $('btn-admin').style.display = esEmpleado ? 'inline-flex' : 'none';
   $('btn-informes').style.display = esEmpleado ? 'inline-flex' : 'none';
   $('btn-logout').style.display = tieneCuenta ? 'inline-flex' : 'none';
+  // «Mi cuenta» solo tiene sentido con cuenta: contraseña, datos y baja.
+  const btnCuenta = $('btn-cuenta');
+  if (btnCuenta) btnCuenta.style.display = tieneCuenta ? 'inline-flex' : 'none';
   $('visibilidadNota').style.display = esEmpleado ? 'none' : 'block';
 
   $('userName').textContent = usuario.nombre;
@@ -106,10 +133,16 @@ function actualizarNotaCuenta(usuario) {
     return;
   }
   nota.style.display = 'block';
+  if (usuario.rol !== 'ciudadano') {
+    nota.innerHTML = `<i class="bi bi-bell-slash"></i> Estás como <strong>anónimo</strong>: puedes reportar, pero no recibirás avisos. <a href="#" data-action="auth:mostrarLogin" data-valor="anon">Crea una cuenta</a> para seguir tus reportes.`;
+    return;
+  }
+  // Con cuenta y el correo sin confirmar se avisa aquí, que es donde el
+  // ciudadano mira si va a recibir avisos.
   nota.innerHTML =
-    usuario.rol === 'ciudadano'
-      ? `<i class="bi bi-bell-fill"></i> Recibirás avisos de tus reportes en el buzón (la campana). Estás como <strong>${esc(usuario.nombre)}</strong>.`
-      : `<i class="bi bi-bell-slash"></i> Estás como <strong>anónimo</strong>: puedes reportar, pero no recibirás avisos. <a href="#" data-action="auth:mostrarLogin" data-valor="anon">Crea una cuenta</a> para seguir tus reportes.`;
+    usuario.correoVerificado === false
+      ? `<i class="bi bi-envelope-exclamation-fill"></i> Confirma tu correo para poder entrar desde otros dispositivos y no perder el acceso. <a href="#" data-action="cuenta:abrir" data-valor="verificacion">Confirmar ahora</a>.`
+      : `<i class="bi bi-bell-fill"></i> Recibirás avisos de tus reportes en el buzón (la campana). Estás como <strong>${esc(usuario.nombre)}</strong>.`;
 }
 
 export function actualizarMunicipioTitulo(municipio) {
@@ -221,6 +254,29 @@ export function valoresCiudadano() {
   };
 }
 
+/** Correo al que se manda el enlace de recuperación. */
+export function valoresOlvide() {
+  return { correo: $('olvide-correo').value.trim() };
+}
+
+/** Contraseña nueva elegida desde el enlace del correo. */
+export function valoresRestablecer() {
+  return {
+    password: $('rest-pass').value,
+    password2: $('rest-pass2').value
+  };
+}
+
+/**
+ * Deja escrito el correo en la pantalla de acceso.
+ * Se usa al volver del enlace de confirmación: el ciudadano solo tiene que
+ * escribir su contraseña.
+ */
+export function rellenarCorreoInicioDeSesion(correo) {
+  const campo = $('ciud-correo');
+  if (campo && correo) campo.value = correo;
+}
+
 /** Datos del alta de cuenta ciudadana. */
 export function valoresRegistro() {
   return {
@@ -242,7 +298,10 @@ export function limpiarFormularios() {
     'ciud-pass',
     'reg-correo',
     'reg-pass',
-    'reg-nombre'
+    'reg-nombre',
+    'olvide-correo',
+    'rest-pass',
+    'rest-pass2'
   ].forEach((id) => {
     const campo = $(id);
     if (campo) campo.value = '';

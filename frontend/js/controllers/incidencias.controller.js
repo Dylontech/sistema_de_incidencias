@@ -106,14 +106,28 @@ function mostrarEjemploDelTipo() {
 async function agregarEvidencia(archivos, destino) {
   if (!archivos?.length) return;
   const limites = store.estado.catalogos.limites || {};
-  const limite = limites.maxFotoBytes ?? 104857600;
+  const limite = limites.maxFotoBytes ?? 20971520;
+  const permitidos = limites.mimesPermitidos || [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'application/pdf'
+  ];
   const validos = [];
 
   for (const archivo of Array.from(archivos)) {
+    const tipo = String(archivo.type || '').toLowerCase();
     // La evidencia es solo de fotografías: el video se retiró del formulario
     // (los reportes antiguos que lo tengan se siguen mostrando).
-    if (String(archivo.type).startsWith('video/')) {
+    if (tipo.startsWith('video/')) {
       toast(`"${archivo.name}": la evidencia ahora es solo de fotografías`, 'err');
+      continue;
+    }
+    // La lista es cerrada: el servidor también lo comprueba, pero así el aviso
+    // llega antes de subir el archivo (y no gasta cupo de peticiones).
+    if (tipo && !permitidos.includes(tipo)) {
+      toast(`"${archivo.name}": formato no admitido (JPG, PNG, WEBP, GIF o PDF)`, 'err');
       continue;
     }
     if (archivo.size > limite) {

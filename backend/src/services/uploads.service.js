@@ -14,14 +14,52 @@ import { EVIDENCIA_POLITICA } from '../config/constantes.js';
 import { AppError } from '../utils/AppError.js';
 import { nuevoId } from '../utils/ids.js';
 
-export function extensionDe(mime, nombreOriginal = '') {
-  if (EVIDENCIA_POLITICA.extensiones[mime]) return EVIDENCIA_POLITICA.extensiones[mime];
-  const ext = path.extname(nombreOriginal).toLowerCase();
-  return ext && ext.length <= 6 ? ext : '';
+/**
+ * Extensión con la que se guarda un archivo.
+ *
+ * Sale **solo** del mapa de tipos permitidos: antes se caía a la extensión del
+ * nombre original, que la elige quien sube (así entraba un `.svg`).
+ */
+export function extensionDe(mime) {
+  return EVIDENCIA_POLITICA.extensiones[String(mime || '').toLowerCase()] || '';
 }
 
 export function mimePermitido(mime) {
-  return EVIDENCIA_POLITICA.mimesPermitidos.some((prefijo) => String(mime || '').startsWith(prefijo));
+  return EVIDENCIA_POLITICA.mimesPermitidos.includes(String(mime || '').toLowerCase());
+}
+
+/**
+ * Tipo real de un archivo según sus primeros bytes (null si no lo reconocemos).
+ *
+ * El `Content-Type` de una subida lo pone el cliente, así que por sí solo no
+ * basta: un guion con `image/png` se colaría en disco y luego se serviría como
+ * imagen. Las firmas son las de los formatos que aceptamos.
+ */
+export function detectarTipo(contenido) {
+  const empiezaPor = (firma, desde = 0) => firma.every((valor, i) => contenido[desde + i] === valor);
+
+  if (empiezaPor([0xff, 0xd8, 0xff])) return 'image/jpeg';
+  if (empiezaPor([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
+  if (empiezaPor([0x47, 0x49, 0x46, 0x38])) return 'image/gif'; // GIF87a / GIF89a
+  // WEBP vive dentro de un contenedor RIFF: «RIFF????WEBP».
+  if (empiezaPor([0x52, 0x49, 0x46, 0x46]) && empiezaPor([0x57, 0x45, 0x42, 0x50], 8)) {
+    return 'image/webp';
+  }
+  // El PDF puede llevar bytes sueltos antes de la cabecera, así que se busca.
+  if (contenido.includes('%PDF-')) return 'application/pdf';
+  return null;
+}
+
+/** Lee solo el arranque del archivo: no hace falta cargar la foto entera. */
+async function leerCabecera(ruta, bytes = EVIDENCIA_POLITICA.bytesDeFirma) {
+  const manejador = await fs.open(ruta, 'r');
+  try {
+    const bufer = Buffer.alloc(bytes);
+    const { bytesRead } = await manejador.read(bufer, 0, bytes, 0);
+    return bufer.subarray(0, bytesRead);
+  } finally {
+    await manejador.close();
+  }
 }
 
 /**
@@ -32,6 +70,23 @@ export function mimePermitido(mime) {
  */
 export function limiteDe() {
   return config.evidencia.maxFotoBytes || EVIDENCIA_POLITICA.maxFotoBytes;
+}
+
+/**
+ * Tope del conjunto de archivos de una misma petición.
+ *
+ * Multer solo limita archivo a archivo, así que sin este tope una carga de 20
+ * fotos podría escribir cientos de megabytes de golpe.
+ */
+export function limiteCargaDe() {
+  return config.evidencia.maxCargaBytes || EVIDENCIA_POLITICA.maxCargaBytes;
+}
+
+/** Tamaño en unidades legibles, para los mensajes de error (60 MB, 900 KB…). */
+export function pesoLegible(bytes) {
+  const total = Number(bytes) || 0;
+  if (total >= 1024 * 1024) return `${Math.round(total / (1024 * 1024))} MB`;
+  return `${Math.round(total / 1024)} KB`;
 }
 
 /**
@@ -76,17 +131,44 @@ export async function descartar(archivo) {
 
 /** Valida los archivos que multer ya dejó en disco. */
 export async function validarArchivos(archivos = []) {
+  // El tope del CONJUNTO se comprueba aquí, y no mientras llega el cuerpo:
+  // multer escribe cada parte en cuanto la recibe y las atiende en paralelo, así
+  // que no hay un punto intermedio fiable donde cortar sin romper el flujo. Si
+  // la carga se pasa, se descarta entera.
+  const peso = archivos.reduce((total, archivo) => total + (Number(archivo.size) || 0), 0);
+  if (peso > limiteCargaDe()) {
+    await Promise.all(archivos.map((archivo) => descartar(archivo)));
+    throw new AppError(
+      413,
+      `La evidencia de una misma carga no puede pasar de ${pesoLegible(limiteCargaDe())}`
+    );
+  }
+
   const validos = [];
   for (const archivo of archivos) {
-    if (!mimePermitido(archivo.mimetype)) {
+    const mime = String(archivo.mimetype || '').toLowerCase();
+
+    if (!mimePermitido(mime)) {
       await descartar(archivo);
       throw errorMime(archivo.mimetype);
     }
+
     if (archivo.size > limiteDe()) {
-      const mb = Math.round(limiteDe() / (1024 * 1024));
       await descartar(archivo);
-      throw AppError.solicitudInvalida(`"${archivo.originalname}" excede el límite de ${mb} MB`);
+      throw new AppError(413, `"${archivo.originalname}" excede el límite de ${pesoLegible(limiteDe())}`);
     }
+
+    // El tipo declarado tiene que coincidir con el contenido real del archivo.
+    const real = detectarTipo(await leerCabecera(archivo.path));
+    if (real !== mime) {
+      await descartar(archivo);
+      throw AppError.solicitudInvalida(
+        real
+          ? `"${archivo.originalname}" contiene un archivo ${real}, no ${mime}`
+          : `"${archivo.originalname}" no es una imagen ni un PDF válidos`
+      );
+    }
+
     validos.push(metadatosDeArchivo(archivo));
   }
   return validos;
@@ -130,4 +212,58 @@ export async function pesoDeEvidencia(incidencias = []) {
     }
   }
   return total;
+}
+
+/* -------------------------- ciclo de vida del archivo ------------------------ */
+
+/** Borra del disco los archivos de una lista de URLs (las que falten se ignoran). */
+export async function borrarArchivos(urls = []) {
+  let borrados = 0;
+  for (const url of urls) {
+    try {
+      await fs.unlink(rutaDeUrl(url));
+      borrados++;
+    } catch {
+      /* el archivo ya no estaba: nada que hacer */
+    }
+  }
+  return borrados;
+}
+
+/** URLs de toda la evidencia (la del reporte y la de la resolución). */
+export function urlsDeEvidencia(incidencia) {
+  return [...(incidencia?.evidencia || []), ...(incidencia?.evidenciaSolucion || [])]
+    .map((ev) => ev?.url)
+    .filter(Boolean);
+}
+
+/**
+ * Borra los archivos de una incidencia. Se llama al eliminar el documento: si no,
+ * la foto seguiría accesible por su URL aunque el reporte ya no exista.
+ */
+export async function borrarEvidenciaDeIncidencia(incidencia) {
+  return borrarArchivos(urlsDeEvidencia(incidencia));
+}
+
+/**
+ * Archivos que hay en el directorio de evidencia, con su tamaño y su fecha.
+ *
+ * Lo usa `scripts/limpiar-evidencias.mjs` para localizar los huérfanos: los que
+ * quedaron de una subida que nunca llegó a guardarse como reporte.
+ */
+export async function archivosEnDisco() {
+  await asegurarDirectorio();
+  const nombres = await fs.readdir(config.paths.uploads);
+  const archivos = [];
+  for (const nombre of nombres) {
+    // Los archivos ocultos (`.gitkeep`) no los genera la aplicación: quedan
+    // fuera para que la limpieza de huérfanos no los borre.
+    if (nombre.startsWith('.')) continue;
+    const ruta = path.join(config.paths.uploads, nombre);
+    const info = await fs.stat(ruta).catch(() => null);
+    if (info?.isFile()) {
+      archivos.push({ nombre, ruta, tamano: info.size, modificado: info.mtime });
+    }
+  }
+  return archivos;
 }

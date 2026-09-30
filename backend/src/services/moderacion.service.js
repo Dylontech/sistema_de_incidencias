@@ -19,6 +19,7 @@
 import { ADVERTENCIAS_MAX, LIMITES_TEXTO } from '../config/constantes.js';
 import { AppError } from '../utils/AppError.js';
 import { ahoraIso } from '../utils/fechas.js';
+import { borrarEvidenciaDeIncidencia } from './uploads.service.js';
 import { recolector } from '../utils/validacion.js';
 import {
   construirDenuncia,
@@ -295,6 +296,8 @@ export async function resolver(repositorio, usuario, denunciaId, datos = {}) {
       }
       if (!incidencia) throw AppError.conflicto('El contenido denunciado ya no existe');
       await repositorio.eliminarIncidencia(incidencia.id);
+      // Igual que al eliminar desde el panel: la evidencia en disco se va con él.
+      await borrarEvidenciaDeIncidencia(incidencia);
       resultado = { eliminada: true, id: incidencia.id };
       break;
     }

@@ -43,6 +43,12 @@ export const LIMITES_TEXTO = {
   correo: 160,
   /** Mínimo de la contraseña de una cuenta ciudadana. */
   passwordMin: 8,
+  /**
+   * Máximo de la contraseña. bcrypt solo mira los primeros 72 bytes, así que
+   * más allá de eso los caracteres no aportan nada: mejor decirlo que dejar
+   * creer que cuenta.
+   */
+  passwordMax: 72,
   titulo: 80,
   descripcion: 600,
   indicaciones: 400,
@@ -117,23 +123,34 @@ export const MUNICIPIO_DEFAULT = '16050';
 export const TIPO_OTRO = 'otro';
 
 /**
- * Límites de evidencia.
+ * Límites y política de la evidencia.
  *
  * La evidencia es **solo de fotografías**: el video se retiró del formulario y
  * el servidor lo rechaza (los reportes que ya tengan video se siguen mostrando).
  * El PDF se admite únicamente como documento de la resolución.
+ *
+ * `mimesPermitidos` es una **lista cerrada**: antes se aceptaba cualquier
+ * `image/*` y por ahí colaba `image/svg+xml`, que puede llevar código dentro y,
+ * servido desde el mismo origen, sería XSS almacenado. Además del `Content-Type`
+ * se comprueba la **firma binaria** del archivo (ver `detectarTipo` en
+ * `services/uploads.service.js`), porque ese dato lo elige quien sube.
  */
 export const EVIDENCIA_POLITICA = {
-  maxFotoBytes: 100 * 1024 * 1024,
+  /** Tope de cada archivo: una foto de móvil ronda los 3-8 MB. */
+  maxFotoBytes: 20 * 1024 * 1024,
+  /** Tope del conjunto de una misma carga (ver `limiteCargaDe`). */
+  maxCargaBytes: 60 * 1024 * 1024,
   maxArchivosPorCarga: 20,
-  mimesPermitidos: ['image/', 'application/pdf'],
+  mimesPermitidos: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'],
   /**
    * Tope para la evidencia que llega dentro de un respaldo del monolito: allí
    * también había video de hasta 1 GB, así que se conserva ese margen para no
-   * perder archivos que ya existían. Al subir desde el formulario manda
-   * `maxFotoBytes`.
+   * perder archivos que ya existían. Al subir desde el formulario mandan
+   * `maxFotoBytes` y `maxCargaBytes`.
    */
   maxImportacionBytes: 1024 * 1024 * 1024,
+  /** Bytes del arranque que se leen para comprobar la firma del archivo. */
+  bytesDeFirma: 1024,
   extensiones: {
     'image/jpeg': '.jpg',
     'image/png': '.png',

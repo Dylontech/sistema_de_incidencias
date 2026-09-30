@@ -3,6 +3,7 @@
  * La `clave` de acceso solo se muestra a los administradores.
  */
 import { AppError } from '../utils/AppError.js';
+import { config } from '../config/index.js';
 import { publico } from '../models/municipio.model.js';
 import { publica as publicaZona } from '../models/zona.model.js';
 import { enriquecerLista } from './estado.service.js';
@@ -105,7 +106,9 @@ export async function catalogos() {
       motivoPeligro: LIMITES_TEXTO.motivoPeligro,
       detalleDenuncia: LIMITES_TEXTO.detalleDenuncia,
       motivoModeracion: LIMITES_TEXTO.motivoModeracion,
-      maxFotoBytes: EVIDENCIA_POLITICA.maxFotoBytes,
+      // Los límites EFECTIVOS (los de la política o los que fije el entorno).
+      maxFotoBytes: config.evidencia.maxFotoBytes,
+      maxCargaBytes: config.evidencia.maxCargaBytes,
       maxArchivosPorCarga: EVIDENCIA_POLITICA.maxArchivosPorCarga,
       mimesPermitidos: EVIDENCIA_POLITICA.mimesPermitidos
     },

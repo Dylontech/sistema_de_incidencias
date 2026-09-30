@@ -38,6 +38,14 @@
  * @property {boolean} activo
  * @property {boolean} pseudonimo    `true` si `nombre` es un pseudónimo generado
  * @property {string} passwordHash
+ * @property {boolean} correoVerificado  `false` mientras no se abra el enlace del correo
+ * @property {string|null} tokenVerificacionHash  sha256 del token del enlace (nunca el token)
+ * @property {string|null} tokenVerificacionExpira
+ * @property {string|null} resetTokenHash        sha256 del token de recuperación
+ * @property {string|null} resetExpira
+ * @property {number} tokenVersion   versión de la sesión: sube al cambiar la contraseña
+ * @property {number} intentosFallidos
+ * @property {string|null} bloqueadoHasta  fin del bloqueo temporal por intentos
  * @property {number} advertencias   avisos acumulados por moderación
  * @property {boolean} suspendido    cuenta bloqueada por moderación
  * @property {string|null} suspendidoHasta  fin de la suspensión; vacío = indefinida
@@ -154,8 +162,11 @@
  * @property {(username:string) => Promise<Usuario|null>} usuarioPorUsername
  * @property {(correo:string) => Promise<Usuario|null>} usuarioPorCorreo
  * @property {(id:string) => Promise<Usuario|null>} usuarioPorId
+ * @property {(hash:string) => Promise<Usuario|null>} usuarioPorTokenVerificacion
+ * @property {(hash:string) => Promise<Usuario|null>} usuarioPorTokenRestablecimiento
  * @property {(usuario:Usuario) => Promise<Usuario>} crearUsuario
  * @property {(id:string, cambios:Object) => Promise<Usuario|null>} actualizarUsuario
+ * @property {(id:string) => Promise<boolean>} eliminarUsuario
  * @property {(filtros:FiltrosIncidencias) => Promise<Incidencia[]>} buscarIncidencias
  * @property {() => Promise<Incidencia[]>} todasLasIncidencias
  * @property {(id:string) => Promise<Incidencia|null>} incidenciaPorId
@@ -175,6 +186,7 @@
  * @property {(id:string) => Promise<Denuncia|null>} denunciaPorId
  * @property {(filtros:FiltrosDenuncias) => Promise<Denuncia[]>} denunciasDe
  * @property {(id:string, denuncia:Denuncia) => Promise<Denuncia|null>} actualizarDenuncia
+ * @property {(id:string) => Promise<boolean>} eliminarDenuncia
  * @property {() => Promise<number>} borrarDenuncias
  */
 
@@ -195,8 +207,11 @@ export const METODOS_REQUERIDOS = [
   'usuarioPorUsername',
   'usuarioPorCorreo',
   'usuarioPorId',
+  'usuarioPorTokenVerificacion',
+  'usuarioPorTokenRestablecimiento',
   'crearUsuario',
   'actualizarUsuario',
+  'eliminarUsuario',
   'buscarIncidencias',
   'todasLasIncidencias',
   'incidenciaPorId',
@@ -216,6 +231,7 @@ export const METODOS_REQUERIDOS = [
   'denunciaPorId',
   'denunciasDe',
   'actualizarDenuncia',
+  'eliminarDenuncia',
   'borrarDenuncias'
 ];
 

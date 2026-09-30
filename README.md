@@ -27,7 +27,7 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 | **Servicios** | `backend/src/services/` | Lógica de negocio: geocerca, color por antigüedad, autenticación, alcance por rol/municipio, incidencias, moderación (denuncias y sanciones), estadísticas, evidencia, importación. |
 | **Controladores** | `backend/src/controllers/` | Traducen HTTP ↔ servicios. No contienen lógica de negocio. |
 | **Rutas** | `backend/src/routes/` | Un router por recurso, montado bajo `/api`. |
-| **Middlewares** | `backend/src/middlewares/` | Autenticación JWT, roles, inyección del repositorio, carga de archivos (multer) y errores. |
+| **Middlewares** | `backend/src/middlewares/` | Autenticación JWT, roles, inyección del repositorio, carga de archivos (multer), **cabeceras de seguridad** (`seguridad.js`), **límites de peticiones** (`limitadores.js`) y errores. |
 
 ### Frontend (JavaScript modular, sin framework)
 
@@ -38,7 +38,7 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 | **controllers** | `frontend/js/controllers/` | Orquestan store + servicios + vistas y registran las acciones de la interfaz. |
 | **views** | `frontend/js/views/` | Renderizan HTML a partir de datos. Nunca llaman a la API. |
 | **map** | `frontend/js/map/` | Todo Leaflet: capa satelital, límites, zonas, marcadores y popups. |
-| **css** | `frontend/css/` | `base`, `layout`, `componentes`, `admin` (extraídos del monolito), `reportes` (impresión) y `extensiones` (todo lo añadido después: peligrosas, cuentas, tutorial, moderación…). |
+| **css** | `frontend/css/` | `base`, `layout`, `componentes`, `admin` (extraídos del monolito), `reportes` (impresión) y `extensiones` (todo lo añadido después: peligrosas, cuentas, tutorial, moderación, utilidades para el marcado sin estilos en línea…). `impresion-informe.css` es solo para la ventana del informe imprimible. |
 
 La interfaz no usa atributos `onclick`: cada elemento declara `data-action="dominio:accion"`
 (o `data-change`, `data-input`, `data-submit`) y los controladores registran su manejador.
@@ -194,6 +194,34 @@ que la restaura y aplica el paso previo (términos, y municipio solo si puede el
 > Es una **página discreta, no protegida**: quien conozca la dirección ve el formulario, así que la
 > seguridad sigue estando en las credenciales y en el alcance que aplica el servidor.
 
+### Página «Acerca de» (`/acerca`)
+
+`frontend/acerca.html` es una **página pública e independiente** que explica qué es el sistema, cómo
+funciona y con qué está hecho:
+
+- **Cómo funciona** — el flujo de uso en seis pasos y una tabla de roles (anónimo, ciudadano,
+  funcionario y administrador) con lo que puede hacer cada uno.
+- **Características** — mapa de cuatro capas, catálogo geográfico del INEGI, conceptos de reporte,
+  evidencia fotográfica, colores por antigüedad, filtros, avisos, moderación, panel e informes.
+- **Tecnologías y dependencias** — frontend en módulos ES con Leaflet y Bootstrap Icons; backend
+  Node + Express + Knex + MariaDB; pruebas con `node:test` y Supertest; Docker Compose.
+- **Agradecimientos** — INEGI (Marco Geoestadístico y su catálogo geoestadístico) y el espejo
+  `MacWilliXD/INEGI-geojson`, Leaflet, OpenStreetMap y OpenTopoMap, Esri y sus fuentes de datos,
+  Bootstrap Icons y el resto de librerías libres.
+- **Contacto y aviso** — enlaces a DylonTech (sitio, GitHub y repositorio del proyecto) y correo,
+  más el aviso de que es una **versión preliminar hecha con asistencia de IA**, que puede tener
+  errores y que **no es una entidad gubernamental**.
+
+Se enlaza desde la barra lateral de la aplicación (*Acerca de este sistema*), desde la pantalla de
+acceso y desde `/personal`, siempre en otra pestaña. **No necesita backend, JavaScript propio ni
+dependencias nuevas**: el `express.static` con `extensions: ['html']` la sirve en `/acerca`. Al
+contrario que `/personal`, **sí** se anuncia a los buscadores (`index, follow`).
+
+> **Al cambiarla hay que reconstruir la imagen** (`docker compose up -d --wait --build`): el
+> contenedor sirve su propia copia de `frontend/`, no la del repositorio. Los números del catálogo
+> que cita la página (175 municipios y más de 6 300 comunidades de Michoacán, Guanajuato y Ciudad
+> de México) hay que revisarlos si se importan más estados con `npm run importar-inegi`.
+
 ### Entrada: municipio y términos de uso
 
 La aplicación **no arranca sin pasar por el paso previo** (`#onboarding`,
@@ -274,6 +302,144 @@ y un id con prefijo `demo-`, que es lo que usa `--limpiar` para retirarlos.
 
 ---
 
+## Seguridad
+
+La aplicación se sirve con **cabeceras endurecidas** y **límites de peticiones**. Todo es
+configurable por entorno, pero los valores por omisión son los recomendados.
+
+### Cabeceras y política de contenidos
+
+`helmet` añade las cabeceras y una **Content-Security-Policy sin nada en línea**: ni
+atributos `style=`, ni bloques `<style>`, ni scripts incrustados, ni manejadores
+`onclick`. Por eso:
+
+- El marcado no lleva estilos en línea: las utilidades están en `css/extensiones.css` y los
+  valores que dependen de los datos (el color de una zona, el ancho de una barra) se aplican
+  por CSSOM con `aplicarEstilosDinamicos()` de `core/utils.js`. Manipular el estilo desde
+  JavaScript **no** lo bloquea la política; escribir el atributo en el marcado, sí.
+- **Leaflet y Bootstrap Icons se sirven desde `/vendor/`**, no desde una CDN, así que la
+  política solo permite el propio origen (más las teselas del mapa, que son imágenes).
+- El informe imprimible carga su hoja de estilos (`css/impresion-informe.css`) y su script
+  (`js/informe-imprimir.js`) como archivos enlazados. La impresión no se dispara desde la
+  ventana que lo abre: en cuanto el documento nuevo termina de cargar, la política de
+  apertura de contextos ya no le deja acceder a `print()`.
+- Hay una prueba que lo vigila: `test/sin-estilos-inline.test.js` falla si vuelve a
+  aparecer algo en línea en el frontend.
+
+| Cabecera | Valor |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`… |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `no-referrer` |
+| `Permissions-Policy` | `geolocation=(self)`; cámara, micrófono y pago bloqueados |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Strict-Transport-Security` | solo con `ASUMIR_HTTPS=true` |
+
+Los archivos de `/uploads` se sirven además con `Content-Security-Policy: default-src
+'none'; sandbox`: abrir una evidencia directamente no ejecuta nada.
+
+### Límite de peticiones
+
+La clave es la sesión (`userKey`) cuando existe y la IP cuando no:
+
+| Ruta | Límite por omisión |
+|---|---|
+| Entradas con contraseña (`/api/auth/{ciudadano,funcionario,admin}`) | 10 intentos fallidos / 15 min |
+| Alta de cuentas (`/api/auth/registro`) | 5 / 15 min |
+| Sesiones anónimas (`/api/auth/anonimo`) | 20 / 15 min |
+| Escritura: reportes, comentarios y denuncias | 20 / 15 min |
+| Evidencia (`/api/uploads`) | 30 / 15 min |
+| Resto de la API | 900 / 15 min |
+
+El rechazo responde 429 con `{ error, detalles }` y, cuando el almacén lo aporta,
+`Retry-After`. El almacén es **en memoria**: basta con una instancia; con varias réplicas
+haría falta un almacén compartido (Redis). `/api/salud` queda fuera del límite general para
+que el healthcheck del contenedor no gaste cupo, y en `NODE_ENV=test` los límites se
+desactivan (la suite hace cientos de peticiones).
+
+### Secretos y arranque
+
+Al arrancar se revisa la configuración: con `NODE_ENV=production` la aplicación **no
+levanta** si `JWT_SECRET` sigue siendo el valor de ejemplo (o mide menos de 32 caracteres),
+si `DB_PASSWORD` está vacío o si `TRUST_PROXY=true` (permitiría falsear la IP). En
+desarrollo solo se avisa.
+
+`TRUST_PROXY` está **desactivado por omisión**: la aplicación se publica directamente, así
+que `req.ip` ya es la del cliente. Detrás de un proxy inverso hay que declararlo
+(`TRUST_PROXY=1`, o la lista de IPs); ponerlo a `true` sin más dejaría los límites de
+peticiones en manos de una cabecera.
+
+### Red y tamaño de las peticiones
+
+El puerto de la aplicación se publica **solo en 127.0.0.1** (`APP_BIND`), igual que MariaDB.
+Para probarla desde el móvil u otro equipo: `APP_BIND=0.0.0.0` en el `.env` de la raíz,
+asumiendo que queda accesible para toda la red local.
+
+El cuerpo JSON general está acotado a **1 MB**; solo `/api/admin/importar`, que recibe la
+evidencia en base64 de un respaldo, admite hasta 100 MB.
+
+---
+
+## Cuentas ciudadanas
+
+Reportar no exige cuenta: el ciudadano anónimo (identificador del dispositivo) puede crear
+reportes, pero **no recibe avisos**. La cuenta (correo + contraseña) añade el buzón de
+notificaciones y el control sobre los propios datos.
+
+### Alta y confirmación del correo
+
+1. `POST /api/auth/registro` crea la cuenta con el correo **sin confirmar** y **no devuelve
+   sesión**. Si devolviera un token, cualquiera podría registrarse con la dirección de otra
+   persona y quedarse con sus avisos.
+2. El servicio de correo manda el enlace `/?verificar=<código>`, que caduca en 24 h.
+3. `POST /api/auth/verificar` marca el correo como confirmado y **borra el token** (el mismo
+   enlace no sirve dos veces).
+4. Si el enlace se pierde: `POST /api/auth/reenviar` (público, desde la pantalla de acceso) o
+   `POST /api/cuenta/correo/reenviar` (con sesión, desde «Mi cuenta»).
+
+Sin `SMTP_HOST` configurado los correos **no salen**: el mensaje y su enlace se escriben en el
+registro del servidor (`docker compose logs app`), que es lo que permite recorrer el flujo
+completo en desarrollo. Con `EXIGIR_CORREO_VERIFICADO=false` se puede entrar sin confirmar
+(solo para pruebas: el arranque avisa de ello).
+
+### Contraseñas y sesiones
+
+- **Cambio desde la sesión** (`POST /api/cuenta/password`): pide la actual, sube la versión de
+  sesión y **devuelve un token nuevo**, así que la sesión que hizo el cambio sigue abierta y
+  las demás quedan fuera (401 en su siguiente petición).
+- **Olvidé mi contraseña** (`POST /api/auth/olvide`): la respuesta es **siempre la misma**,
+  exista o no la cuenta (y también si el correo llega mal escrito), de modo que la pantalla no
+  sirve para averiguar qué direcciones están registradas. El enlace caduca en 1 h, se usa una
+  sola vez y al canjearlo la cuenta queda confirmada y con la sesión abierta.
+- **Intentos fallidos**: al llegar a `INTENTOS_MAXIMOS` (8 por omisión) la cuenta se bloquea
+  `MINUTOS_BLOQUEO` (15). Se comprueba **antes** de mirar la contraseña y responde **429** con
+  `detalles.reintentarEnSegundos`; al acertar, el contador vuelve a cero. Bloquear por cuenta
+  revela que existe (si no existiera no habría nada que bloquear): se acepta a cambio de frenar
+  la fuerza bruta, sobre todo porque el propio registro ya responde «ya existe una cuenta con
+  ese correo».
+- La política es mínimo 8 caracteres, máximo 72 (bcrypt solo mira los primeros 72 bytes), no
+  igual al correo, y fuera de una lista de contraseñas comunes. **No se piden símbolos ni
+  mayúsculas**: lo que protege de verdad es la longitud.
+- El token lleva `v` (versión de sesión). Subirla al cambiar la contraseña invalida **todos**
+  los tokens anteriores, sin guardar la lista de sesiones abiertas.
+
+### Mis datos y baja
+
+- `GET /api/cuenta/datos` descarga un JSON con la cuenta, sus reportes (también los ocultos por
+  moderación), sus comentarios, sus avisos y las denuncias que presentó.
+- `DELETE /api/cuenta` (con la contraseña) **anonimiza** sus reportes y comentarios
+  (`esAnonimo: true`, `autorNombre: 'Anónimo'`, `user_key: 'anonimo'`, y su nombre fuera del
+  historial), borra sus avisos y las denuncias que presentó, y elimina la cuenta. Los reportes
+  **siguen publicados**: al darse de baja se pide dejar de aparecer, no tirar el expediente del
+  ayuntamiento. Las cuentas del personal no se dan de baja por aquí.
+
+La migración `010_cuentas_seguras` añade las columnas necesarias a `usuarios` y marca como
+verificadas las cuentas que ya existían (se registraron cuando no había correo de
+confirmación). De los tokens solo se guarda su **hash sha256**: una copia de la tabla no
+permite entrar en ninguna cuenta.
+
+---
+
 ## Scripts
 
 Desde la raíz (delegan en `backend/`):
@@ -286,6 +452,7 @@ Desde la raíz (delegan en `backend/`):
 | `npm run migrate` | Aplica las migraciones de Knex. |
 | `npm run migrate:rollback` | Revierte el último lote de migraciones. |
 | `npm run seed` | Carga los datos semilla (municipios, zonas, tipos, usuarios). |
+| `npm run vendorizar-frontend` | Copia Leaflet y Bootstrap Icons a `frontend/vendor/` (verifica el `sha256` del lock). |
 
 Dentro de `backend/`:
 
@@ -293,10 +460,12 @@ Dentro de `backend/`:
 |---|---|
 | `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/` (ya no la geografía). |
 | `npm run importar-inegi` | Genera el catálogo de municipios y comunidades con los polígonos del INEGI. |
+| `npm run vendorizar-frontend` | Descarga Leaflet y Bootstrap Icons a `frontend/vendor/` y actualiza el lock (`-- --actualizar` para subir de versión). |
 | `npm run migrar-catalogo` | Pasa los datos existentes a las claves geoestadísticas (ver más abajo). |
 | `npm run datos-demo` | Crea incidencias de ejemplo repartidas por tipo, estado, antigüedad y comunidad. |
 | `npm run importar-legacy -- respaldo.json` | Importa un respaldo del sistema anterior. |
 | `npm run limpiar-bases-prueba` | Borra las bases `incidencias_test_*` de las pruebas. |
+| `npm run limpiar-evidencias` | Informa (y con `-- --aplicar` borra) de los archivos de evidencia que ningún reporte referencia. |
 
 ---
 
@@ -308,12 +477,24 @@ Ver [`.env.example`](.env.example). Las relevantes:
 |---|---|---|
 | `PORT` | `3000` | Puerto del servidor (en el contenedor siempre es 3000). |
 | `STORAGE_DRIVER` | `mysql` | `mysql` (MariaDB vía Knex) o `json` (archivos en `backend/data/`). |
-| `JWT_SECRET` | — | **Obligatorio cambiarlo en producción.** |
+| `JWT_SECRET` | — | **Obligatorio cambiarlo en producción.** El arranque se niega a levantar con el valor de ejemplo. |
 | `JWT_EXPIRES_IN` | `8h` | Vigencia del token. |
+| `TRUST_PROXY` | `false` | Confianza en las cabeceras `X-Forwarded-*`. `1` si hay un proxy inverso delante, o la lista de IPs. **No** lo pongas a `true`. |
+| `ASUMIR_HTTPS` | `false` | Actívalo solo si la aplicación se sirve por HTTPS: añade HSTS y `upgrade-insecure-requests`. |
+| `CSP_MODO` | `estricto` | `laxo` admite estilos en línea (solo para depurar). |
+| `RATE_LIMIT_ACTIVO` | `true` | `false` desactiva todos los límites de peticiones. |
+| `RATE_LIMIT_MAX_*` | varios | Cupos por ventana (`GENERAL`, `AUTH`, `REGISTRO`, `ANONIMO`, `ESCRITURA`, `UPLOADS`). |
+| `MAX_JSON_BYTES` / `MAX_IMPORTACION_BYTES` | `1048576` / `104857600` | Tamaño del cuerpo JSON general y del respaldo. |
 | `DATA_DIR` / `UPLOAD_DIR` | `backend/data`, `backend/uploads` | Datos (solo driver json) y evidencia. |
 | `DB_HOST` … `DB_NAME` | `127.0.0.1:3310` / `incidencias` | Conexión MySQL/MariaDB (dentro del contenedor: `mariadb:3306`). |
-| `MAX_FOTO_BYTES` | 100 MB | Límite de cada foto de evidencia. |
+| `MAX_FOTO_BYTES` / `MAX_CARGA_BYTES` | 20 MB / 60 MB | Límite de cada archivo de evidencia y del conjunto de una misma carga. |
+| `URL_PUBLICA` | `http://localhost:PORT` | Dirección con la que se construyen los enlaces de los correos. |
+| `SMTP_HOST` … `SMTP_REMITENTE` | vacío | Servidor de correo saliente. **Sin `SMTP_HOST` los correos se escriben en el registro**, no se envían. |
+| `EXIGIR_CORREO_VERIFICADO` | `true` | Obliga a confirmar el correo antes de entrar. Déjalo en `true`. |
+| `CORREO_VERIFICACION_MIN` / `CORREO_RESTABLECIMIENTO_MIN` | 1440 / 60 | Caducidad de los enlaces (minutos). |
+| `INTENTOS_MAXIMOS` / `MINUTOS_BLOQUEO` | 8 / 15 | Fallos seguidos antes de bloquear una cuenta y cuánto dura el bloqueo. |
 | `APP_PORT` | `3100` | Puerto público de la aplicación (solo compose). |
+| `APP_BIND` | `127.0.0.1` | Interfaz en la que se publica; `0.0.0.0` para abrirla a la red local (solo compose). |
 | `DB_PORT_HOST` | `3310` | Puerto de MariaDB publicado en `127.0.0.1` (solo compose). |
 | `DB_ROOT_PASSWORD` | — | Contraseña de root de MariaDB en el contenedor (solo compose). |
 | `ESPERAR_BASE` / `MIGRAR_AL_ARRANCAR` | `true` | Ponerlos a `false` para que el contenedor no espere a la base / no migre al arrancar. |
@@ -336,12 +517,20 @@ y `/api/salud`.
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
 | POST | `/api/auth/anonimo` | público | Entrada como ciudadano anónimo (`anonId` opcional y persistente). |
-| POST | `/api/auth/registro` | público | Crea una cuenta ciudadana (correo, contraseña, nombre o `pseudonimo`). |
+| POST | `/api/auth/registro` | público | Crea una cuenta ciudadana (correo, contraseña, nombre o `pseudonimo`). **No devuelve token**: hay que confirmar el correo. |
+| POST | `/api/auth/verificar` | público | Confirma el correo con el código del enlace (`{ token }`). |
+| POST | `/api/auth/reenviar` | público | Manda otro enlace de confirmación (`{ correo }`). Respuesta idéntica exista o no la cuenta. |
+| POST | `/api/auth/olvide` | público | Pide el enlace para elegir contraseña nueva (`{ correo }`). Respuesta idéntica exista o no la cuenta. |
+| POST | `/api/auth/restablecer` | público | Elige la contraseña nueva con el código del enlace (`{ token, password }`). |
 | POST | `/api/auth/ciudadano` | público | Entrada de una cuenta ciudadana (correo + contraseña). |
 | POST | `/api/auth/funcionario` | público | Usuario + contraseña + clave de municipio. |
 | POST | `/api/auth/admin` | público | Usuario + contraseña. |
-| GET | `/api/auth/me` | sesión | Sesión actual y municipio sugerido para el mapa. |
+| GET | `/api/auth/me` | sesión | Sesión actual (incluye `correoVerificado`) y municipio sugerido para el mapa. |
 | POST | `/api/auth/municipio-activo` | sesión | Cambia de municipio y devuelve token nuevo (el admin exige la clave). |
+| POST | `/api/cuenta/password` | sesión | Cambia la contraseña (pide la actual) y **devuelve un token nuevo**; cierra las demás sesiones. |
+| POST | `/api/cuenta/correo/reenviar` | sesión | Manda otro enlace de confirmación del correo. |
+| GET | `/api/cuenta/datos` | sesión | Descarga (JSON) todo lo que el sistema guarda de la cuenta. |
+| DELETE | `/api/cuenta` | sesión | Baja de la cuenta (`{ password }`): anonimiza sus reportes y borra sus avisos. |
 
 ### Catálogos
 
@@ -396,12 +585,31 @@ tipo en MySQL/MariaDB (migración `008_tipos_incendio_sitio`) y se pinta con
 
 #### Evidencia: solo fotografías
 
-El formulario adjunta **fotos** (JPG, PNG, WEBP o GIF, hasta 100 MB cada una y 20 por
-carga); en la resolución se admite además el **PDF** del oficio. El video se retiró: el
-input ya no lo ofrece, el cliente avisa al soltarlo y el servidor lo rechaza con «Solo se
-admiten fotografías» (también si se cuela como metadato en el `POST /api/incidencias`). Los
-reportes antiguos o importados que tengan video **se siguen mostrando**, porque el reproductor
-se conserva en el detalle y en el formulario de edición.
+El formulario adjunta **fotos** (JPG, PNG, WEBP o GIF, hasta **20 MB** cada una y **60 MB por
+carga**, máximo 20 archivos); en la resolución se admite además el **PDF** del oficio. El video
+se retiró: el input ya no lo ofrece, el cliente avisa al soltarlo y el servidor lo rechaza con
+«Solo se admiten fotografías» (también si se cuela como metadato en el `POST /api/incidencias`).
+Los reportes antiguos o importados que tengan video **se siguen mostrando**, porque el
+reproductor se conserva en el detalle y en el formulario de edición.
+
+La lista de tipos es **cerrada** (antes cualquier `image/*` daba por bueno un
+`image/svg+xml`, que puede llevar código y se servía desde el mismo origen). Además del
+`Content-Type` —que lo elige quien sube— se comprueba la **firma binaria** del archivo: si el
+contenido no es lo que dice ser, se descarta y no se guarda. Es una comprobación de cabecera,
+no una descodificación de la imagen (`jpg`, `png`, `gif`, `webp` y `pdf` son los formatos
+admitidos); limpiar los metadatos EXIF necesitaría re-codificar el archivo y una dependencia
+nativa aparte.
+
+El **total de una misma carga** se cuenta en el servidor (`MAX_CARGA_BYTES`): multer solo
+limita archivo a archivo, así que sin ese tope veinte fotos podrían escribir cientos de
+megabytes de golpe. La evidencia vive en disco y se borra con el reporte (al eliminarlo desde
+el panel, al decidir `eliminar` en moderación y al restablecer los datos); lo que se sube y
+nunca llega a guardarse se recoge con:
+
+```bash
+npm run limpiar-evidencias               # informa de los huérfanos
+npm run limpiar-evidencias -- --aplicar  # los borra
+```
 
 ### Moderación
 
@@ -759,7 +967,7 @@ npm test           # driver json, sin base de datos ni Docker
 npm run test:mysql # driver mysql, con un MariaDB efímero en 127.0.0.1:3399
 ```
 
-La suite (`backend/test/`, **102 pruebas**) cubre autenticación y roles, ciclo de vida de
+La suite (`backend/test/`, **116 pruebas**) cubre autenticación y roles, ciclo de vida de
 la incidencia, geocerca y colores derivados, filtros y alcance por municipio, evidencia,
 estadísticas, exportación y la importación de respaldos. `cuentas.test.js` añade el
 sistema de cuentas: alta y entrada de ciudadanos, nombre generado, firma por reporte
@@ -769,6 +977,15 @@ del catálogo; `moderacion.test.js` el sistema de moderación (denuncias de repo
 comentarios, cola agrupada, ocultamiento visible solo para el autor y el personal,
 advertencias, suspensión automática a la tercera, jerarquía de roles y reactivación); y
 `incidencias.test.js` incluye la regla del icono propio (solo en «Otro»).
+
+El endurecimiento tiene sus propias pruebas: `seguridad.test.js` (cabeceras y política de
+contenidos, cabeceras restrictivas de `/uploads`, límite de cuerpo con el respaldo como
+excepción, 429 tras varios intentos fallidos y detección de un secreto inseguro al
+arrancar en producción), `sin-estilos-inline.test.js` (falla si el frontend vuelve a usar
+atributos `style`, manejadores en línea o bloques de `<style>`/`<script>`) e
+`informe-imprimible.test.js` (el informe enlaza su hoja de estilos y su script como
+archivos, y escapa el texto de los reportes).
+
 Cada archivo de pruebas usa su propio directorio temporal y,
 con MySQL, su propia base de datos (`incidencias_test_<pid>`), de modo que la **misma
 suite valida los dos drivers**.
@@ -809,10 +1026,11 @@ defectos del monolito:
 4. **Municipio en la barra superior**: se sincroniza al iniciar sesión; el administrador ya
    no queda atado a Maravatío.
 5. **Solo fotografías**: la evidencia ya no admite video (el monolito aceptaba 1 GB o 5 min)
-   y la de resolución aplica el mismo límite y los mismos tipos que la del reporte.
+   y la de resolución aplica el mismo límite y los mismos tipos que la del reporte. Los
+   archivos se borran con el reporte y el conjunto de una carga tiene su propio tope.
 6. **Sin pérdidas silenciosas**: la evidencia ya no se guarda como base64 dentro del
-   documento (la cuota de `localStorage` era de ~5 MB frente a 100 MB por foto);
-   ahora vive en disco y el JSON solo guarda metadatos.
+   documento (la cuota de `localStorage` era de ~5 MB, frente a los 20 MB que admite ahora
+   una foto): vive en disco y el JSON solo guarda metadatos.
 7. **Seguridad**: contraseñas con bcrypt, sesión con JWT y permisos comprobados en el
    servidor (antes el rol vivía en el navegador y era manipulable).
 8. **Código muerto eliminado**: `tipoIdTemp`, `esImagen`, `esPDF`, `existente`,

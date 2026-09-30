@@ -30,6 +30,15 @@ export class AppError extends Error {
     return new AppError(409, mensaje);
   }
 
+  /**
+   * 429: demasiados intentos seguidos (bloqueo temporal de la cuenta).
+   * `detalles.reintentarEnSegundos` permite mostrar una cuenta atrás en lugar de
+   * dejar al ciudadano probando a ciegas.
+   */
+  static demasiadasPeticiones(mensaje = 'Demasiados intentos. Espera un momento', detalles = null) {
+    return new AppError(429, mensaje, detalles);
+  }
+
   static errorInterno(mensaje = 'Error interno del servidor') {
     return new AppError(500, mensaje);
   }

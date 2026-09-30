@@ -1,5 +1,5 @@
 /** Vista del panel de administración (6 pestañas). */
-import { $, esc, textoAntiguedad, etiquetaEstado, fmtFechaCorta } from '../core/utils.js';
+import { $, esc, textoAntiguedad, etiquetaEstado, fmtFechaCorta, aplicarEstilosDinamicos } from '../core/utils.js';
 import { renderListaTipos } from './tipos.view.js';
 
 export function activarTab(nombre) {
@@ -30,21 +30,24 @@ export function renderStats(panel) {
     <div class="stat-card amarillo"><div class="stat-num">${panel.amarillas}</div><div class="stat-label">&lt;15 días</div></div>
   `;
 
-  $('statsByTipo').innerHTML =
+  const porTipo = $('statsByTipo');
+  porTipo.innerHTML =
     panel.porTipo
       .map(
         (fila) => `
-      <div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+      <div class="u-mb-10">
+        <div class="pila-filas">
           <span>${fila.icono} ${esc(fila.nombre)}</span>
           <span><strong>${fila.total}</strong> (${fila.porcentaje}%)</span>
         </div>
-        <div style="height:8px;background:#f0f4f8;border-radius:4px;overflow:hidden;">
-          <div style="height:100%;width:${fila.porcentaje}%;background:linear-gradient(90deg,var(--primario),var(--primario-claro));"></div>
+        <div class="barra-progreso">
+          <div class="barra-relleno" data-ancho="${fila.porcentaje}%"></div>
         </div>
       </div>`
       )
-      .join('') || '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px;">Sin datos</div>';
+      .join('') || '<div class="vacio-suave u-centro u-p-16">Sin datos</div>';
+  // El ancho de cada barra es un dato: se aplica por CSSOM.
+  aplicarEstilosDinamicos(porTipo);
 }
 
 /**
@@ -125,7 +128,7 @@ export function renderTablaIncidencias(incidencias = [], { tipos = [], esAdmin =
     .filter((i) => (filtro ? (i.titulo || '').toLowerCase().includes(filtro) : true));
 
   if (!lista.length) {
-    cuerpo.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px;">${
+    cuerpo.innerHTML = `<tr><td colspan="7" class="celda-vacia u-p-20">${
       soloPeligrosas ? 'No hay incidencias peligrosas' : 'Sin incidencias'
     }</td></tr>`;
     return;
@@ -142,7 +145,7 @@ export function renderTablaIncidencias(incidencias = [], { tipos = [], esAdmin =
       const tipo = tipos.find((t) => t.id === inc.tipoId);
       return `
         <tr class="${inc.peligrosa ? 'fila-peligrosa' : ''}">
-          <td><code style="font-size:10.5px;">${esc(inc.id.slice(-6))}</code></td>
+          <td><code class="u-fs-105px">${esc(inc.id.slice(-6))}</code></td>
           <td>
             ${inc.peligrosa ? '<span class="inc-badge badge-peligro" title="Incidencia peligrosa">⚠️ PELIGROSA</span> ' : ''}
             <strong>${esc(inc.titulo)}</strong>
@@ -201,11 +204,11 @@ export function renderMunicipios(municipios = [], activoId) {
           <tr>
             <td><strong>${esc(m.nombre)}</strong>${
               m.id === activoId
-                ? ' <span style="font-size:10px;background:#e8f5f2;color:#006657;padding:2px 8px;border-radius:10px;">ACTIVO</span>'
+                ? ' <span class="pastilla-activo">ACTIVO</span>'
                 : ''
             }</td>
             <td>${esc(m.estado)}</td>
-            <td>${m.clave ? `<code style="font-size:11px;">${esc(m.clave)}</code>` : '<span style="font-size:11px;color:#94a3b8;">Oculta</span>'}</td>
+            <td>${m.clave ? `<code class="u-fs-11px">${esc(m.clave)}</code>` : '<span class="u-fs-11px u-suave">Oculta</span>'}</td>
             <td>${Number(m.center[0]).toFixed(4)}, ${Number(m.center[1]).toFixed(4)}</td>
           </tr>`
           )
@@ -218,7 +221,7 @@ export function renderZonas(zonas = []) {
   const contenedor = $('zonasLista');
   if (!contenedor) return;
   contenedor.innerHTML = `
-    <div style="overflow-x:auto;">
+    <div class="u-scroll-x">
       <table class="data-table">
         <thead><tr><th>Color</th><th>Zona</th><th>Tipo</th><th>Reportes</th><th>Pendientes</th><th>Resueltos</th></tr></thead>
         <tbody>
@@ -227,20 +230,22 @@ export function renderZonas(zonas = []) {
               .map(
                 (z) => `
             <tr>
-              <td><span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:${esc(z.color)};"></span></td>
+              <td><span class="muestra-color" data-fondo="${esc(z.color)}"></span></td>
               <td>${esc(z.nombre)}</td>
-              <td style="text-transform:capitalize;">${esc(z.tipo)}</td>
+              <td class="u-capitalizar">${esc(z.tipo)}</td>
               <td><strong>${z.reportes}</strong></td>
               <td>${z.pendientes}</td>
               <td>${z.resueltas}</td>
             </tr>`
               )
               .join('') ||
-            '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;">Sin zonas definidas para este municipio</td></tr>'
+            '<tr><td colspan="6" class="celda-vacia u-p-20">Sin zonas definidas para este municipio</td></tr>'
           }
         </tbody>
       </table>
     </div>`;
+  // El color de cada zona es un hex del catálogo: se aplica por CSSOM.
+  aplicarEstilosDinamicos(contenedor);
 }
 
 export function renderUsuarios(usuarios = [], municipios = [], { esAdmin = false } = {}) {
@@ -257,7 +262,7 @@ export function renderUsuarios(usuarios = [], municipios = [], { esAdmin = false
   }
 
   contenedor.innerHTML = `
-    <div style="overflow-x:auto;">
+    <div class="u-scroll-x">
       <table class="data-table">
         <thead>
           <tr>
@@ -556,7 +561,7 @@ function renderSanciones(sanciones = []) {
 
   if (!sanciones.length) {
     cuerpo.innerHTML =
-      '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:18px;">No hay cuentas advertidas ni suspendidas</td></tr>';
+      '<tr><td colspan="5" class="celda-vacia u-p-18">No hay cuentas advertidas ni suspendidas</td></tr>';
     return;
   }
 
@@ -573,7 +578,7 @@ function renderSanciones(sanciones = []) {
         <td><code>${esc(cuenta.username)}</code></td>
         <td>${cuenta.advertencias || 0}</td>
         <td>${estado}</td>
-        <td style="text-align:right;">
+        <td class="u-derecha">
           ${
             cuenta.suspendido
               ? `<button class="btn btn-sm btn-success" data-action="moderacion:reactivar" data-id="${esc(cuenta.username)}">

@@ -4,7 +4,13 @@
  * de alertas por antigüedad (cada 60 s, como el setInterval del monolito) y
  * levanta Express.
  */
-import { config } from './config/index.js';
+import {
+  avisosDeConfiguracion,
+  config,
+  esProduccion,
+  problemasDeConfiguracion,
+  resumenConfiguracion
+} from './config/index.js';
 import { crearApp } from './app.js';
 import { cerrarRepositorio, obtenerRepositorio } from './repositories/index.js';
 import { sincronizarAlertas } from './services/estado.service.js';
@@ -19,6 +25,22 @@ function descripcionAlmacen() {
 }
 
 async function arrancar() {
+  // Lo primero de todo: ¿la configuración sirve para este entorno? En
+  // producción un secreto por defecto (o una base sin contraseña) abortan el
+  // arranque; en desarrollo solo se avisa.
+  const problemas = problemasDeConfiguracion();
+  if (problemas.length) {
+    if (esProduccion()) {
+      console.error('\nArranque abortado: la configuración no es segura en producción.');
+      for (const problema of problemas) console.error(`  - ${problema}`);
+      console.error('\nRevisa el .env de la aplicación (hay un ejemplo en .env.example).');
+      process.exit(1);
+    }
+    for (const problema of problemas) console.warn(`[aviso] ${problema}`);
+  }
+
+  for (const aviso of avisosDeConfiguracion()) console.warn(`[aviso] ${aviso}`);
+
   const app = crearApp();
 
   // El almacén se prepara ANTES de escuchar: con MySQL el driver comprueba la
@@ -47,10 +69,15 @@ async function arrancar() {
   }, config.intervaloAlertasMs);
 
   const servidor = app.listen(config.port, () => {
+    const resumen = resumenConfiguracion();
     console.log(`Sistema de Incidencias Municipales`);
     console.log(`  API:      http://localhost:${config.port}/api`);
     console.log(`  App:      http://localhost:${config.port}`);
     console.log(`  Almacén:  ${descripcionAlmacen()}`);
+    console.log(
+      `  Seguridad: CSP ${resumen.csp} · límites de peticiones ${resumen.limitePeticiones} · ` +
+        `trust proxy ${resumen.trustProxy === false ? 'desactivado' : resumen.trustProxy}`
+    );
   });
 
   // Puerto ocupado (lo más habitual: otro proyecto usando el 3000).

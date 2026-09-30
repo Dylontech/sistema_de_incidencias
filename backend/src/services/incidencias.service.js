@@ -19,6 +19,7 @@ import {
   esDuplicado
 } from '../models/incidencia.model.js';
 import { construirNotificacion, destinatarioDeIncidencia } from '../models/notificacion.model.js';
+import { borrarEvidenciaDeIncidencia, borrarArchivos, urlsDeEvidencia } from './uploads.service.js';
 import { localizarZona, dentroDelMunicipio } from './geocerca.service.js';
 import {
   enriquecer,
@@ -377,7 +378,10 @@ export async function eliminar(repositorio, usuario, id) {
   if (!incidencia) throw AppError.noEncontrado('Incidencia no encontrada');
 
   await repositorio.eliminarIncidencia(id);
-  return { eliminada: true, id };
+  // La evidencia vive en disco y no en la base: si no se borra aquí, la foto
+  // seguiría descargándose por su URL aunque el reporte ya no exista.
+  const archivos = await borrarEvidenciaDeIncidencia(incidencia);
+  return { eliminada: true, id, archivos };
 }
 
 export async function comentar(repositorio, usuario, id, texto) {
@@ -508,9 +512,19 @@ export async function limpiar(repositorio, usuario) {
   if (!esAdmin(usuario)) {
     throw AppError.prohibido('Solo un administrador puede restablecer los datos');
   }
+
+  // Se recogen las URLs ANTES de borrar las filas, y con `todasLasIncidencias`
+  // (no `buscarIncidencias`, que deja fuera las retiradas por moderación).
+  const todas = await repositorio.todasLasIncidencias();
+  const urls = todas.flatMap((i) => urlsDeEvidencia(i));
+
   const incidencias = await repositorio.borrarIncidencias();
   const notificaciones = await repositorio.borrarNotificaciones();
-  return { incidencias, notificaciones };
+  // Los documentos primero y los archivos después: si fallara el disco solo
+  // quedarían huérfanos, que recoge `npm run limpiar-evidencias`.
+  const archivos = await borrarArchivos(urls);
+
+  return { incidencias, notificaciones, archivos };
 }
 
 export { ESTADOS };
