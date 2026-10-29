@@ -1,0 +1,1020 @@
+==============================================================================
+SISTEMA DE INCIDENCIAS MUNICIPALES — CAMBIOS, INSTALACIÓN Y OPERACIÓN
+Versión 2.3 · 2026-10-27
+==============================================================================
+
+ACTUALIZACIÓN V2.3: ver la sección 17 al final de este documento. Incluye
+mapa depurado, geolocalización con cambio de municipio, informes
+multiterritoriales, estadísticas comparativas, fichas municipales, roles
+especiales, solicitudes de permisos, publicidad editable y la migración
+20261027_mejoras_v23.js.
+
+ACTUALIZACIÓN V2.2: ver la sección 16. Incluye simulador admin, publicidad,
+correos institucionales, respaldos automáticos, firmas, comentarios con reglas,
+legal editable y migraciones 027–036 más 20261026_simulacion_contexto.js.
+
+Este documento resume TODO lo que se modificó, lo que hay que instalar y los
+pasos para desplegar la versión con alcance territorial, informes públicos,
+mensajería, monitoreo y aplicación de escritorio.
+
+ÍNDICE
+  1. Resumen de cambios
+  2. Requisitos e instalaciones
+  3. Variables de entorno nuevas
+  4. Base de datos y migraciones
+  5. Correo SMTP: tutorial paso a paso
+  6. Roles y alcance territorial
+  7. Informes públicos por solicitud
+  8. Contacto, sugerencias y mensajería
+  8.1 Campañas de promoción por correo
+  9. Monitoreo de recursos del servidor
+ 10. Aplicación de escritorio (Windows y Linux)
+ 11. Mapas offline: veredicto legal y generación
+ 12. Endpoints nuevos o modificados
+ 13. Pruebas y verificación
+ 14. Seguridad y privacidad
+ 15. Reversión y mantenimiento
+ 16. Actualización V2.2
+ 17. Actualización V2.3
+
+
+==============================================================================
+1. RESUMEN DE CAMBIOS
+==============================================================================
+
+Backend
+  - Roles nuevos: auditor, enlace_estatal, enlace_federal.
+  - Alcance territorial N:M (varios municipios y estados por cuenta).
+  - El rol y el alcance se recargan en cada petición: un cambio del
+    administrador surte efecto de inmediato (antes el JWT lo conservaba 8 h).
+  - Reportes viales: carretera estatal/federal, autopista, camino rural,
+    nombre de vía, clave, kilómetro, sentido, tramo y dependencia.
+  - Endpoint ligero de mapa con bbox, límite y agrupación por celdas.
+  - Informes en PDF (pdfkit) y CSV generados en el servidor, con alcance.
+  - Solicitudes públicas de informe con doble opt-in por correo, folio y
+    consulta de estado; bloqueos reversibles con caducidad.
+  - Correo SMTP con nodemailer, cola con límite por minuto y bitácora.
+  - Contacto ciudadano→funcionarios, sugerencias y mensajería admin↔personal.
+  - Campañas de promoción con doble opt-in, baja en un clic, segmentos por
+    municipio/estado, envío de prueba y lista de supresión.
+  - Métricas del servidor (CPU, memoria, disco, event loop, latencias).
+  - Compresión HTTP y corrección de la migración de configuración (ESM).
+
+Frontend
+  - Selector explícito de municipio en el reporte: ya no se autoselecciona.
+  - Menú lateral (hamburguesa) accesible: backdrop, ARIA, Escape, foco y
+    z-index por encima de Leaflet.
+  - Capa «Físico» eliminada del mapa.
+  - Carga del mapa por viewport, clústeres y caché de catálogos.
+  - Modales con focus trap, ARIA y cierre del modal superior.
+  - Modal de monitoreo en vivo para el personal.
+  - Acceso del personal mejorado: ver contraseña, Bloq Mayús, recordar usuario,
+    errores específicos y clave opcional para enlaces estatales/federales.
+  - Bandeja de mensajes, contacto y sugerencias.
+  - Página pública /informes para solicitar informes por correo.
+  - Página pública /suscripcion.html y pestaña «Campañas» en el panel de
+    administración (editor, vista previa, prueba y envío).
+  - Panel de recursos del servidor para administradores.
+
+Escritorio
+  - Nueva carpeta desktop/ con Electron para Windows (NSIS) y Linux
+    (AppImage y .deb).
+  - Asistente de conexión, pantalla de servidor inaccesible y diagnóstico.
+  - Servidor local de PMTiles para mapas offline (scaffold funcional).
+
+
+==============================================================================
+2. REQUISITOS E INSTALACIONES
+==============================================================================
+
+Backend (ya instalado en este repositorio)
+  - Node.js 20 o superior (probado con 22 y 24).
+  - npm install en backend/ instala:
+      compression   ^1.8.2
+      nodemailer    ^10.2.1
+      pdfkit        ^0.20.2
+    (además de las dependencias que ya existían)
+
+  Comando ejecutado:
+      cd backend
+      npm install nodemailer pdfkit compression --save
+
+Escritorio (ya instalado en desktop/)
+  - Node.js 20 o superior.
+  - npm install en desktop/ instala:
+      electron          ^33.0.0
+      electron-builder  ^25.1.8
+
+  Comando ejecutado:
+      cd desktop
+      npm install
+
+  Nota: electron-builder arrastra dependencias de desarrollo con avisos de
+  auditoría. No afectan al runtime de la app; para revisarlas:
+      cd desktop
+      npm audit
+
+Sistema operativo para empaquetar
+  - Windows: sin herramientas adicionales; NSIS se descarga solo.
+  - Linux: dpkg y fakeroot para el .deb; libfuse2 para ejecutar el AppImage.
+
+Docker (opcional)
+  - docker compose up -d --build
+  - La imagen ya incluye las dependencias nuevas porque se instalan con
+    npm ci --omit=dev.
+
+
+==============================================================================
+3. VARIABLES DE ENTORNO NUEVAS
+==============================================================================
+
+Copiar .env.example a .env (raíz) y a backend/.env, y completar:
+
+  # Correo
+  MAIL_ACTIVO=true
+  MAIL_DRY_RUN=false                 # true = no envía, solo registra
+  SMTP_HOST=smtp.tu-proveedor.mx
+  SMTP_PORT=587
+  SMTP_SECURE=false                  # true solo para puerto 465
+  SMTP_USER=tu-usuario
+  SMTP_PASS=tu-contraseña-o-app-password
+  MAIL_FROM=Sistema de Incidencias <no-reply@tu-dominio.mx>
+  MAIL_REPLY_TO=contacto@tu-dominio.mx
+  CORREO_MAX_POR_MINUTO=20
+  CORREO_MAX_REINTENTOS=3
+
+  # Enlaces de los correos
+  URL_PUBLICA=https://incidencias.tu-dominio.mx
+
+  # Formularios públicos
+  LIMITE_SOLICITUDES_HORA=5
+  LIMITE_CONSULTAS_HORA=30
+  RATE_LIMIT_MAX_PUBLICO=10
+
+Si SMTP_HOST está vacío o MAIL_DRY_RUN=true, el sistema funciona igual: los
+correos se registran como «simulado» en la tabla envios_correo y en el log.
+Esto es útil para desarrollo y pruebas.
+
+
+==============================================================================
+4. BASE DE DATOS Y MIGRACIONES
+==============================================================================
+
+Migraciones nuevas:
+  010_alcance_territorial.js
+      - roles nuevos, usuarios.puede_escribir
+      - usuario_municipios, usuario_estados
+      - incidencias.estado_entidad (con backfill desde municipios)
+
+  011_incidencias_carreteras.js
+      - ambito, jurisdiccion, via_nombre, via_clave, kilometro, sentido,
+        tramo, dependencia
+
+  012_indices_mapa.js
+      - índices (municipio_id, fecha), (estado_entidad, fecha),
+        (ambito, fecha)
+
+  013_solicitudes_informe.js
+      - solicitudes_informe, bloqueos_publicos, envios_correo
+
+  014_comunicacion.js
+      - mensajes_contacto, sugerencias, mensajes_directos
+      - amplía los tipos de notificación
+
+  015_campanas_correo.js
+      - suscripciones_correo (doble opt-in y token de baja)
+      - campanas_correo y campana_destinatarios
+
+Aplicar:
+      cd backend
+      npm run migrate
+
+Con Docker:
+      docker compose up -d --build
+      # el entrypoint aplica migrate:latest automáticamente
+
+Comprobar que no queda ninguna pendiente:
+      cd backend
+      npx knex --knexfile knexfile.js migrate:list
+
+Rollback (una a una, en orden inverso):
+      npx knex --knexfile knexfile.js migrate:rollback
+
+IMPORTANTE: la migración 010 hace backfill de usuario_municipios a partir de
+usuarios.municipio_id. Si tienes cuentas de funcionario antiguas, conservarán
+su acceso municipal sin intervención.
+
+
+==============================================================================
+5. CORREO SMTP: TUTORIAL PASO A PASO
+==============================================================================
+
+El correo se usa para:
+  - confirmar solicitudes públicas de informe (doble opt-in);
+  - enviar el PDF/CSV generado;
+  - avisar de mensajes de contacto y respuestas;
+  - enviar mensajes internos admin↔funcionario;
+  - responder sugerencias;
+  - (opcional) campañas de promoción con baja en un clic.
+
+5.1 Gmail / Google Workspace
+  1. Activa la verificación en dos pasos en la cuenta.
+  2. Google Account → Seguridad → Contraseñas de aplicaciones.
+  3. Crea una contraseña para «Correo» y cópiala.
+  4. Configura:
+        SMTP_HOST=smtp.gmail.com
+        SMTP_PORT=587
+        SMTP_SECURE=false
+        SMTP_USER=tu-cuenta@gmail.com
+        SMTP_PASS=la-contraseña-de-aplicación
+        MAIL_FROM=Sistema de Incidencias <tu-cuenta@gmail.com>
+  Límite de Gmail: ~500 destinatarios/día en cuentas gratuitas y ~2000 en
+  Workspace. Ajusta CORREO_MAX_POR_MINUTO a 10–20.
+
+5.2 Zoho Mail
+        SMTP_HOST=smtp.zoho.com
+        SMTP_PORT=587
+        SMTP_SECURE=false
+        SMTP_USER=tu-cuenta@tu-dominio.mx
+        SMTP_PASS=tu-contraseña
+
+5.3 Servidor propio (Postfix, Mailcow, etc.)
+        SMTP_HOST=mail.tu-dominio.mx
+        SMTP_PORT=587
+        SMTP_SECURE=false
+        SMTP_USER=no-reply@tu-dominio.mx
+        SMTP_PASS=...
+  Asegúrate de que el servidor acepta autenticación y de que el firewall
+  permite salir al puerto 587 (o 465 con SMTP_SECURE=true).
+
+5.4 Buenas prácticas de entregabilidad
+  - Publica registros SPF, DKIM y DMARC del dominio remitente.
+  - Usa un remitente real (no-reply@tu-dominio.mx), no un correo personal.
+  - No compres listas de correos. Para promoción, usa doble opt-in y baja en
+    un clic.
+  - Empieza con volúmenes bajos (CORREO_MAX_POR_MINUTO=10) y súbelos poco a
+    poco.
+  - Revisa la tabla envios_correo y la carpeta de rebotes.
+
+5.5 Probar sin enviar
+        MAIL_DRY_RUN=true
+  Luego pide un informe desde /informes y revisa:
+        GET /api/admin/correos   (como administrador)
+
+
+==============================================================================
+6. ROLES Y ALCANCE TERRITORIAL
+==============================================================================
+
+Roles:
+  anonimo          sesión sin cuenta; puede reportar, comentar y denunciar.
+  ciudadano        cuenta con correo; ve todo el país y edita lo suyo.
+  funcionario      escritura dentro de sus municipios asignados.
+  auditor          solo lectura sobre municipios/estados asignados.
+  enlace_estatal   solo lectura sobre todos los municipios de sus estados.
+  enlace_federal   solo lectura sobre los municipios de sus estados.
+  admin            alcance global; gestiona cuentas y alcances.
+
+Reglas:
+  - Un funcionario con un municipio solo ve ese municipio.
+  - Un funcionario con varios municipios puede alternar entre ellos.
+  - Un funcionario NO puede registrar ni consultar fuera de su ámbito.
+  - Un auditor no puede crear reportes, cambiar estados, resolver, moderar,
+    comentar ni denunciar.
+  - Un enlace estatal/federal ve los municipios de sus estados y no puede
+    escribir.
+  - Los ciudadanos y las sesiones anónimas ven todos los municipios y estados.
+  - El admin puede acotarse temporalmente a un municipio activo.
+
+Asignar alcance desde el panel:
+  Panel → Usuarios → Nuevo/Editar.
+  - Municipios asignados: Ctrl/Cmd para seleccionar varios.
+  - Estados asignados: para enlaces estatales/federales.
+  - «Permitir escritura»: solo aplica a funcionarios; los roles de lectura
+    siempre quedan en solo lectura.
+
+API:
+  POST /api/usuarios
+  PATCH /api/usuarios/:id
+  Campos: rol, municipios (array de ids), estados (array de nombres),
+          puedeEscribir (bool), municipioId (compatibilidad, municipio
+          principal), correo, password, activo.
+
+
+==============================================================================
+7. INFORMES PÚBLICOS POR SOLICITUD
+==============================================================================
+
+Flujo:
+  1. El ciudadano entra a /informes (sin sesión).
+  2. Elige municipio o estado, fechas, tipos, ámbito y formato (PDF/CSV).
+  3. Acepta el aviso de privacidad y envía la solicitud.
+  4. Recibe un correo con un enlace de confirmación (doble opt-in).
+  5. Al confirmar, la solicitud entra a la cola.
+  6. El trabajador genera el archivo y lo envía como adjunto.
+  7. El ciudadano puede consultar el estado con folio + correo.
+
+Privacidad:
+  - El informe público no incluye autor, userKey, comentarios ni datos de
+    contacto.
+  - Solo se incluyen incidencias visibles (no las ocultas por moderación).
+
+Límites:
+  - 5 solicitudes por IP/hora (LIMITE_SOLICITUDES_HORA).
+  - 30 consultas por IP/hora (LIMITE_CONSULTAS_HORA).
+  - Una solicitud abierta por correo para evitar duplicados.
+  - Reintentos de generación: CORREO_MAX_REINTENTOS.
+
+Bloqueos:
+  - El administrador puede bloquear un correo o una IP (hash), con motivo y
+    caducidad opcional.
+  - El bloqueo impide nuevas solicitudes y se puede revertir.
+  - Endpoints:
+        GET    /api/admin/solicitudes-informe
+        POST   /api/admin/solicitudes-informe/:id/reintentar
+        POST   /api/admin/solicitudes-informe/:id/rechazar
+        GET    /api/admin/bloqueos
+        POST   /api/admin/bloqueos
+        DELETE /api/admin/bloqueos/:id
+
+Informes internos del personal:
+  GET /api/informes/exportar?formato=pdf|csv&municipio=...&desde=...&hasta=...
+  Respeta el alcance del usuario y excluye las ocultas.
+
+
+==============================================================================
+8. CONTACTO, SUGERENCIAS Y MENSAJERÍA
+==============================================================================
+
+Contacto ciudadano→funcionarios:
+  - Formulario público (menú lateral → «Contactar a los funcionarios»).
+  - El mensaje queda en el buzón del municipio y se avisa por correo al
+    personal con correo registrado.
+  - El personal responde desde la bandeja; la respuesta se envía por correo.
+
+Sugerencias:
+  - Formulario público con folio.
+  - Consulta por folio (+ correo si se dejó).
+  - Solo el administrador las revisa y responde.
+
+Mensajería interna:
+  - Bandeja en la barra superior (icono de chat) para el personal.
+  - Admin puede escribir a una cuenta concreta o difundir a un municipio o
+    estado.
+  - Los funcionarios pueden responder en el mismo hilo.
+  - Los roles de solo lectura pueden consultar pero no enviar.
+
+Endpoints:
+  GET    /api/contacto
+  POST   /api/contacto/:id/responder
+  GET    /api/sugerencias
+  POST   /api/sugerencias/:id/responder
+  GET    /api/mensajes
+  GET    /api/mensajes/no-leidos
+  GET    /api/mensajes/:hilo
+  POST   /api/mensajes
+  PATCH  /api/mensajes/:id/leido
+
+Públicos:
+  POST /api/publico/contacto
+  POST /api/publico/sugerencias
+  GET  /api/publico/sugerencias/:folio
+
+
+==============================================================================
+8.1 CAMPAÑAS DE PROMOCIÓN POR CORREO
+==============================================================================
+
+Objetivo: promocionar el servicio sin violentar la LFPDPPP ni las políticas
+anti-spam. El sistema NUNCA importa listas compradas: las altas entran por el
+formulario público y solo reciben correos quienes confirman su dirección.
+
+Cómo funciona
+  1. La persona entra a /suscripcion.html (hay un enlace desde /informes) y
+     deja su correo y, si quiere, su municipio.
+  2. Recibe un correo de confirmación (doble opt-in). Sin esa confirmación su
+     suscripción queda «pendiente» y NO entra en ningún envío.
+  3. Al confirmar, la suscripción queda «activa» con un token único que sirve
+     también para darse de baja en un clic desde cualquier campaña.
+  4. El administrador crea la campaña en el panel → pestaña «Campañas»:
+       - nombre interno, asunto y HTML;
+       - segmento: todos, un municipio o un estado;
+       - vista previa y envío de prueba a su propio correo;
+       - envío final por lotes.
+  5. Cada mensaje lleva cabecera del sistema, aviso de privacidad y enlace de
+     baja. La baja es inmediata y el correo sale de los siguientes segmentos.
+  6. La lista de bloqueos de solicitantes (sección 7) actúa como lista de
+     supresión: un correo bloqueado tampoco recibe campañas ni puede
+     suscribirse.
+
+Límites y garantías
+  - El envío respeta CORREO_MAX_POR_MINUTO (por defecto 20).
+  - Si no hay SMTP configurado o MAIL_DRY_RUN=true, el envío se registra como
+    «simulado» y no sale nada: sirve para probar el flujo.
+  - Una campaña enviada no se puede editar ni reenviar (queda como bitácora).
+  - El token de baja no se expone en la API de administración.
+  - Los envíos quedan en envios_correo con tipo «campana».
+
+Migración
+  - 015_campanas_correo.js crea suscripciones_correo, campanas_correo y
+    campana_destinatarios. Es reversible con migrate:rollback.
+
+Endpoints
+  Públicos:
+    POST /api/publico/suscripciones            (alta con doble opt-in)
+    POST /api/publico/suscripciones/confirmar  (token del correo)
+    POST /api/publico/suscripciones/baja       (baja en un clic)
+  Administrador:
+    GET    /api/admin/campanas
+    GET    /api/admin/campanas/resumen
+    GET    /api/admin/campanas/:id
+    POST   /api/admin/campanas
+    PUT    /api/admin/campanas/:id
+    POST   /api/admin/campanas/:id/prueba
+    POST   /api/admin/campanas/:id/enviar
+    GET    /api/admin/suscripciones
+
+Recomendaciones legales
+  - Publica el aviso de privacidad y conserva la evidencia del consentimiento
+    (la tabla guarda fecha de alta, confirmación, baja y hash de IP).
+  - No uses las campañas para asuntos internos: para eso está la mensajería.
+  - Revisa el dominio remitente (SPF/DKIM/DMARC, sección 5.4) antes de enviar
+    a más de unas decenas de personas.
+
+
+==============================================================================
+9. MONITOREO DE RECURSOS DEL SERVIDOR
+==============================================================================
+
+Solo administrador. Barra superior → icono de CPU, o:
+  GET /api/admin/metricas
+  GET /api/admin/metricas/historico
+
+Muestra:
+  - CPU del proceso y carga del sistema (1/5/15 min).
+  - Memoria RSS, heap y memoria libre del sistema.
+  - Event loop lag.
+  - Peticiones por clase (2xx/4xx/5xx) y latencia media/máxima.
+  - Pool de conexiones de MySQL.
+  - Disco disponible (statfs) y tamaño de la carpeta de evidencia.
+  - Estado del correo y del almacén.
+
+Notas:
+  - En Docker las cifras son del contenedor.
+  - El histórico vive en memoria (últimas 360 muestras, ~6 h) y se reinicia
+    con el proceso. No escribe en la base.
+  - `statfs` puede no estar disponible en Windows; el campo llega como null.
+
+
+==============================================================================
+10. APLICACIÓN DE ESCRITORIO (WINDOWS Y LINUX)
+==============================================================================
+
+Carpeta: desktop/
+
+Desarrollo:
+      cd desktop
+      npm install
+      npm start
+
+Primera ejecución:
+  - Se abre el asistente.
+  - Dirección del servidor, por ejemplo:
+        https://incidencias.mi-municipio.gob.mx
+        http://192.168.1.50:3100
+  - «Probar conexión» consulta GET /api/salud.
+  - «Guardar y conectar» abre la aplicación.
+
+Empaquetado:
+      cd desktop
+      npm run dist:win      -> dist/*.exe (NSIS)
+      npm run dist:linux    -> dist/*.AppImage y dist/*.deb
+
+Requisitos Linux:
+      sudo apt install libfuse2 dpkg fakeroot
+
+Seguridad:
+  - contextIsolation, sandbox y sin nodeIntegration.
+  - Navegación limitada al origen del servidor.
+  - Enlaces externos en el navegador del sistema.
+  - Solo se concede geolocalización.
+
+Diagnóstico:
+  Menú Ayuda → Diagnóstico de conexión.
+  Menú Archivo → Configurar servidor… (Cmd/Ctrl + ,).
+
+Limitaciones:
+  - La app es un contenedor del servidor: necesita red para funcionar.
+  - El token se guarda en el localStorage del origen del servidor, igual que
+    en la web.
+  - No hay actualización automática; se distribuye un instalador nuevo.
+
+
+==============================================================================
+11. MAPAS OFFLINE: VEREDICTO LEGAL Y GENERACIÓN
+==============================================================================
+
+VEREDICTO
+  NO se pueden descargar masivamente teselas de tile.openstreetmap.org,
+  OpenTopoMap ni Esri. La política de la OpenStreetMap Foundation prohíbe el
+  «bulk downloading» y el uso de sus teselas por aplicaciones distribuidas sin
+  permiso. Hacerlo puede bloquear la IP y supone incumplir sus términos.
+
+SOLUCIÓN LEGAL, SIN COSTO Y OPEN SOURCE
+  1. Descargar un extracto .osm.pbf de Geofabrik (datos ODbL).
+  2. Generar teselas propias con tilemaker o planetiler.
+  3. Empaquetarlas como PMTiles.
+  4. Servirlas desde la app en 127.0.0.1 (ya implementado en
+     desktop/src/mapas.js) y consumirlas con protomaps-leaflet.
+  5. Mantener la atribución «© OpenStreetMap contributors» y el aviso ODbL.
+
+  Las teselas rasterizadas son un «Produced Work»: la obligación principal es
+  atribuir. El archivo .pmtiles contiene una base derivada; si se redistribuye,
+  hay que compartir también la receta de generación (el script incluido) y
+  mantener la licencia ODbL.
+
+TAMAÑOS ORIENTATIVOS
+  - CDMX + Michoacán + Guanajuato, vectorial z0–14: 150–400 MB.
+  - México completo, vectorial z0–14: 2–4 GB.
+  - Raster equivalente: decenas de GB (no recomendado).
+
+PROCEDIMIENTO
+  Requisitos:
+    - tilemaker >= 2.4  (https://github.com/systemed/tilemaker)
+    - pmtiles CLI       (npm install -g pmtiles)
+    - ~1 GB de disco para el extracto de México
+
+  Comandos:
+      cd desktop
+      node scripts/generar-mapas-offline.mjs --descargar
+      # o con un extracto propio:
+      node scripts/generar-mapas-offline.mjs --osm C:\datos\mexico.osm.pbf
+
+  El resultado queda en:
+      desktop/recursos/mapas/incidencias.pmtiles
+
+  Vuelve a empaquetar la app:
+      npm run dist:win
+      npm run dist:linux
+
+  La app detecta el paquete al arrancar y expone la URL local en
+  desktopApi.info(). Si no hay paquete, usa las teselas online del servidor.
+
+CACHÉ ONLINE
+  Solo se cachea lo que el usuario ve de forma natural (caché HTTP). Nunca se
+  precargan teselas de forma masiva.
+
+
+==============================================================================
+12. ENDPOINTS NUEVOS O MODIFICADOS
+==============================================================================
+
+Públicos (sin sesión):
+  GET  /api/publico/municipios
+  GET  /api/publico/tipos
+  POST /api/publico/solicitudes-informe
+  GET  /api/publico/solicitudes-informe/verificar/:token
+  GET  /api/publico/solicitudes-informe/:folio?correo=
+  POST /api/publico/contacto
+  POST /api/publico/sugerencias
+  GET  /api/publico/sugerencias/:folio?correo=
+
+Incidencias:
+  GET  /api/incidencias/mapa?bbox=oeste,sur,este,norte&cluster=1&limite=...
+       (ligero: sin evidencias, historial ni comentarios)
+  GET  /api/incidencias?ambito=carretera_federal&estadoEntidad=...
+  POST /api/incidencias acepta ambito, jurisdiccion, viaNombre, viaClave,
+       kilometro, sentido, tramo, dependencia.
+
+Informes:
+  GET  /api/informes/exportar?formato=pdf|csv
+
+Comunicación:
+  GET/POST /api/contacto, /api/sugerencias, /api/mensajes
+
+Administración:
+  GET  /api/admin/solicitudes-informe
+  POST /api/admin/solicitudes-informe/:id/reintentar
+  POST /api/admin/solicitudes-informe/:id/rechazar
+  GET/POST/DELETE /api/admin/bloqueos
+  GET  /api/admin/correos
+  GET  /api/admin/metricas
+  GET  /api/admin/metricas/historico
+
+
+==============================================================================
+13. PRUEBAS Y VERIFICACIÓN
+==============================================================================
+
+Suite rápida (driver JSON, sin base de datos):
+      cd backend
+      npm test
+
+Contra MariaDB efímero:
+      cd backend
+      npm run test:mysql
+
+Archivos nuevos de prueba:
+  test/alcance-territorial.test.js
+  test/carreteras.test.js
+  test/mapa.test.js
+  test/solicitudes.test.js
+  test/informes.test.js
+  test/comunicacion.test.js
+  test/metricas.test.js
+  test/campanas.test.js
+
+Resultado esperado: 151 pruebas correctas (o más si añades casos).
+
+Verificación manual recomendada:
+  [ ] Un funcionario de Maravatío no ve ni descarga nada de Morelia.
+  [ ] Un auditor no puede cambiar estados ni comentar.
+  [ ] Un enlace estatal ve todos los municipios de su estado.
+  [ ] El formulario de reporte no preselecciona municipio.
+  [ ] El menú hamburguesa se abre sobre el mapa en móvil.
+  [ ] No aparece la capa «Físico».
+  [ ] Un reporte en carretera federal fuera del polígono se guarda.
+  [ ] /informes envía verificación y luego el PDF.
+  [ ] Un bloqueo impide solicitar y se puede revertir.
+  [ ] Admin y funcionario intercambian mensajes.
+  [ ] Una campaña solo llega a suscriptores confirmados y la baja en un clic
+      los saca del siguiente envío.
+  [ ] El panel de servidor muestra CPU y memoria solo al admin.
+  [ ] La app de escritorio conecta y muestra diagnóstico.
+
+
+==============================================================================
+14. SEGURIDAD Y PRIVACIDAD
+==============================================================================
+
+  - El alcance territorial se resuelve en el servidor en cada petición; no se
+    confía en el JWT para el rol ni para los municipios.
+  - Los roles de lectura no pueden mutar nada (middleware + servicios).
+  - Los informes públicos excluyen autoría y datos personales.
+  - Los bloqueos guardan un hash de la IP, no la IP en claro.
+  - Las solicitudes tienen doble opt-in y una sola solicitud abierta por correo.
+  - El correo se limita por minuto para no saturar el SMTP.
+  - La app de escritorio usa contextIsolation + sandbox y no expone Node.
+  - La CSP permite el servidor local de mapas (127.0.0.1) pero no teselas de
+    OSM/Esri adicionales.
+  - Sigue siendo obligatorio cambiar JWT_SECRET y DB_PASSWORD en producción.
+  - Revisa el aviso de privacidad y la base legal del tratamiento de correos
+    (LFPDPPP en México) antes de enviar promociones.
+
+
+==============================================================================
+15. REVERSIÓN Y MANTENIMIENTO
+==============================================================================
+
+  - Las migraciones 010–015 son reversibles con migrate:rollback.
+  - Al revertir 010, los roles nuevos pasan a funcionario para no perder
+    acceso.
+  - Los archivos .pmtiles no se versionan; se regeneran con el script.
+  - El histórico de métricas es en memoria: se pierde al reiniciar.
+  - La cola de correo es en proceso: si el servidor se reinicia, las
+    solicitudes en estado «pendiente» se retoman al arrancar.
+  - Con varias réplicas haría falta un almacén compartido para rate limits y
+    cola (Redis o similar). No está incluido.
+
+==============================================================================
+16. VERSION 2.2 - REPORTE RAPIDO, TIEMPO REAL, GOBIERNO Y OFFLINE
+==============================================================================
+
+Migraciones nuevas (aplicar con: npm --prefix backend run migrate):
+  016_notificaciones_preferencias  Preferencias de aviso por cuenta y municipio.
+  017_permisos_usuario             Excepciones de permisos sobre la matriz del rol.
+  018_claves_acceso                Claves multi-municipio, vigencia, usos y revocacion.
+  019_sesiones                     Sesiones con jti, huella SHA-256 de IP y revocacion.
+  020_solicitudes_acceso           Solicitudes publicas de acceso y aprobacion.
+  022_tickets                      Tickets de soporte e hilos de respuesta.
+  023_idempotencia                 Evita duplicados al reintentar reportes offline.
+
+  IMPORTANTE al actualizar una base que ya existia (MySQL/MariaDB):
+    - Hay que aplicarlas antes de arrancar; si no, aparecen errores como
+      "Unknown column 'permisos' in 'field list'" (al editar usuarios) o
+      "Table 'incidencias.sesiones_usuario' doesn't exist" (al validar la
+      sesion en cada peticion).
+    - El driver MySQL ahora comprueba al arrancar las tablas y columnas
+      nuevas; si falta algo, el servidor no escucha y explica el comando a
+      ejecutar en lugar de fallar despues en caliente.
+    - No hace falta volver a sembrar: "npm run seed" borra incidencias y
+      usuarios.
+
+Backend
+  - SSE en GET /api/eventos: notificaciones en tiempo real por usuario, sin polling.
+  - Preferencias de notificacion: GET/PUT /api/notificaciones/preferencias.
+  - Permisos granulares: requierePermiso() en incidencias, moderacion e informes.
+  - Claves: GET/POST /api/admin/claves, DELETE /api/admin/claves/:id.
+    El login acepta claveAcceso ademas de la claveMunicipio legada.
+  - Sesiones: GET /api/admin/sesiones y DELETE /api/admin/sesiones/:id.
+    POST /api/auth/salir marca la sesion como cerrada.
+  - Solicitudes de acceso: POST /api/publico/solicitudes-acceso y
+    GET/POST /api/admin/solicitudes-acceso...
+  - Tickets: GET/POST /api/tickets, GET /api/tickets/:id,
+    POST /api/tickets/:id/mensajes y PATCH /api/tickets/:id/estado.
+
+Frontend
+  - Arranque sin parpadeo: splash, login oculto por defecto y redireccion de
+    /personal cuando ya hay sesion.
+  - Reporte rapido: municipio preseleccionado, casilla "otro municipio" y tipo
+    de via opcional.
+  - Camara para evidencia con getUserMedia y fallback al selector de archivos.
+  - Dialogos de confirmacion propios (sin window.confirm).
+  - Modal de configuracion de notificaciones en la campana.
+  - Panel admin: Solicitudes, Tickets, Conectados y claves por conjunto.
+  - PWA: manifest.webmanifest, sw.js y cola offline en IndexedDB con fotos.
+  - Paginas /tickets y /solicitud-acceso.
+
+Correcciones de acceso (2.2.1)
+  - /personal solo vuelve a la aplicacion si la sesion guardada es del personal
+    y el servidor la acepta. La sesion ciudadana anonima que la aplicacion crea
+    automaticamente ya no bloquea la puerta del personal.
+  - Los subpaneles "Ya tengo cuenta" y "Crear cuenta" vuelven a mostrarse:
+    usaban una clase de ocultado que anulaba el atributo hidden.
+  - La barra superior muestra "Crear cuenta" a quien entra como anonimo y lo
+    lleva directo al alta sin perder los reportes en curso de esa sesion.
+  - El municipio elegido se recuerda en el dispositivo: el paso previo ya no
+    se repite en cada visita (se cambia desde la barra superior).
+
+Claves de acceso del personal (2.2.2)
+  - El alta y la edicion de usuarios (Panel > Usuarios) traen la casilla
+    "Generar una clave de acceso para esta cuenta": crea una clave con los
+    municipios asignados, admite limite de usos y fecha de vencimiento, y
+    muestra el codigo UNA SOLA VEZ al guardar.
+  - POST /api/usuarios y PATCH /api/usuarios/:id aceptan generarClave,
+    claveUsosMaximos y claveExpiraEn, y devuelven { usuario, clave }.
+  - El acceso del personal tiene un solo campo de clave: el servidor prueba
+    primero como clave de acceso nueva y, si no lo es, como clave
+    geoestadistica del municipio (cuentas antiguas siguen entrando igual).
+  - La pestana Claves lista todos los codigos con boton para copiarlos al
+    portapapeles y permite revocarlos.
+
+FASE A: notificaciones y soporte (2.3)
+  Migraciones nuevas:
+    024_notificaciones_v2   eventos, severidad, entidad de origen, municipio,
+                            dedupe, leida_en, preferencias por evento y reglas
+                            globales por evento.
+    025_tickets_soporte     rol soporte, responsable del ticket, historial
+                            (ticket_eventos) y reglas de asignacion automatica.
+
+  Notificaciones
+  - Despachador central: cada flujo llama a notificaciones.emitir(evento, ...)
+    y el sistema resuelve destinatarios por rol y alcance, deduplica, persiste
+    una fila por cuenta, empuja por SSE y, si toca, envia correo.
+  - Ya avisan: sugerencias, contacto, solicitudes de acceso, solicitudes de
+    informe (creada/enviada/error), tickets (creado/asignado/respondido/
+    cerrado/reabierto), mensajes directos y difusiones, alertas de antiguedad
+    y moderacion.
+  - Cada cuenta puede elegir canal por tipo de aviso (campana, correo, ambos o
+    silenciar) desde la campana. La casilla "tambien por correo" ahora si envia.
+  - El clic en un aviso abre su origen (ticket, bandeja o pestana del panel).
+
+  Panel de administracion
+  - Nueva pestana Notificaciones: matriz evento x canal x roles x alcance
+    (asignados, municipios, estados o todos) y boton de envio de prueba.
+    Endpoints: GET/PUT /api/admin/notificaciones/config[/:evento] y
+    POST /api/admin/notificaciones/probar.
+
+  Tickets y soporte
+  - Nuevo rol soporte (sin escritura en incidencias, con responder_tickets).
+  - Nueva pagina /soporte: bandeja con filtros, asignacion manual, prioridad,
+    cambio de estado, hilo y notas internas.
+  - Asignacion automatica por reglas (/api/admin/tickets/reglas): municipio,
+    estado o prioridad hacia una persona o una cola por rol.
+  - El permiso responder_tickets se aplica en el servicio: un ciudadano solo
+    ve y responde sus tickets; el personal ve lo de su ambito.
+  - /tickets ahora muestra el hilo y permite responder al autor.
+  - Transiciones de estado validadas y reapertura registrada.
+
+  Migraciones: aplicar con "npm --prefix backend run migrate". Las pruebas de
+  la fase estan en backend/test/fase5-notificaciones-tickets.test.js.
+
+Privacidad de sesiones
+  - La IP nunca se guarda en claro: solo su SHA-256 con el secreto JWT.
+  - Se recomienda purgar sesiones cerradas y usos de clave a los 30/90 dias.
+
+Pruebas
+  - Suite JSON completa: cd backend && npm test  (192 pruebas).
+  - MySQL local (sin Docker):
+      $env:STORAGE_DRIVER_TEST='mysql'; $env:DB_HOST='127.0.0.1';
+      $env:DB_PORT='3306'; $env:DB_USER='root'; $env:DB_PASSWORD='';
+      node --test --test-concurrency=1 test/fase3-gobierno.test.js test/fase4-tickets.test.js
+      npm run limpiar-bases-prueba
+
+==============================================================================
+FASE 6: ADMINISTRADORES TERRITORIALES Y PANEL POR MUNICIPIO
+==============================================================================
+
+Qué cambió
+  - Roles nuevos: admin_municipal (uno o varios municipios) y admin_estatal
+    (uno o varios estados). El rol admin sigue siendo el administrador
+    maestro: ve todo el país y es el único que crea o edita administradores.
+  - El acceso de "Administrador" en /personal ya acepta a los tres roles;
+    el de "Personal" rechaza cualquier cuenta administrativa.
+  - Los administradores territoriales escriben dentro de su ámbito, pero no
+    pueden crear ni editar administradores ni cuentas fuera de su territorio.
+  - Listados de usuarios, incidencias, municipios, tickets, claves y
+    sugerencias respetan el ámbito del actor. Un ámbito vacío no equivale a
+    "todo": devuelve listas vacías.
+  - Las sugerencias guardan municipio y se pueden filtrar con
+    GET /api/sugerencias?municipio=ID; los administradores territoriales solo
+    ven y responden las de su ámbito.
+  - Nuevo GET /api/admin/municipios/resumen: catálogo visible con incidencias
+    abiertas, tickets abiertos, sugerencias pendientes y personal asignado.
+  - Panel: la pestaña Municipios muestra esos conteos y botones para saltar a
+    Incidencias, Tickets, Sugerencias o Usuarios de ese municipio. El alta de
+    usuarios usa el selector territorial con búsqueda, chips y selección rápida
+    por estado (Todos / Ninguno / Todo el estado).
+  - Campañas y Notificaciones globales quedan ocultas para los administradores
+    territoriales.
+
+Migración
+  - backend/db/migrations/026_roles_admin.js: amplía el ENUM de roles, marca
+    puede_escribir para los administradores territoriales y añade
+    sugerencias.municipio_id con su índice. Aplicar con:
+      npm --prefix backend run migrate
+
+Semilla
+  - La semilla de MySQL fija puede_escribir en funcionarios y admin. Antes la
+    columna quedaba en 0 y el funcionario sembrado era de solo lectura.
+
+Pruebas
+  - backend/test/fase6-admins-municipios.test.js (7 pruebas).
+  - Suite JSON completa: cd backend && npm test (214 pruebas).
+  - MySQL: ejecutar la suite de la fase y las de auth, cuentas, alcance,
+    alcance territorial y comunicación con STORAGE_DRIVER_TEST=mysql.
+
+==============================================================================
+16. ACTUALIZACIÓN V2.2 (2026-10-26)
+==============================================================================
+
+Resumen funcional
+  - Firmas de incidencias y recolecciones municipales, meta configurable,
+    exportación CSV/PDF y envío mediado por administración.
+  - Comentarios con reglas anti-abuso, restricciones por cuenta/userKey y
+    moderación desde el panel.
+  - Términos, privacidad y «Acerca de» editables con borrador, publicación,
+    versiones e historial. El onboarding vuelve a pedir aceptación cuando
+    cambia la versión publicada.
+  - Solicitudes de informe con múltiples municipios, estados y tipos, fechas
+    limitadas por configuración y panel admin con vista previa, generación y
+    envío.
+  - Contacto directo a funcionarios sin pedir nombre, correo ni teléfono.
+  - Notificaciones con enlaces profundos, historial, archivado y restauración.
+  - Folios humanos INC-AAAAMMDD-XXXXXX y buscador de folios.
+  - Capas de mapa: satélite, híbrido, calles y relieve.
+  - Tutoriales por rol con enciclopedia.
+  - Simulador admin: sesiones por rol, datos reales etiquetados como SIMULADO,
+    journal y reversión; sin SSE/correo real.
+  - Publicidad para redes con plantillas, QR local y enlaces de compartir.
+  - Directorio de correos institucionales con CSV, búsquedas asistidas e
+    invitaciones.
+  - Respaldos manuales/automáticos, búsqueda con botón, descarga, restauración
+    con confirmación RESTAURAR y respaldo previo obligatorio.
+
+Dependencias nuevas
+  - qrcode ^1.5.4 (solo backend). Instalar con:
+      cd backend
+      npm install qrcode@1.5.4
+
+Migraciones
+  - 027_firmas_recolecciones.js
+  - 028_comentarios_reglas.js
+  - 029_legal.js
+  - 030_solicitudes_informe_multi.js
+  - 031_contacto_funcionarios.js
+  - 032_notificaciones_historial.js
+  - 033_respaldos.js
+  - 034_correos_institucionales.js
+  - 035_publicaciones_redes.js
+  - 036_simulacion.js
+  - 20261025_configuracion_actor.js
+  - 20261026_simulacion_contexto.js
+
+Aplicar:
+      cd backend
+      npm run migrate
+
+Datos demo:
+      npm run datos-nuevos
+      npm run verificar-funciones
+
+Comprobaciones mínimas en MariaDB:
+      SELECT COUNT(*) FROM incidencia_firmas WHERE simulado = 0;
+      SELECT folio, meta_firmas FROM incidencias WHERE folio IS NOT NULL LIMIT 5;
+      SELECT clave, version_publicada, publicado_en FROM documentos_legales;
+      SELECT COUNT(*) FROM correos_institucionales;
+      SELECT COUNT(*) FROM simulacion_sesiones WHERE estado = 'revertida';
+      SELECT COUNT(*) FROM respaldos WHERE estado = 'listo';
+
+Operación de respaldos
+  - Los archivos se guardan en backend/data/respaldos/ y no se sirven como
+    estáticos.
+  - El worker revisa cada 30 minutos y crea un respaldo automático cuando se
+    cumple respaldos.intervalo_horas (24 h por defecto), aplicando
+    respaldos.retencion (7 por defecto).
+  - La restauración reemplaza los datos actuales; siempre crea antes un
+    respaldo previo_restauracion y exige escribir RESTAURAR.
+  - En producción: programar una ventana de mantenimiento, descargar el
+    respaldo previo y verificar los conteos después de restaurar.
+
+Seguridad
+  - El simulador solo lo abre el admin maestro. Las acciones usan los servicios
+    reales, pero los datos quedan con simulado=1 y simulacion_id, y las listas
+    públicas los excluyen. Revertir borra únicamente esos datos.
+  - Los routers montados en la raíz aplican requiereAdmin por ruta, no con
+    router.use, para no bloquear peticiones de otros roles.
+
+Pruebas añadidas
+  - backend/test/nuevas-funciones.test.js
+  - backend/test/simulador.test.js
+  - backend/test/publicidad.test.js
+  - backend/test/correos-institucionales.test.js
+  - backend/test/v2-ui.test.js
+
+==============================================================================
+17. ACTUALIZACIÓN V2.3 (2026-10-27)
+==============================================================================
+
+Migración nueva
+  - 20261027_mejoras_v23.js
+
+Aplicar:
+      cd backend
+      npm run migrate
+
+Cambios funcionales
+  - Mapa: se retiró «Terreno y sombras» porque el servicio devolvía «map data
+    not yet available». Los controles de Leaflet quedan debajo de la leyenda y
+    de los paneles de la barra superior.
+  - «Mi ubicación» consulta /api/municipios/ubicacion y cambia al municipio
+    real; en el formulario también ajusta el municipio del reporte.
+  - Informes públicos: selector con búsqueda y selección múltiple de estados y
+    municipios (o varios municipios de un estado).
+  - Estadísticas: filtros por estado/municipio, comparación y tiempos de
+    resolución. El servidor recorta siempre al alcance del usuario.
+  - Municipios: tabla agrupada por estado, búsqueda, filtro desplegable y ficha
+    municipal. El funcionario propone; el administrador aprueba o rechaza.
+  - Claves de acceso: pestaña propia y buscador; un correo institucional
+    verificado se puede asignar a la clave de su municipio.
+  - Usuarios: roles especiales con permisos adicionales, asignación compatible
+    con el rol base y solicitudes de permisos aprobables desde el panel.
+  - «Mi cuenta» (botón del usuario): permisos actuales y solicitud de permisos.
+  - Publicidad y campañas en una sola pestaña; editor con estructura, CTA,
+    colores primario/secundario y edición de publicaciones guardadas.
+  - Tutoriales: cada sección del panel, Monitoreo e Informes tiene guía propia y
+    la vista se abre automáticamente antes de resaltar los pasos.
+
+Comprobaciones mínimas en MariaDB
+      SHOW TABLES LIKE 'municipios_informacion';
+      SHOW TABLES LIKE 'roles_personalizados';
+      SHOW TABLES LIKE 'solicitudes_permisos';
+      SHOW COLUMNS FROM usuarios LIKE 'rol_personalizado_id';
+      SHOW COLUMNS FROM publicaciones_redes LIKE 'color_primario';
+
+Pruebas
+  - backend/test/mejoras-v23.test.js
+  - Suite JSON: 261 pruebas.
+  - MySQL dirigido: 7/7 en mejoras-v23 y 3/3 en publicidad.
+  - Verificación real contra MariaDB: 25/25 flujos PASS.
+
+==============================================================================
+18. ACTUALIZACIÓN V2.7 (2026-10-26)
+==============================================================================
+
+Migración nueva
+  - 20261028_aceptaciones_legales.js
+
+Aplicar:
+      cd backend
+      npm run migrate
+
+Cambios funcionales
+  - Tickets: el ciudadano ya no elige la prioridad; nace en «media». Soporte y
+    administradores pueden cambiarla desde /soporte o desde el detalle del
+    ticket en el panel administrador.
+  - Informes públicos: el modal permite varios estados completos y municipios
+    concretos; el servidor consulta la unión y rechaza selecciones excesivas.
+  - Legal: el aviso de privacidad se abre en un modal reutilizable. El
+    onboarding muestra los términos y el aviso publicados por el administrador.
+  - Consentimiento: la aceptación se guarda en aceptaciones_legales por
+    identidad y versión. Si cambia la versión, las escrituras responden 428
+    hasta que el usuario vuelva a aceptar. El middleware se puede desactivar
+    solo en depuración con TERMINOS_EXIGIR=false.
+  - Mapa: «Mi ubicación» deja un marcador azul de persona distinto de los pines
+    de incidencias y de los clústeres.
+
+Comprobaciones mínimas en MariaDB
+      SHOW TABLES LIKE 'aceptaciones_legales';
+      SHOW COLUMNS FROM aceptaciones_legales LIKE 'version_terminos';
+      SELECT user_key, version_terminos, version_privacidad, aceptado_en
+        FROM aceptaciones_legales ORDER BY aceptado_en DESC LIMIT 5;
+
+Pruebas
+  - backend/test/terminos.test.js
+  - Suite JSON: 292 pruebas.
+  - Consentimiento MySQL dirigido: 3/3.
+
+==============================================================================
+FIN DEL DOCUMENTO
+==============================================================================

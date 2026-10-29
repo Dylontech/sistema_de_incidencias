@@ -10,9 +10,83 @@ El sistema nació como un único archivo HTML con `localStorage` (conservado en
 ```
 backend/    API REST con Express siguiendo MVC + capa Repository (drivers MySQL/MariaDB y json)
 frontend/   Aplicación de navegador en JavaScript modular (ES Modules, sin bundler)
+desktop/    Aplicación de escritorio Electron para Windows y Linux
 docker/     Dockerfile y entrypoint de la imagen de la aplicación
 legacy/     Monolito original, solo como respaldo y referencia de paridad
 ```
+
+> Documentación viva del proyecto: [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md). Ahí están
+> la arquitectura, el modelo de datos, la API, los eventos, la configuración, las
+> migraciones, el catálogo de pruebas y el changelog que deben actualizarse con cada cambio.
+
+## Novedades V2.8.0
+
+- **Publicidad ampliada**: 22 plantillas, 10 formatos (incluido tamaño personalizado), 8 diseños y 8 familias tipográficas, imagen editable, importación/exportación JSON, plantillas propias guardadas en el dispositivo y QR con texto, enlace, tamaño, nivel de corrección y etiqueta editables.
+- **QR medible**: generador de códigos para texto, URL, Wi-Fi, vCard, correo, SMS, WhatsApp, teléfono y ubicación; entrada `/r/:codigo`, registro de escaneos con municipio (sin coordenadas) y estadísticas para el panel.
+- **Adjuntos privados**: imágenes, PDF y Office en chats entre personal y entre ciudadanos registrados y funcionarios/admins; solo imágenes en comentarios. Los archivos se descargan por `/api/adjuntos/:id` tras comprobar la participación.
+- **Permisos por sección del panel**: cada pestaña declara `data-permiso`, el controlador la oculta y el servidor vuelve a comprobar el permiso.
+- **Tutoriales corregidos**: cada paso restaura su vista/modal, el foco cubre la sección completa, la tarjeta se recoloca cuando hay espacio y la guía de cuenta vuelve correctamente al paso anterior.
+- **Editor de campañas por correo** con plantillas, HTML avanzado, contador de caracteres, texto plano y vista previa de escritorio/celular.
+- El enlace público de suscripción copiado desde Campañas apunta a `/suscripcion`.
+
+## Novedades de la versión 2.3
+
+- **Mapa depurado**: capas satélite, satélite con etiquetas, calles y relieve; se retiró «Terreno y sombras» y los controles ya no tapan la leyenda ni los paneles.
+- **«Mi ubicación» cambia de municipio** cuando la persona está fuera del municipio activo.
+- **Informes públicos** con búsqueda y selección múltiple de estados y municipios, incluido «todo el estado».
+- **Estadísticas** con filtros territoriales, comparación por municipio/estado y tiempos de resolución por incidencia, respetando el alcance del actor.
+- **Fichas municipales** que el funcionario propone y el administrador aprueba; tabla de municipios agrupada por estado, con búsqueda y pestaña propia de claves.
+- **Roles especiales y solicitudes de permisos** aprobables desde el panel; «Mi cuenta» permite pedirlos.
+- **Publicidad y campañas fusionadas**, con estructura editorial, colores personalizables y edición de publicaciones guardadas.
+- **Correo institucional verificado** asignable a la clave de su municipio.
+- **Tutoriales por sección** de Panel, Monitoreo e Informes, con apertura automática de la vista.
+
+## Novedades de la versión 2.2
+
+- **Firmas y recolecciones** con meta, exportación CSV/PDF y mediación del administrador.
+- **Comentarios con reglas** anti-abuso, restricciones por cuenta y moderación desde el panel.
+- **Legal editable**: términos, privacidad y «Acerca de» con borrador, publicación, versiones e historial. El onboarding respeta la versión publicada.
+- **Solicitudes de informe multi-territorio** con municipios, estados, tipos y fechas limitadas por configuración; panel admin para previsualizar, generar y enviar.
+- **Contacto directo a funcionarios** sin pedir nombre, correo ni teléfono.
+- **Notificaciones navegables** con historial, archivado y restauración.
+- **Folios** `INC-AAAAMMDD-XXXXXX` y buscador de folios.
+- **Capas del mapa** (satélite, híbrido, calles y relieve).
+- **Tutorial por rol** con enciclopedia de guías.
+- **Simulador admin** con roles, datos etiquetados como SIMULADO, journal y reversión.
+- **Publicidad para redes** con plantillas, QR y enlaces de compartir.
+- **Directorio de correos institucionales** con CSV, búsquedas asistidas e invitaciones.
+- **Respaldos** manuales/automáticos, búsqueda con botón, descarga, restauración con `RESTAURAR` y respaldo previo obligatorio.
+
+Verificación con datos reales:
+
+```bash
+cd backend
+npm run migrate
+npm run datos-nuevos
+npm run verificar-funciones
+npm test
+```
+
+## Novedades de la versión 2.1
+
+- **Alcance territorial N:M**: funcionario con varios municipios, auditor de solo
+  lectura, enlace estatal/federal y admin global. El rol y el alcance se recargan
+  en cada petición.
+- **Reporte con municipio explícito** (sin autoselección) y **ámbito vial**:
+  carreteras estatales/federales, autopistas y caminos rurales.
+- **Informes públicos por solicitud**: el ciudadano pide el informe desde el modal
+  «Solicitar un informe», confirma su correo y lo recibe en PDF o CSV. Incluye bloqueos reversibles.
+- **Contacto, sugerencias y bandeja de mensajes** admin↔personal.
+- **Campañas de promoción por correo** con doble opt-in, baja en un clic,
+  segmentos por municipio/estado y envío por lotes respetando el límite SMTP.
+- **Monitoreo en vivo** de incidencias y **panel de recursos del servidor**.
+- **Mapa optimizado**: endpoint ligero con bbox/clústeres, compresión y caché.
+- **App de escritorio** Electron con asistente de conexión y soporte de mapas
+  offline (PMTiles generados con datos ODbL; sin descargar teselas de OSM).
+
+Los pasos de instalación, variables nuevas, tutorial SMTP, migraciones y
+generación de mapas offline están en
+[`CAMBIOS_INSTALACION.txt`](CAMBIOS_INSTALACION.txt).
 
 ---
 
@@ -27,7 +101,7 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 | **Servicios** | `backend/src/services/` | Lógica de negocio: geocerca, color por antigüedad, autenticación, alcance por rol/municipio, incidencias, moderación (denuncias y sanciones), estadísticas, evidencia, importación. |
 | **Controladores** | `backend/src/controllers/` | Traducen HTTP ↔ servicios. No contienen lógica de negocio. |
 | **Rutas** | `backend/src/routes/` | Un router por recurso, montado bajo `/api`. |
-| **Middlewares** | `backend/src/middlewares/` | Autenticación JWT, roles, inyección del repositorio, carga de archivos (multer) y errores. |
+| **Middlewares** | `backend/src/middlewares/` | Autenticación JWT, roles, inyección del repositorio, carga de archivos (multer), **cabeceras de seguridad** (`seguridad.js`), **límites de peticiones** (`limitadores.js`) y errores. |
 
 ### Frontend (JavaScript modular, sin framework)
 
@@ -38,7 +112,7 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 | **controllers** | `frontend/js/controllers/` | Orquestan store + servicios + vistas y registran las acciones de la interfaz. |
 | **views** | `frontend/js/views/` | Renderizan HTML a partir de datos. Nunca llaman a la API. |
 | **map** | `frontend/js/map/` | Todo Leaflet: capa satelital, límites, zonas, marcadores y popups. |
-| **css** | `frontend/css/` | `base`, `layout`, `componentes`, `admin` (extraídos del monolito), `reportes` (impresión) y `extensiones` (todo lo añadido después: peligrosas, cuentas, tutorial, moderación…). |
+| **css** | `frontend/css/` | `base`, `layout`, `componentes`, `admin` (extraídos del monolito), `reportes` (impresión) y `extensiones` (todo lo añadido después: peligrosas, cuentas, tutorial, moderación, utilidades para el marcado sin estilos en línea…). `impresion-informe.css` es solo para la ventana del informe imprimible. |
 
 La interfaz no usa atributos `onclick`: cada elemento declara `data-action="dominio:accion"`
 (o `data-change`, `data-input`, `data-submit`) y los controladores registran su manejador.
@@ -132,9 +206,10 @@ terminal cambia el arranque sin tocar el archivo. Si algo «no respeta» la conf
 revisa primero `env | grep -E "^(PORT|DB_|STORAGE_DRIVER)"`.
 
 Si el puerto está ocupado (lo más común: otro proyecto usando el 3000) el servidor lo
-informa y no arranca volcando una traza. Para resolverlo: cambia `PORT` en `backend/.env`,
-arráncalo puntualmente con `PORT=<otro puerto> npm run dev`, o libera el puerto
-(`ss -ltnp | grep 3000`).
+informa y no arranca volcando una traza. `npm run dev` comprueba el puerto antes de crear
+el watcher: si ya hay un servidor activo, muestra el aviso y termina sin dejar procesos en
+cola. Para resolverlo: cambia `PORT` en `backend/.env`, arráncalo puntualmente con
+`PORT=<otro puerto> npm run dev`, o libera el puerto (`ss -ltnp | grep 3000`).
 
 ### Credenciales de demostración
 
@@ -194,6 +269,34 @@ que la restaura y aplica el paso previo (términos, y municipio solo si puede el
 > Es una **página discreta, no protegida**: quien conozca la dirección ve el formulario, así que la
 > seguridad sigue estando en las credenciales y en el alcance que aplica el servidor.
 
+### Página «Acerca de» (`/acerca`)
+
+`frontend/acerca.html` es una **página pública e independiente** que explica qué es el sistema, cómo
+funciona y con qué está hecho:
+
+- **Cómo funciona** — el flujo de uso en seis pasos y una tabla de roles (anónimo, ciudadano,
+  funcionario y administrador) con lo que puede hacer cada uno.
+- **Características** — mapa de cuatro capas, catálogo geográfico del INEGI, conceptos de reporte,
+  evidencia fotográfica, colores por antigüedad, filtros, avisos, moderación, panel e informes.
+- **Tecnologías y dependencias** — frontend en módulos ES con Leaflet y Bootstrap Icons; backend
+  Node + Express + Knex + MariaDB; pruebas con `node:test` y Supertest; Docker Compose.
+- **Agradecimientos** — INEGI (Marco Geoestadístico y su catálogo geoestadístico) y el espejo
+  `MacWilliXD/INEGI-geojson`, Leaflet, OpenStreetMap y OpenTopoMap, Esri y sus fuentes de datos,
+  Bootstrap Icons y el resto de librerías libres.
+- **Contacto y aviso** — enlaces a DylonTech (sitio, GitHub y repositorio del proyecto) y correo,
+  más el aviso de que es una **versión preliminar hecha con asistencia de IA**, que puede tener
+  errores y que **no es una entidad gubernamental**.
+
+Se enlaza desde la barra lateral de la aplicación (*Acerca de este sistema*), desde la pantalla de
+acceso y desde `/personal`, siempre en otra pestaña. **No necesita backend, JavaScript propio ni
+dependencias nuevas**: el `express.static` con `extensions: ['html']` la sirve en `/acerca`. Al
+contrario que `/personal`, **sí** se anuncia a los buscadores (`index, follow`).
+
+> **Al cambiarla hay que reconstruir la imagen** (`docker compose up -d --wait --build`): el
+> contenedor sirve su propia copia de `frontend/`, no la del repositorio. Los números del catálogo
+> que cita la página (175 municipios y más de 6 300 comunidades de Michoacán, Guanajuato y Ciudad
+> de México) hay que revisarlos si se importan más estados con `npm run importar-inegi`.
+
 ### Entrada: municipio y términos de uso
 
 La aplicación **no arranca sin pasar por el paso previo** (`#onboarding`,
@@ -213,19 +316,18 @@ El mismo buscador sustituye al `<select>` de la barra superior (los 175 municipi
 catálogo no se pueden recorrer a ciegas). En los dos sitios sigue habiendo un `<select>`
 **oculto con el valor elegido**, que es el que consulta el resto de la aplicación.
 
-El texto vive en `#obTerminos` de `frontend/index.html` (resumen de 4 puntos + 6 cláusulas:
-naturaleza informativa y no gubernamental, sin responsabilidad sobre la atención de los
-reportes, privacidad con **venta o transferencia de datos a terceros**, colaboración con
-gobiernos que quieran implementar la plataforma, y **bloqueo permanente** por mal uso).
-Deja claro también que un reporte aquí no es una denuncia ni una solicitud de servicio.
+El texto ya no está duplicado en el HTML: el onboarding pinta los documentos publicados que
+devuelve `GET /api/legal/terminos|privacidad`. Para cambiarlo se edita y publica desde el
+panel de administración; la versión publicada invalida automáticamente las aceptaciones
+anteriores.
 
-> **Si cambias el texto, sube `VERSION_TERMINOS`** en `frontend/js/core/consentimiento.js`:
-> todo el mundo lo volverá a aceptar.
-
-La aceptación se guarda en `localStorage` (`inc_consentimiento_v1`: versión, fecha y
-municipio) igual que la sesión, porque también entra público sin cuenta; no hay usuario al
-que asociarla en el servidor. Desde la aplicación, el enlace *Términos y privacidad* de la
-barra lateral los vuelve a mostrar en modo lectura.
+La aceptación se guarda en `aceptaciones_legales` por identidad (`user_key`: cuenta o
+identidad anónima del navegador) y por pareja de versiones. El middleware `terminos.js`
+bloquea las escrituras con un **428** mientras no se acepte la versión vigente. En el
+navegador queda una copia en `localStorage` (`inc_consentimiento_v1`: versiones, fecha y
+municipio) para recordar el municipio y funcionar mejor sin red, pero la fuente de verdad es
+el servidor. El aviso de privacidad se consulta en el modal `modalAvisoLegal`, también desde
+la barra lateral.
 
 ### Tutorial para nuevos usuarios
 
@@ -274,18 +376,97 @@ y un id con prefijo `demo-`, que es lo que usa `--limpiar` para retirarlos.
 
 ---
 
+## Seguridad
+
+La aplicación se sirve con **cabeceras endurecidas** y **límites de peticiones**. Todo es
+configurable por entorno, pero los valores por omisión son los recomendados.
+
+### Cabeceras y política de contenidos
+
+`helmet` añade las cabeceras y una **Content-Security-Policy sin nada en línea**: ni
+atributos `style=`, ni bloques `<style>`, ni scripts incrustados, ni manejadores
+`onclick`. Por eso:
+
+- El marcado no lleva estilos en línea: las utilidades están en `css/extensiones.css` y los
+  valores que dependen de los datos (el color de una zona, el ancho de una barra) se aplican
+  por CSSOM con `aplicarEstilosDinamicos()` de `core/utils.js`. Manipular el estilo desde
+  JavaScript **no** lo bloquea la política; escribir el atributo en el marcado, sí.
+- **Leaflet y Bootstrap Icons se sirven desde `/vendor/`**, no desde una CDN, así que la
+  política solo permite el propio origen (más las teselas del mapa, que son imágenes).
+- El informe imprimible carga su hoja de estilos (`css/impresion-informe.css`) y su script
+  (`js/informe-imprimir.js`) como archivos enlazados. La impresión no se dispara desde la
+  ventana que lo abre: en cuanto el documento nuevo termina de cargar, la política de
+  apertura de contextos ya no le deja acceder a `print()`.
+- Hay una prueba que lo vigila: `test/sin-estilos-inline.test.js` falla si vuelve a
+  aparecer algo en línea en el frontend.
+
+| Cabecera | Valor |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`… |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `no-referrer` |
+| `Permissions-Policy` | `geolocation=(self)`; cámara, micrófono y pago bloqueados |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Strict-Transport-Security` | solo con `ASUMIR_HTTPS=true` |
+
+Los archivos de `/uploads` se sirven además con `Content-Security-Policy: default-src
+'none'; sandbox`: abrir una evidencia directamente no ejecuta nada.
+
+### Límite de peticiones
+
+La clave es la sesión (`userKey`) cuando existe y la IP cuando no:
+
+| Ruta | Límite por omisión |
+|---|---|
+| Entradas con contraseña (`/api/auth/{ciudadano,funcionario,admin}`) | 10 intentos fallidos / 15 min |
+| Alta de cuentas (`/api/auth/registro`) | 5 / 15 min |
+| Sesiones anónimas (`/api/auth/anonimo`) | 20 / 15 min |
+| Escritura: reportes, comentarios y denuncias | 20 / 15 min |
+| Evidencia (`/api/uploads`) | 30 / 15 min |
+| Resto de la API | 900 / 15 min |
+
+El rechazo responde 429 con `{ error, detalles }` y, cuando el almacén lo aporta,
+`Retry-After`. El almacén es **en memoria**: basta con una instancia; con varias réplicas
+haría falta un almacén compartido (Redis). `/api/salud` queda fuera del límite general para
+que el healthcheck del contenedor no gaste cupo, y en `NODE_ENV=test` los límites se
+desactivan (la suite hace cientos de peticiones).
+
+### Secretos y arranque
+
+Al arrancar se revisa la configuración: con `NODE_ENV=production` la aplicación **no
+levanta** si `JWT_SECRET` sigue siendo el valor de ejemplo (o mide menos de 32 caracteres),
+si `DB_PASSWORD` está vacío o si `TRUST_PROXY=true` (permitiría falsear la IP). En
+desarrollo solo se avisa.
+
+`TRUST_PROXY` está **desactivado por omisión**: la aplicación se publica directamente, así
+que `req.ip` ya es la del cliente. Detrás de un proxy inverso hay que declararlo
+(`TRUST_PROXY=1`, o la lista de IPs); ponerlo a `true` sin más dejaría los límites de
+peticiones en manos de una cabecera.
+
+### Red y tamaño de las peticiones
+
+El puerto de la aplicación se publica **solo en 127.0.0.1** (`APP_BIND`), igual que MariaDB.
+Para probarla desde el móvil u otro equipo: `APP_BIND=0.0.0.0` en el `.env` de la raíz,
+asumiendo que queda accesible para toda la red local.
+
+El cuerpo JSON general está acotado a **1 MB**; solo `/api/admin/importar`, que recibe la
+evidencia en base64 de un respaldo, admite hasta 100 MB.
+
+---
+
 ## Scripts
 
 Desde la raíz (delegan en `backend/`):
 
 | Comando | Qué hace |
 |---|---|
-| `npm run dev` / `npm start` | Arranca el servidor (`node --watch` / `node`). |
+| `npm run dev` / `npm start` | Arranca el servidor (`node --watch` con guarda anti-duplicados / `node`). |
 | `npm test` | Suite de pruebas de la API con el driver **json** (rápida, sin Docker). |
 | `npm run test:mysql` | La misma suite contra un **MariaDB efímero en contenedor** (puerto 3399). |
 | `npm run migrate` | Aplica las migraciones de Knex. |
 | `npm run migrate:rollback` | Revierte el último lote de migraciones. |
 | `npm run seed` | Carga los datos semilla (municipios, zonas, tipos, usuarios). |
+| `npm run vendorizar-frontend` | Copia Leaflet y Bootstrap Icons a `frontend/vendor/` (verifica el `sha256` del lock). |
 
 Dentro de `backend/`:
 
@@ -293,6 +474,7 @@ Dentro de `backend/`:
 |---|---|
 | `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/` (ya no la geografía). |
 | `npm run importar-inegi` | Genera el catálogo de municipios y comunidades con los polígonos del INEGI. |
+| `npm run vendorizar-frontend` | Descarga Leaflet y Bootstrap Icons a `frontend/vendor/` y actualiza el lock (`-- --actualizar` para subir de versión). |
 | `npm run migrar-catalogo` | Pasa los datos existentes a las claves geoestadísticas (ver más abajo). |
 | `npm run datos-demo` | Crea incidencias de ejemplo repartidas por tipo, estado, antigüedad y comunidad. |
 | `npm run importar-legacy -- respaldo.json` | Importa un respaldo del sistema anterior. |
@@ -308,12 +490,19 @@ Ver [`.env.example`](.env.example). Las relevantes:
 |---|---|---|
 | `PORT` | `3000` | Puerto del servidor (en el contenedor siempre es 3000). |
 | `STORAGE_DRIVER` | `mysql` | `mysql` (MariaDB vía Knex) o `json` (archivos en `backend/data/`). |
-| `JWT_SECRET` | — | **Obligatorio cambiarlo en producción.** |
+| `JWT_SECRET` | — | **Obligatorio cambiarlo en producción.** El arranque se niega a levantar con el valor de ejemplo. |
 | `JWT_EXPIRES_IN` | `8h` | Vigencia del token. |
+| `TRUST_PROXY` | `false` | Confianza en las cabeceras `X-Forwarded-*`. `1` si hay un proxy inverso delante, o la lista de IPs. **No** lo pongas a `true`. |
+| `ASUMIR_HTTPS` | `false` | Actívalo solo si la aplicación se sirve por HTTPS: añade HSTS y `upgrade-insecure-requests`. |
+| `CSP_MODO` | `estricto` | `laxo` admite estilos en línea (solo para depurar). |
+| `RATE_LIMIT_ACTIVO` | `true` | `false` desactiva todos los límites de peticiones. |
+| `RATE_LIMIT_MAX_*` | varios | Cupos por ventana (`GENERAL`, `AUTH`, `REGISTRO`, `ANONIMO`, `ESCRITURA`, `UPLOADS`). |
+| `MAX_JSON_BYTES` / `MAX_IMPORTACION_BYTES` | `1048576` / `104857600` | Tamaño del cuerpo JSON general y del respaldo. |
 | `DATA_DIR` / `UPLOAD_DIR` | `backend/data`, `backend/uploads` | Datos (solo driver json) y evidencia. |
 | `DB_HOST` … `DB_NAME` | `127.0.0.1:3310` / `incidencias` | Conexión MySQL/MariaDB (dentro del contenedor: `mariadb:3306`). |
 | `MAX_FOTO_BYTES` | 100 MB | Límite de cada foto de evidencia. |
 | `APP_PORT` | `3100` | Puerto público de la aplicación (solo compose). |
+| `APP_BIND` | `127.0.0.1` | Interfaz en la que se publica; `0.0.0.0` para abrirla a la red local (solo compose). |
 | `DB_PORT_HOST` | `3310` | Puerto de MariaDB publicado en `127.0.0.1` (solo compose). |
 | `DB_ROOT_PASSWORD` | — | Contraseña de root de MariaDB en el contenedor (solo compose). |
 | `ESPERAR_BASE` / `MIGRAR_AL_ARRANCAR` | `true` | Ponerlos a `false` para que el contenedor no espere a la base / no migre al arrancar. |
@@ -759,7 +948,7 @@ npm test           # driver json, sin base de datos ni Docker
 npm run test:mysql # driver mysql, con un MariaDB efímero en 127.0.0.1:3399
 ```
 
-La suite (`backend/test/`, **102 pruebas**) cubre autenticación y roles, ciclo de vida de
+La suite (`backend/test/`, **308 pruebas**) cubre autenticación y roles, ciclo de vida de
 la incidencia, geocerca y colores derivados, filtros y alcance por municipio, evidencia,
 estadísticas, exportación y la importación de respaldos. `cuentas.test.js` añade el
 sistema de cuentas: alta y entrada de ciudadanos, nombre generado, firma por reporte
@@ -769,6 +958,15 @@ del catálogo; `moderacion.test.js` el sistema de moderación (denuncias de repo
 comentarios, cola agrupada, ocultamiento visible solo para el autor y el personal,
 advertencias, suspensión automática a la tercera, jerarquía de roles y reactivación); y
 `incidencias.test.js` incluye la regla del icono propio (solo en «Otro»).
+
+El endurecimiento tiene sus propias pruebas: `seguridad.test.js` (cabeceras y política de
+contenidos, cabeceras restrictivas de `/uploads`, límite de cuerpo con el respaldo como
+excepción, 429 tras varios intentos fallidos y detección de un secreto inseguro al
+arrancar en producción), `sin-estilos-inline.test.js` (falla si el frontend vuelve a usar
+atributos `style`, manejadores en línea o bloques de `<style>`/`<script>`) e
+`informe-imprimible.test.js` (el informe enlaza su hoja de estilos y su script como
+archivos, y escapa el texto de los reportes).
+
 Cada archivo de pruebas usa su propio directorio temporal y,
 con MySQL, su propia base de datos (`incidencias_test_<pid>`), de modo que la **misma
 suite valida los dos drivers**.
