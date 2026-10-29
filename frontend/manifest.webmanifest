@@ -1,0 +1,10 @@
+{
+  "name": "Sistema de Incidencias Municipales",
+  "short_name": "Incidencias",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#006657",
+  "theme_color": "#006657",
+  "icons": []
+}

@@ -64,5 +64,13 @@ export const moderacionService = {
 
   reactivar(username) {
     return api.del(`/moderacion/cuentas/${username}/suspension`);
+  },
+
+  restringirComentarios(username, { motivo = '', hasta = null } = {}) {
+    return api.patch(`/moderacion/cuentas/${username}/restriccion-comentarios`, { motivo, hasta });
+  },
+
+  levantarRestriccionComentarios(username) {
+    return api.del(`/moderacion/cuentas/${username}/restriccion-comentarios`);
   }
 };

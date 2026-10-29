@@ -54,6 +54,13 @@ export const sesion = {
     localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
   },
 
+  /** Refresca los datos de la cuenta (permisos, rol) sin cerrar sesión. */
+  actualizarUsuario(usuario) {
+    if (!this.datos || !usuario) return;
+    this.datos.usuario = usuario;
+    localStorage.setItem(CLAVE_SESION, JSON.stringify(this.datos));
+  },
+
   limpiar() {
     token.borrar();
     this.datos = null;
@@ -73,11 +80,37 @@ export const sesion = {
   },
 
   esEmpleado() {
+    return [
+      'funcionario',
+      'auditor',
+      'enlace_estatal',
+      'enlace_federal',
+      'soporte',
+      'admin',
+      'admin_estatal',
+      'admin_municipal'
+    ].includes(this.rol);
+  },
+
+  /** ¿Puede modificar datos? Los roles de auditoría y enlace son de lectura. */
+  puedeEscribir() {
+    if (this.usuario?.puedeEscribir !== undefined) return this.usuario.puedeEscribir === true;
     return this.rol === 'funcionario' || this.rol === 'admin';
   },
 
   esAdmin() {
     return this.rol === 'admin';
+  },
+
+  /** Administrador maestro o territorial (municipal/estatal). */
+  esAlgunaAdmin() {
+    return ['admin', 'admin_estatal', 'admin_municipal'].includes(this.rol);
+  },
+
+  /** ¿La cuenta tiene este permiso efectivo? El admin siempre puede. */
+  puede(permiso) {
+    if (this.rol === 'admin') return true;
+    return (this.usuario?.permisos || []).includes(permiso);
   },
 
   esAnonimo() {

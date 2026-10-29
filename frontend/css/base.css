@@ -5,6 +5,9 @@
    BASE
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* `hidden` debe ganar a cualquier `display` de clase: es lo que evita que la
+   pantalla de acceso o el paso previo parpadeen antes de resolver la sesión. */
+[hidden] { display: none !important; }
 :root {
   --verde: #28a745;
   --amarillo: #ffc107;
@@ -36,6 +39,20 @@ input, select, textarea { font-family: inherit; }
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
 }
+
+/* Splash de arranque: cubre la interfaz mientras se valida el token y se
+   cargan catálogos. Se retira en cuanto hay algo que mostrar. */
+.boot-screen {
+  position: fixed; inset: 0; z-index: 10050;
+  background: linear-gradient(135deg, #006657 0%, #008f7a 100%);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.boot-card { display: grid; gap: 12px; justify-items: center; text-align: center; }
+.boot-card h1 { font-size: 1.15rem; font-weight: 600; }
+.boot-card p { font-size: 13px; opacity: .85; }
+.boot-card .bi { font-size: 2rem; }
 .login-card {
   background: #fff; border-radius: 16px;
   padding: 32px; max-width: 420px; width: 100%;

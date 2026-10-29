@@ -32,6 +32,7 @@ const estado = {
     tipo: 'todos',
     color: 'todos',
     zona: 'todos',
+    ambito: 'todos',
     orden: 'reciente'
   },
 
@@ -49,6 +50,9 @@ const estado = {
   /** Estado del formulario de incidencia (equivale a los *Temp del monolito) */
   formulario: {
     editarId: null,
+    municipioId: null,
+    municipio: null,
+    zonas: [],
     ubicacion: null,
     zona: null,
     iconoSeleccionado: '',

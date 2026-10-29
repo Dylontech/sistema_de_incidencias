@@ -1,0 +1,21 @@
+Mapas offline — atribución y licencia
+=====================================
+
+Los datos geográficos provienen de OpenStreetMap:
+  © OpenStreetMap contributors
+  https://www.openstreetmap.org/copyright
+
+Licencia de la base de datos: Open Database License (ODbL) 1.0
+  https://opendatacommons.org/licenses/odbl/1-0/
+
+Las teselas de este paquete son un "Produced Work" generado a partir de un
+extracto de Geofabrik con herramientas open source (tilemaker o planetiler) y
+empaquetado en formato PMTiles. Si redistribuyes el archivo .pmtiles, mantén
+esta atribución y el aviso de licencia.
+
+NO se descargaron teselas de tile.openstreetmap.org, OpenTopoMap ni Esri.
+Los servidores públicos de teselas prohíben la descarga masiva; este paquete se
+genera desde datos abiertos, no desde sus servicios de teselas.
+
+Si modificas los datos, debes compartir la base derivada bajo ODbL. El script
+`desktop/scripts/generar-mapas-offline.mjs` documenta la receta de generación.

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novedades del sistema — Suscripción</title>
+<meta name="description" content="Suscríbete para recibir novedades y campañas informativas del Sistema de Incidencias Municipales.">
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/componentes.css">
+<link rel="stylesheet" href="css/extensiones.css">
+</head>
+<body class="pagina-publica">
+
+<div class="login-screen publico-screen">
+  <div class="login-card publico-card">
+    <h1><i class="bi bi-envelope-paper-heart-fill"></i> Novedades del sistema</h1>
+    <p class="sub">
+      Recibe por correo las mejoras, convocatorias y guías del Sistema de Incidencias
+      Municipales. Solo escribimos a quienes confirman su correo y puedes darte de baja
+      cuando quieras con un clic.
+    </p>
+
+    <div class="publico-msg u-oculto" id="suscEstado" role="status"></div>
+
+    <div id="suscFormBox">
+      <form id="formSuscripcion">
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="susNombre">Nombre (opcional)</label>
+            <input type="text" id="susNombre" maxlength="120" autocomplete="name" placeholder="Tu nombre">
+          </div>
+          <div class="form-group">
+            <label for="susCorreo">Correo *</label>
+            <input type="email" id="susCorreo" maxlength="160" autocomplete="email" placeholder="tu@correo.mx">
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="susEstado">Estado (opcional)</label>
+            <select id="susEstado">
+              <option value="">— Cualquiera —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="susMunicipio">Municipio (opcional)</label>
+            <select id="susMunicipio">
+              <option value="">— Todos —</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="check-line u-mb-12">
+          <input type="checkbox" id="susAviso">
+          <span>
+            Acepto el aviso de privacidad y recibir información del servicio en este correo.
+            Entiendo que puedo darme de baja en cualquier momento.
+          </span>
+        </label>
+
+        <button class="btn btn-primary btn-block" type="submit" id="susEnviar">
+          <i class="bi bi-envelope-check-fill"></i> Suscribirme
+        </button>
+      </form>
+    </div>
+
+    <p class="personal-nota">
+      <a href="/?informe=1">Solicitar un informe</a> ·
+      <a href="/">Volver a la aplicación</a>
+    </p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loading">
+  <div class="u-centro">
+    <div class="spinner"></div>
+    <div id="loadingText">Procesando…</div>
+  </div>
+</div>
+
+<script type="module" src="js/suscripcion.js"></script>
+</body>
+</html>

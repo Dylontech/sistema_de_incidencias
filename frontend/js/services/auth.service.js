@@ -11,18 +11,24 @@ export const authService = {
     });
   },
 
-  entrarFuncionario({ username, password, claveMunicipio }) {
-    return api.post('/auth/funcionario', { username, password, claveMunicipio });
+  /**
+   * Entrada del personal. `claveAcceso` es la clave que genera el panel al
+   * crear la cuenta (cubre uno o varios municipios); `claveMunicipio` es la
+   * clave geoestadística que usaban las cuentas antiguas. El servidor prueba
+   * primero la primera y, si no lo es, la segunda.
+   */
+  entrarFuncionario({ username, password, claveMunicipio, claveAcceso }) {
+    return api.post('/auth/funcionario', { username, password, claveMunicipio, claveAcceso });
   },
 
   entrarAdmin({ username, password }) {
     return api.post('/auth/admin', { username, password });
   },
 
-  /** Entrada de una cuenta ciudadana (correo + contraseña). */
-  entrarCiudadano({ correo, password }) {
+  /** Entrada de una cuenta ciudadana con su nombre (o pseudónimo) y contraseña. */
+  entrarCiudadano({ nombre, password }) {
     return api.post('/auth/ciudadano', {
-      correo,
+      nombre,
       password,
       municipioId: sesion.municipioActivo?.id
     });

@@ -1,0 +1,61 @@
+{
+  "name": "incidencias-escritorio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicación de escritorio (Windows y Linux) para el Sistema de Incidencias Municipales",
+  "main": "main.js",
+  "author": "Sistema de Incidencias Municipales",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux AppImage deb",
+    "mapas:generar": "node scripts/generar-mapas-offline.mjs",
+    "postinstall": "node -e \"console.log('Electron listo. Usa npm start para abrir la app.')\""
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "mx.incidencias.escritorio",
+    "productName": "Incidencias Municipales",
+    "copyright": "Sistema de Incidencias Municipales",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "ui/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "recursos",
+        "to": "recursos",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "Incidencias-Municipales-${version}-Windows.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility",
+      "artifactName": "Incidencias-Municipales-${version}-Linux.${ext}"
+    }
+  }
+}

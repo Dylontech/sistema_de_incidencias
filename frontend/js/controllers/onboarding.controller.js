@@ -29,17 +29,34 @@ async function cargarMunicipios() {
  * Muestra el paso previo si hace falta.
  *
  * El funcionario está atado a su municipio (no se le pregunta); a los demás se
- * les pide el municipio en cada entrada, con el último preseleccionado. Los
- * términos solo se piden una vez por versión y dispositivo.
+ * les pide el municipio en cada entrada **sin preseleccionar ninguno**: elegir
+ * el municipio es una decisión explícita del usuario. Los términos solo se
+ * piden una vez por versión y dispositivo.
  */
-export async function pedir({ usuario, municipioActivo } = {}) {
-  const conMunicipio = usuario?.rol !== 'funcionario';
+export async function pedir({ usuario, soloTerminos = false, municipioSugerido = null } = {}) {
+  const conMunicipio = !soloTerminos && usuario?.rol !== 'funcionario';
+  // El servidor manda: si publicó una versión nueva, la aceptación local deja
+  // de ser suficiente y hay que volver a leer y aceptar.
+  await consentimiento.cargarEstado();
   pendienteTerminos = !consentimiento.vigente();
-  if (!conMunicipio && !pendienteTerminos) return null;
-
+  // El municipio elegido se recuerda en el dispositivo: si ya está guardado y
+  // los términos siguen vigentes, no se vuelve a preguntar en cada visita (se
+  // puede cambiar desde la barra superior). Así la vista principal queda
+  // disponible de inmediato, también para quien entra como anónimo.
+  const recordado = consentimiento.municipioId();
   if (conMunicipio) await cargarMunicipios();
+  const sugerido = municipioSugerido
+    ? municipios.find((municipio) => String(municipio.id) === String(municipioSugerido)) || null
+    : null;
+  if (!pendienteTerminos && (soloTerminos || !conMunicipio || recordado || sugerido)) {
+    if (sugerido && !recordado) consentimiento.guardar({ municipioId: sugerido.id });
+    return sugerido ? { municipioId: sugerido.id, municipio: sugerido } : null;
+  }
+
   vista.marcarAceptado(false);
-  vista.renderMunicipios(municipios, consentimiento.municipioId() || municipioActivo?.id || null);
+  vista.renderTerminos(consentimiento.documentos());
+  // El municipio del QR/ubicación tiene prioridad sobre el recordado.
+  vista.renderMunicipios(municipios, sugerido?.id || recordado);
   vista.mostrar({ conMunicipio });
   loading(false); // el paso previo trae su propia presentación
 
@@ -49,8 +66,8 @@ export async function pedir({ usuario, municipioActivo } = {}) {
 }
 
 /** Cierra el paso y devuelve el municipio elegido (o null si no aplica). */
-function terminar({ municipioId = null } = {}) {
-  const id = municipioId || vista.valorMunicipio();
+function terminar({ municipioId } = {}) {
+  const id = municipioId === undefined ? vista.valorMunicipio() : municipioId;
   const municipio = municipios.find((m) => m.id === id) || null;
   vista.ocultar();
 
@@ -70,19 +87,31 @@ export function registrar() {
       terminar({ municipioId: id });
     },
 
-    /** Aceptación de los términos: sin marcar la casilla no se entra. */
-    'onboarding:aceptar': () => {
+    /** Aceptación de los términos: se registra primero en el servidor. */
+    'onboarding:aceptar': async () => {
       if (!vista.aceptado()) return toast('Marca la casilla para aceptar los términos', 'err');
-      pendienteTerminos = false;
-      consentimiento.guardar({ municipioId: vista.valorMunicipio() });
-      terminar();
+      if (!consentimiento.documentos().length) {
+        return toast('No se pudieron cargar los términos publicados. Revisa tu conexión.', 'err');
+      }
+      loading(true, 'Registrando aceptación…');
+      try {
+        await consentimiento.aceptar({ municipioId: vista.valorMunicipio() || null });
+        pendienteTerminos = false;
+        terminar({ municipioId: vista.valorMunicipio() || null });
+      } catch (error) {
+        vista.renderTerminos(consentimiento.documentos());
+        toast(error.message || 'No se pudo registrar la aceptación', 'err');
+      } finally {
+        loading(false);
+      }
     },
 
     'onboarding:volver': () => vista.paso('municipio'),
 
-    /** Relectura desde la aplicación (ya aceptados): se muestra y se cierra. */
-    'onboarding:terminos': () => vista.mostrar({ conMunicipio: false, soloLectura: true }),
-
-    'onboarding:cerrar': () => vista.ocultar()
+    /** La lectura posterior se hace en el modal legal, no en otro onboarding. */
+    'onboarding:cerrar': () => {
+      if (pendienteTerminos) return;
+      vista.ocultar();
+    }
   });
 }

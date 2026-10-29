@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+<title>Conectar con el servidor</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <main class="tarjeta">
+    <h1>Incidencias Municipales</h1>
+    <p class="sub">Conecta la aplicación de escritorio con tu servidor.</p>
+
+    <form id="formulario">
+      <div class="campo">
+        <label for="url">Dirección del servidor</label>
+        <input type="url" id="url" placeholder="https://incidencias.municipio.gob.mx" autocomplete="url" spellcheck="false">
+        <p class="nota">
+          Escribe la dirección completa, incluyendo <code>https://</code> y el puerto si lo tiene.
+          Ejemplo: <code>https://incidencias.mi-municipio.gob.mx</code> o
+          <code>http://192.168.1.50:3100</code> en una red local.
+        </p>
+      </div>
+
+      <div class="campo">
+        <label>
+          <input type="checkbox" id="offline">
+          Usar mapas offline si están instalados
+        </label>
+        <p class="nota">
+          Los mapas offline se generan aparte con datos de OpenStreetMap (ODbL) y se copian en
+          la carpeta <code>recursos/mapas</code>. Nunca se descargan teselas de los servidores
+          públicos de OSM.
+        </p>
+      </div>
+
+      <div class="botones">
+        <button type="button" id="probar">Probar conexión</button>
+        <button type="submit" class="primario" id="conectar">Guardar y conectar</button>
+      </div>
+    </form>
+
+    <div class="estado" id="estado" role="status"></div>
+
+    <div class="pie">
+      <div id="version">Cargando versión…</div>
+      <div id="mapas"></div>
+    </div>
+  </main>
+  <script src="config.js"></script>
+</body>
+</html>

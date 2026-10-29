@@ -44,7 +44,9 @@
   font-size: 12px; background: rgba(255,255,255,0.15);
   padding: 5px 12px; border-radius: 20px;
   display: inline-flex; align-items: center; gap: 6px;
+  border: none; color: #fff; font-family: inherit; cursor: pointer;
 }
+.topbar .user-info:hover { background: rgba(255,255,255,0.25); }
 .topbar .notif-btn {
   position: relative; background: rgba(255,255,255,0.15);
   border: none; color: #fff; width: 36px; height: 36px;
@@ -72,9 +74,24 @@
   border-right: 1px solid var(--borde);
   display: flex; flex-direction: column;
   overflow: hidden; transition: transform .25s;
-  z-index: 100;
+  /* Por encima de los controles de Leaflet (400-1000), que si no tapan
+     el panel en móvil. */
+  z-index: 1200;
 }
 .sidebar.collapsed { transform: translateX(-100%); position: absolute; height: 100%; }
+
+/* Fondo oscuro del drawer (solo móvil). El panel queda por encima del mapa. */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 24, 20, 0.5);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s ease;
+}
+.sidebar-backdrop.show { opacity: 1; visibility: visible; }
 .sidebar-header {
   padding: 12px 14px; border-bottom: 1px solid var(--borde);
   background: #f8f9fc;
@@ -141,6 +158,7 @@
 }
 .badge-verde   { background: #d4edda; color: #155724; }
 .badge-amarillo { background: #fff3cd; color: #856404; }
+.badge-vial    { background: #cfe8ff; color: #0b4f7a; }
 .badge-naranja { background: #ffe5d0; color: #8a3d00; }
 .badge-rojo    { background: #f8d7da; color: #721c24; }
 .badge-resuelta { background: #d4edda; color: #155724; }

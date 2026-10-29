@@ -3,10 +3,15 @@ import { registrarAcciones } from '../core/eventos.js';
 import { abrirModal, cerrarModal, loading, modalAbierto, preguntar, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
 import { debounce } from '../core/utils.js';
+import { api } from '../core/api.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { zonaDePunto, dentroDelMunicipio, parsearCoordenadas } from '../core/geocerca.js';
+import * as camara from '../core/camara.js';
+import * as offline from '../core/offline.js';
 import { incidenciasService } from '../services/incidencias.service.js';
+import { firmasService } from '../services/firmas.service.js';
+import { catalogosService } from '../services/catalogos.service.js';
 import * as aplicacion from '../core/aplicacion.js';
 import * as formView from '../views/incidenciaForm.view.js';
 import * as detalleView from '../views/detalle.view.js';
@@ -14,10 +19,14 @@ import * as mapa from '../map/mapa.js';
 
 const FORMULARIO_INICIAL = {
   editarId: null,
+  municipioId: null,
+  municipio: null,
+  zonas: [],
   ubicacion: null,
   zona: null,
   iconoSeleccionado: '',
   evidencia: [],
+  evidenciaArchivos: [],
   evidenciaResolver: []
 };
 
@@ -35,13 +44,24 @@ async function abrirFormulario(id = null) {
   const ejemplos = store.estado.catalogos.ejemplos || {};
 
   if (!id) {
-    formView.prepararAlta(store.estado.usuario);
+    const activo = store.estado.municipioActivo;
+    formView.prepararAlta(store.estado.usuario, store.estado.municipios || [], activo);
     abrirModal('modalIncidencia');
+    // La geocerca y las zonas del municipio activo se cargan sin obligar a
+    // elegir municipio: el punto se valida contra ese término municipal.
+    if (activo?.id) {
+      try {
+        await cargarMunicipioFormulario(activo.id, { enfocar: false });
+      } catch {
+        toast('No se pudo cargar el municipio del reporte. Revisa tu conexión.', 'err');
+      }
+    }
     return;
   }
 
   const { incidencia } = await incidenciasService.obtener(id);
-  formView.prepararEdicion(incidencia);
+  formView.prepararEdicion(incidencia, store.estado.municipios || []);
+  await cargarMunicipioFormulario(incidencia.municipioId, { enfocar: false });
   // La firma se elige al crear el reporte (el servidor la protege después).
   formView.renderFirma(store.estado.usuario, {
     anonima: incidencia.esAnonimo === true,
@@ -55,7 +75,7 @@ async function abrirFormulario(id = null) {
     {
       editarId: id,
       ubicacion: incidencia.lat != null ? { lat: incidencia.lat, lng: incidencia.lng } : null,
-      zona: store.estado.zonas.find((z) => z.id === incidencia.zonaId) || null,
+      zona: (store.estado.formulario.zonas || []).find((z) => z.id === incidencia.zonaId) || null,
       evidencia: incidencia.evidencia || []
     },
     'formulario'
@@ -64,34 +84,77 @@ async function abrirFormulario(id = null) {
     formView.aplicarUbicacion({
       lat: incidencia.lat,
       lng: incidencia.lng,
-      zona: store.estado.zonas.find((z) => z.id === incidencia.zonaId) || null
+      zona: (store.estado.formulario.zonas || []).find((z) => z.id === incidencia.zonaId) || null
     });
   }
   abrirModal('modalIncidencia');
 }
 
 function cerrarFormulario() {
+  camara.cerrar();
   cerrarModal('modalIncidencia');
   store.actualizarSeccion('formulario', { ...FORMULARIO_INICIAL }, 'formulario');
+  // El selector pudo mover el mapa a otro municipio: se restaura el activo.
+  if (store.estado.municipioActivo) mapa.enfocarMunicipio(store.estado.municipioActivo);
+  mapa.dibujarZonas(store.estado.zonas || []);
 }
 
-/** Valida la ubicación contra las zonas del municipio activo (feedback local). */
+/** Valida la ubicación contra el municipio elegido en el formulario. */
 function aplicarUbicacion(lat, lng, { moverMapa = true } = {}) {
-  const municipio = store.estado.municipioActivo;
-  const dentro = dentroDelMunicipio(lat, lng, municipio);
+  const { municipio, zonas } = store.estado.formulario;
+  if (!municipio) {
+    formView.mostrarLocStatus('Elige primero el municipio del reporte', 'error');
+    toast('Elige el municipio antes de ubicar la incidencia', 'err');
+    return null;
+  }
+  const dentroPoligono = dentroDelMunicipio(lat, lng, municipio);
+  const vial = formView.ambitoVial();
   // La comunidad es opcional: las localidades del INEGI cubren las áreas
   // pobladas, no todo el término municipal.
-  const zona = dentro ? zonaDePunto(lat, lng, store.estado.zonas) : null;
+  const zona = dentroPoligono ? zonaDePunto(lat, lng, zonas || []) : null;
+  const dentro = dentroPoligono || vial;
 
   store.actualizarSeccion(
     'formulario',
     { ubicacion: dentro ? { lat, lng } : null, zona: zona || null },
     'formulario'
   );
-  formView.aplicarUbicacion({ lat, lng, zona, dentro });
+  formView.aplicarUbicacion({
+    lat,
+    lng,
+    zona,
+    dentro,
+    vial,
+    fueraPoligono: vial && !dentroPoligono
+  });
   if (moverMapa) mapa.fijarVista(lat, lng, 16);
-  if (!dentro) toast('Esa ubicación está fuera del municipio activo', 'err');
+  if (!dentro) toast('Esa ubicación está fuera del municipio seleccionado', 'err');
   return zona;
+}
+
+/**
+ * Carga el municipio elegido en el formulario y ajusta el mapa.
+ * Sin esto, la geocerca local seguiría usando el municipio activo de la barra.
+ */
+async function cargarMunicipioFormulario(municipioId, { enfocar = true } = {}) {
+  if (!municipioId) {
+    store.actualizarSeccion('formulario', { municipioId: null, municipio: null, zonas: [] }, 'formulario');
+    mapa.dibujarZonas([]);
+    return;
+  }
+  const [{ municipio }, { zonas }] = await Promise.all([
+    catalogosService.municipio(municipioId),
+    catalogosService.zonas(municipioId)
+  ]);
+  store.actualizarSeccion(
+    'formulario',
+    { municipioId, municipio, zonas },
+    'formulario'
+  );
+  if (enfocar) {
+    mapa.enfocarMunicipio(municipio);
+    mapa.dibujarZonas(zonas);
+  }
 }
 
 function mostrarEjemploDelTipo() {
@@ -125,6 +188,17 @@ async function agregarEvidencia(archivos, destino) {
 
   if (!validos.length) return;
 
+  if (!navigator.onLine) {
+    const actual = store.estado.formulario.evidenciaArchivos || [];
+    store.actualizarSeccion(
+      'formulario',
+      { evidenciaArchivos: [...actual, ...validos] },
+      'formulario'
+    );
+    toast('Sin conexión: las fotos se enviarán junto con el reporte.', 'info');
+    return;
+  }
+
   loading(true, 'Subiendo evidencia…');
   try {
     const metadatos = await incidenciasService.subirEvidencia(validos);
@@ -146,12 +220,17 @@ async function agregarEvidencia(archivos, destino) {
 async function guardarIncidencia() {
   const datos = formView.leerFormulario();
   const { editarId, ubicacion, zona, evidencia } = store.estado.formulario;
+  const municipioId = datos.municipioId || store.estado.formulario.municipioId;
 
+  if (!municipioId) return toast('Elige el municipio del reporte', 'err');
   if (!datos.tipoId) return toast('Selecciona el tipo de incidencia', 'err');
   if (!datos.titulo) return toast('Escribe un título breve', 'err');
   if (!datos.descripcion) return toast('Escribe una descripción', 'err');
+  if (datos.ambito !== 'urbano' && !datos.viaNombre) {
+    return toast('Escribe el nombre de la carretera, autopista o camino', 'err');
+  }
   if (!ubicacion) {
-    return toast('Selecciona una ubicación dentro del municipio activo', 'err');
+    return toast('Selecciona una ubicación dentro del municipio del reporte', 'err');
   }
 
   const carga = {
@@ -163,8 +242,23 @@ async function guardarIncidencia() {
     anonima: datos.anonima,
     lat: ubicacion.lat,
     lng: ubicacion.lng,
-    // El municipio activo decide contra qué límite se valida la ubicación.
-    municipioId: store.estado.municipioActivo?.id || null,
+    // Municipio de la sesión, salvo que se haya marcado «otro municipio».
+    municipioId,
+    ambito: datos.ambito || 'urbano',
+    jurisdiccion:
+      datos.ambito === 'carretera_estatal' || datos.ambito === 'camino_rural'
+        ? 'estatal'
+        : datos.ambito === 'carretera_federal'
+          ? 'federal'
+          : datos.ambito === 'autopista'
+            ? 'concesionada'
+            : 'municipal',
+    viaNombre: datos.viaNombre,
+    viaClave: datos.viaClave,
+    kilometro: datos.kilometro,
+    sentido: datos.sentido,
+    tramo: datos.tramo,
+    dependencia: datos.dependencia,
     evidencia
   };
 
@@ -180,6 +274,13 @@ async function guardarIncidencia() {
     cerrarFormulario();
     await refrescarDatos();
   } catch (error) {
+    if (error?.estado === 0 && !editarId) {
+      const fotos = store.estado.formulario.evidenciaArchivos || [];
+      await offline.encolarReporte(carga, fotos);
+      cerrarFormulario();
+      toast('Sin conexión: el reporte quedó guardado y se enviará automáticamente.', 'ok');
+      return;
+    }
     toast(mensajeDeError(error), 'err');
   } finally {
     loading(false);
@@ -190,11 +291,19 @@ async function guardarIncidencia() {
 
 async function abrirDetalle(id, { nested = false } = {}) {
   const { incidencia } = await incidenciasService.obtener(id);
+  let firmas = null;
+  try {
+    ({ firmas } = await firmasService.resumen(id));
+  } catch {
+    firmas = null;
+  }
   detalleView.renderizar(incidencia, {
     tipos: store.estado.tipos,
     zonas: store.estado.zonas,
-    usuario: store.estado.usuario
+    usuario: store.estado.usuario,
+    firmas
   });
+  aplicacion.cerrarSidebar();
   abrirModal('modalDetalle', { nested });
 }
 
@@ -269,14 +378,44 @@ export function registrar() {
     'mapa:centrarUsuario': () =>
       intentar(async () => {
         toast('Obteniendo tu ubicación…', 'info');
-        await mapa.centrarEnUsuario();
+        const coords = await mapa.obtenerUbicacion();
+        // Si la persona está en otro municipio, primero se cambia el mapa:
+        // los maxBounds del municipio activo impedirían ver su ubicación real.
+        const { municipio } = await catalogosService.municipioEnUbicacion(
+          coords.latitude,
+          coords.longitude
+        );
+        if (!municipio) {
+          toast('Tu ubicación no está dentro de los municipios disponibles', 'err');
+          return;
+        }
+        if (municipio.id !== store.estado.municipioActivo?.id) {
+          await aplicacion.cambiarMunicipio(municipio.id);
+          toast(`Mapa cambiado a ${municipio.nombre}, ${municipio.estado}`, 'info');
+        }
+        mapa.fijarVista(coords.latitude, coords.longitude, 16);
+        mapa.marcarUbicacionUsuario(coords);
         toast('Ubicación centrada', 'ok');
       }),
 
-    'mapa:zonas': () => {
-      const visibles = mapa.alternarZonas();
-      toast(visibles ? 'Zonas visibles' : 'Zonas ocultas', 'info');
-    },
+    'mapa:zonas': () =>
+      intentar(async () => {
+        const activo = store.estado.municipioActivo;
+        // Los polígonos de las localidades son pesados: se piden la primera vez
+        // que se enciende la capa, no en el arranque.
+        if (activo && !(store.estado.zonas || []).length) {
+          loading(true, 'Cargando comunidades…');
+          try {
+            await aplicacion.cargarZonas(activo.id);
+          } finally {
+            loading(false);
+          }
+          toast('Zonas visibles', 'info');
+          return;
+        }
+        const visibles = mapa.alternarZonas();
+        toast(visibles ? 'Zonas visibles' : 'Zonas ocultas', 'info');
+      }),
 
     /* ----------------------- formulario ---------------------------- */
     'incidencias:reportar': () => abrirFormulario(null),
@@ -292,30 +431,98 @@ export function registrar() {
 
     'incidencias:cambioTipo': () => mostrarEjemploDelTipo(),
 
+    /** Ámbito vial: muestra u oculta los datos de la carretera. */
+    'incidencias:cambioAmbito': ({ valor }) => {
+      formView.renderAmbito(valor);
+      // Si cambia el ámbito, la ubicación previa puede dejar de ser válida.
+      if (store.estado.formulario.ubicacion) {
+        const { lat, lng } = store.estado.formulario.ubicacion;
+        aplicarUbicacion(lat, lng, { moverMapa: false });
+      }
+    },
+
+    /** Municipio del reporte: mueve el mapa y carga su geocerca y sus zonas. */
+    'incidencias:cambioMunicipio': ({ valor }) =>
+      intentar(async () => {
+        loading(true, 'Cargando municipio…');
+        try {
+          await cargarMunicipioFormulario(valor);
+          formView.actualizarResumenMunicipio(store.estado.formulario.municipio);
+          // La ubicación previa puede haber quedado fuera: se limpia.
+          store.actualizarSeccion('formulario', { ubicacion: null, zona: null }, 'formulario');
+          formView.renderZonaBadge(null);
+          formView.mostrarLocStatus('Municipio cargado. Elige el punto en el mapa.', 'ok');
+        } finally {
+          loading(false);
+        }
+      }),
+
+    /**
+     * El municipio de la sesión es el valor por omisión. La casilla solo se usa
+     * cuando la incidencia ocurrió en otro municipio (viaje, avistamiento…).
+     */
+    'incidencias:otroMunicipio': ({ elemento }) =>
+      intentar(async () => {
+        const otro = elemento?.checked === true;
+        document.getElementById('incMunicipioBox')?.classList.toggle('u-oculto', !otro);
+        // Al cambiar de municipio, el punto anterior deja de ser válido.
+        store.actualizarSeccion('formulario', { ubicacion: null, zona: null }, 'formulario');
+        formView.renderZonaBadge(null);
+        formView.mostrarLocStatus('Selecciona de nuevo la ubicación en el mapa.', 'ok');
+
+        if (otro) {
+          document.getElementById('incMunicipio')?.focus();
+          return;
+        }
+
+        const municipio = store.estado.municipioActivo;
+        const selector = document.getElementById('incMunicipio');
+        if (selector && municipio) selector.value = municipio.id;
+        formView.actualizarResumenMunicipio(municipio);
+        if (municipio?.id) await cargarMunicipioFormulario(municipio.id, { enfocar: false });
+      }),
+
     'incidencias:usarEjemplo': () => {
       const tipoId = document.getElementById('incTipo').value;
       const aplicado = formView.usarEjemplo(tipoId, store.estado.catalogos.ejemplos || {});
       if (aplicado) toast('Ejemplo aplicado, ajústalo a tu caso real', 'ok');
     },
 
-    'incidencias:miUbicacion': () => {
-      if (!navigator.geolocation) {
-        formView.mostrarLocStatus('Geolocalización no soportada por el navegador', 'error');
-        return;
-      }
-      formView.mostrarLocStatus('Obteniendo ubicación…', 'loading');
-      navigator.geolocation.getCurrentPosition(
-        (posicion) => {
-          aplicarUbicacion(posicion.coords.latitude, posicion.coords.longitude);
+    'incidencias:miUbicacion': () =>
+      intentar(async () => {
+        if (!navigator.geolocation) {
+          formView.mostrarLocStatus('Geolocalización no soportada por el navegador', 'error');
+          return;
+        }
+        formView.mostrarLocStatus('Obteniendo ubicación…', 'loading');
+        const coords = await mapa.obtenerUbicacion();
+        const { municipio } = await catalogosService.municipioEnUbicacion(
+          coords.latitude,
+          coords.longitude
+        );
+        if (!municipio) {
           formView.mostrarLocStatus(
-            `Ubicación obtenida (±${Math.round(posicion.coords.accuracy)} m)`,
-            'ok'
+            'Tu ubicación no está dentro de los municipios disponibles',
+            'error'
           );
-        },
-        (error) => formView.mostrarLocStatus(`No se pudo obtener la ubicación: ${error.message}`, 'error'),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    },
+          return;
+        }
+        // El municipio del formulario manda para validar la geocerca: si la
+        // persona está en otro municipio, se cambia también el formulario.
+        if (municipio.id !== store.estado.formulario.municipioId) {
+          const selector = document.getElementById('incMunicipio');
+          if (selector) selector.value = municipio.id;
+          await cargarMunicipioFormulario(municipio.id);
+          formView.actualizarResumenMunicipio(municipio);
+          toast(`Municipio del reporte: ${municipio.nombre}, ${municipio.estado}`, 'info');
+        }
+        aplicarUbicacion(coords.latitude, coords.longitude);
+        mapa.marcarUbicacionUsuario(coords);
+        formView.mostrarLocStatus(
+          `Ubicación obtenida (±${Math.round(coords.accuracy)} m)`,
+          'ok'
+        );
+      }),
 
     'incidencias:elegirMapa': () => {
       document.getElementById('modalIncidencia')?.classList.remove('show');
@@ -340,6 +547,36 @@ export function registrar() {
 
     'incidencias:elegirArchivos': () => formView.entradaEvidencia()?.click(),
     'incidencias:elegirArchivosResolucion': () => formView.entradaEvidenciaResolver()?.click(),
+
+    /* ----------------------------- cámara ------------------------------ */
+    'incidencias:abrirCamara': () =>
+      intentar(async () => {
+        if (!camara.disponible()) {
+          toast('Este navegador no permite usar la cámara; adjunta la foto como archivo.', 'err');
+          return;
+        }
+        abrirModal('modalCamara', { nested: true });
+        try {
+          await camara.abrir();
+        } catch {
+          camara.cerrar();
+          cerrarModal('modalCamara');
+          toast('No se pudo abrir la cámara. Revisa el permiso del navegador.', 'err');
+        }
+      }),
+
+    'incidencias:cerrarCamara': () => {
+      camara.cerrar();
+      cerrarModal('modalCamara');
+    },
+
+    'incidencias:capturarFoto': () =>
+      intentar(async () => {
+        const foto = await camara.capturar();
+        camara.cerrar();
+        cerrarModal('modalCamara');
+        await agregarEvidencia([foto], 'evidencia');
+      }),
 
     'incidencias:archivos': ({ elemento }) => {
       agregarEvidencia(elemento.files, 'evidencia');
@@ -383,14 +620,67 @@ export function registrar() {
     'detalle:comentar': ({ id }) =>
       intentar(async () => {
         const texto = detalleView.valorComentario();
-        if (!texto) {
-          toast('Escribe un comentario', 'err');
+        const archivo = detalleView.archivoComentario();
+        if (!texto && !archivo) {
+          toast('Escribe un comentario o adjunta una imagen', 'err');
           return;
         }
-        await incidenciasService.comentar(id, texto);
+        let adjuntos = [];
+        if (archivo) {
+          const subida = await api.subir('/adjuntos/comentario', [archivo], { campo: 'archivo' });
+          adjuntos = [subida.adjunto.id];
+        }
+        await incidenciasService.comentar(id, texto, adjuntos);
         await refrescarDatos();
         await abrirDetalle(id);
         toast('Comentario agregado', 'ok');
+      }),
+
+    'detalle:borrarComentario': ({ id, valor }) =>
+      intentar(async () => {
+        await incidenciasService.borrarComentario(id, valor);
+        await abrirDetalle(id);
+        toast('Comentario borrado', 'ok');
+      }),
+
+    /* ---------------------------- firmas --------------------------- */
+    'firmas:firmar': ({ id }) =>
+      intentar(async () => {
+        await firmasService.firmar(id);
+        await abrirDetalle(id);
+        await refrescarDatos();
+        toast('Firma registrada', 'ok');
+      }),
+
+    'firmas:retirar': ({ id }) =>
+      intentar(async () => {
+        await firmasService.retirar(id);
+        await abrirDetalle(id);
+        await refrescarDatos();
+        toast('Firma retirada', 'ok');
+      }),
+
+    'firmas:meta': ({ id }) =>
+      intentar(async () => {
+        const meta = Number(document.getElementById('firmasMetaInput')?.value);
+        if (!Number.isInteger(meta) || meta < 1) {
+          toast('Escribe una meta válida', 'err');
+          return;
+        }
+        await firmasService.fijarMeta(id, meta);
+        await abrirDetalle(id);
+        toast('Meta de firmas actualizada', 'ok');
+      }),
+
+    'firmas:solicitar': ({ id }) =>
+      intentar(async () => {
+        await firmasService.solicitarAdmin(id, 'Solicitud desde el detalle de la incidencia');
+        toast('Solicitud enviada al administrador', 'ok');
+      }),
+
+    'firmas:exportar': ({ id, valor }) =>
+      intentar(async () => {
+        await firmasService.descargar(id, valor === 'pdf' ? 'pdf' : 'csv');
       }),
 
     'detalle:estado': ({ id, valor }) =>
@@ -450,7 +740,7 @@ export function registrar() {
 
     'detalle:eliminar': ({ id }) =>
       intentar(async () => {
-        if (!preguntar('¿Eliminar esta incidencia? Esta acción no se puede deshacer.')) return;
+        if (!(await preguntar('¿Eliminar esta incidencia? Esta acción no se puede deshacer.'))) return;
         await incidenciasService.eliminar(id);
         cerrarModal('modalDetalle');
         await refrescarDatos();

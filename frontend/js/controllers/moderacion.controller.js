@@ -76,6 +76,13 @@ const TEXTOS_DECISION = {
     nota: 'El texto vuelve a ser visible para todo el municipio.',
     confirmar: 'Volver a mostrar',
     motivo: false
+  },
+  restringirComentarios: {
+    titulo: 'Restringir comentarios',
+    nota: 'La cuenta no podrá publicar comentarios hasta la fecha indicada o hasta que se levante la restricción.',
+    confirmar: 'Restringir comentarios',
+    motivo: true,
+    conFecha: true
   }
 };
 
@@ -273,6 +280,32 @@ export function registrar() {
         await refrescarModeracion();
       }),
 
+    /** Restringe los comentarios de una cuenta (motivo y fecha opcional). */
+    'moderacion:restringirComentarios': ({ id }) => {
+      if (!sesion.esEmpleado()) {
+        toast('Solo el personal puede restringir comentarios', 'err');
+        return;
+      }
+      abrirDecision({
+        clave: 'restringirComentarios',
+        accion: 'restringir',
+        tipo: 'restriccion',
+        username: id
+      });
+    },
+
+    /** Levanta la restricción de comentarios sin diálogo nativo. */
+    'moderacion:levantarRestriccion': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.esEmpleado()) {
+          toast('Solo el personal puede levantar restricciones', 'err');
+          return;
+        }
+        await moderacionService.levantarRestriccionComentarios(id);
+        toast('Restricción de comentarios levantada', 'ok');
+        await refrescarModeracion();
+      }),
+
     /* ------------------------- confirmar la decisión ---------------------- */
 
     'moderacion:confirmar': () =>
@@ -339,6 +372,12 @@ export function registrar() {
             }`,
             'ok'
           );
+        } else if (pendiente.tipo === 'restriccion') {
+          await moderacionService.restringirComentarios(pendiente.username, {
+            motivo,
+            hasta: fechaDeSuspension()
+          });
+          toast('Comentarios restringidos', 'ok');
         }
 
         await refrescarModeracion({ incidenciaId: pendiente.incidenciaId });

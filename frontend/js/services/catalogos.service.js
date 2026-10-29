@@ -12,6 +12,10 @@ export const catalogosService = {
   municipio(id) {
     return api.get(`/municipios/${id}`);
   },
+  /** Municipio que contiene unas coordenadas (geolocalización). */
+  municipioEnUbicacion(lat, lng) {
+    return api.get(`/municipios/ubicacion?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+  },
   zonas(municipioId) {
     return api.get(`/municipios/${municipioId}/zonas`);
   },
@@ -22,8 +26,24 @@ export const catalogosService = {
   resumenZonas(municipioId) {
     return api.get(`/municipios/${municipioId}/zonas/resumen`);
   },
-  usuarios() {
-    return api.get('/usuarios');
+  /** Municipios visibles con conteos de carga de trabajo (solo administración). */
+  resumenMunicipios() {
+    return api.get('/admin/municipios/resumen');
+  },
+  fichaMunicipio(id) {
+    return api.get(`/municipios/${id}/ficha`);
+  },
+  guardarFichaMunicipio(id, datos) {
+    return api.put(`/municipios/${id}/ficha`, datos);
+  },
+  aprobarFichaMunicipio(id) {
+    return api.post(`/municipios/${id}/ficha/aprobar`, {});
+  },
+  rechazarFichaMunicipio(id, motivo) {
+    return api.post(`/municipios/${id}/ficha/rechazar`, { motivo });
+  },
+  usuarios(tipo = 'personal') {
+    return api.get(`/usuarios?tipo=${encodeURIComponent(tipo)}`);
   },
   /** Alta de una cuenta del personal (solo administrador). */
   crearUsuario(datos) {

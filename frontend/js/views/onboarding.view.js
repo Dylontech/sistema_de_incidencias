@@ -2,7 +2,7 @@
  * Vista del paso previo a la aplicación: municipio y aceptación de términos.
  * No decide nada: el controlador le dice qué paso mostrar.
  */
-import { $ } from '../core/utils.js';
+import { $, esc } from '../core/utils.js';
 import { crearBuscador } from '../core/buscador.js';
 import { opcionesMunicipios } from './login.view.js';
 
@@ -35,6 +35,38 @@ export function renderMunicipios(municipios = [], activoId = null) {
   comboMunicipio()?.cargar(municipios);
 }
 
+/** Pinta los términos y el aviso de privacidad publicados. */
+export function renderTerminos(documentos = []) {
+  const contenedor = $('obTerminosContenido');
+  const estatico = $('obTerminosEstatico');
+  const version = $('obTerminosVersion');
+  if (!contenedor) return;
+
+  if (!documentos.length) {
+    contenedor.innerHTML = '';
+    estatico?.classList.remove('u-oculto');
+    if (version) version.textContent = 'No se pudo cargar la versión publicada.';
+    return;
+  }
+
+  estatico?.classList.add('u-oculto');
+  contenedor.innerHTML = documentos
+    .map(
+      (documento) => `
+      <section class="terminos-doc">
+        <h3>${esc(documento.titulo || documento.clave)}</h3>
+        <div class="terminos-doc-html">${documento.html || ''}</div>
+      </section>`
+    )
+    .join('');
+  if (version) {
+    version.textContent = documentos
+      .map((documento) => `${documento.titulo || documento.clave}: versión ${documento.version || 0}`)
+      .join(' · ');
+  }
+  contenedor.scrollTop = 0;
+}
+
 /** Muestra un paso: 'municipio' | 'terminos'. */
 export function paso(nombre) {
   const municipio = $('obMunicipio');
@@ -52,6 +84,7 @@ export function paso(nombre) {
 
   // El buscador queda listo para escribir en cuanto se abre el paso.
   if (nombre === 'municipio') $('obMunicipioBuscar')?.focus();
+  if (nombre === 'terminos') $('obTerminosContenido')?.scrollTo?.({ top: 0 });
 }
 
 /**
@@ -65,21 +98,24 @@ export function mostrar({ conMunicipio = true, soloLectura = false } = {}) {
   // La pantalla de acceso (si estaba abierta) queda detrás y estorba: el paso
   // previo la sustituye hasta que la aplicación arranca.
   const login = $('loginScreen');
-  if (login) login.style.display = 'none';
-  overlay.style.display = 'flex';
+  if (login) login.hidden = true;
+  overlay.hidden = false;
 
   const cerrar = $('obCerrar');
-  if (cerrar) cerrar.style.display = soloLectura ? 'block' : 'none';
+  if (cerrar) {
+    cerrar.hidden = !soloLectura;
+    cerrar.classList.toggle('u-oculto', !soloLectura);
+  }
 
   const volver = $('obVolver');
-  if (volver) volver.style.display = !soloLectura && conMunicipio ? 'inline-flex' : 'none';
+  if (volver) volver.hidden = soloLectura || !conMunicipio;
 
   paso(conMunicipio ? 'municipio' : 'terminos');
 }
 
 export function ocultar() {
   const overlay = $('onboarding');
-  if (overlay) overlay.style.display = 'none';
+  if (overlay) overlay.hidden = true;
 }
 
 export function valorMunicipio() {

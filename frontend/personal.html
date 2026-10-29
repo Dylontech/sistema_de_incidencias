@@ -7,7 +7,7 @@
      a los buscadores, así que solo entra quien conoce la dirección. -->
 <meta name="robots" content="noindex, nofollow">
 <title>Acceso del personal — Sistema de Incidencias</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/componentes.css">
 <link rel="stylesheet" href="css/extensiones.css">
@@ -22,14 +22,16 @@
 <div class="login-screen">
   <div class="login-card">
     <h1><i class="bi bi-shield-lock-fill"></i> Acceso del personal</h1>
-    <p class="sub">Funcionario y administrador del municipio</p>
+    <p class="sub">Funcionarios, auditores, enlaces y administradores</p>
 
     <div class="login-tabs">
-      <button class="login-tab active" type="button" data-panel="func">Funcionario</button>
+      <button class="login-tab active" type="button" data-panel="func">Personal</button>
       <button class="login-tab" type="button" data-panel="admin">Administrador</button>
     </div>
 
-    <!-- FUNCIONARIO -->
+    <div class="login-error u-oculto" id="loginError" role="alert"></div>
+
+    <!-- PERSONAL -->
     <div class="login-panel active" id="panel-func">
       <form id="formFunc">
         <div class="form-group">
@@ -38,12 +40,27 @@
         </div>
         <div class="form-group">
           <label for="func-pass">Contraseña</label>
-          <input type="password" id="func-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+          <div class="pass-wrap">
+            <input type="password" id="func-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="pass-toggle" data-ver="func-pass" aria-label="Mostrar contraseña" title="Mostrar contraseña">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+          <p class="aviso-caps u-oculto" id="funcCaps"><i class="bi bi-exclamation-triangle-fill"></i> Bloq Mayús está activado</p>
         </div>
         <div class="form-group">
-          <label for="func-code">Clave de municipio</label>
-          <input type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 16050 (clave geoestadística)" style="text-transform:uppercase;">
+          <label for="func-code">Clave de acceso</label>
+          <input class="u-mayusculas" type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 7K3P-9XQ2-MN4T" autocomplete="off">
+          <p class="campo-nota" id="funcCodeNota">
+            Es la clave que te entregó el administrador al crear tu cuenta (cubre uno o
+            varios municipios). Las cuentas antiguas pueden usar la clave geoestadística
+            del municipio.
+          </p>
         </div>
+        <label class="check-line u-mb-10">
+          <input type="checkbox" id="recordarUsuario">
+          <span>Recordar mi usuario en este dispositivo</span>
+        </label>
         <button class="btn btn-primary btn-block" type="submit">
           <i class="bi bi-shield-lock-fill"></i> Iniciar sesión
         </button>
@@ -59,7 +76,12 @@
         </div>
         <div class="form-group">
           <label for="admin-pass">Contraseña</label>
-          <input type="password" id="admin-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+          <div class="pass-wrap">
+            <input type="password" id="admin-pass" name="password" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="pass-toggle" data-ver="admin-pass" aria-label="Mostrar contraseña" title="Mostrar contraseña">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
         </div>
         <button class="btn btn-primary btn-block" type="submit">
           <i class="bi bi-shield-fill-check"></i> Iniciar sesión
@@ -68,15 +90,23 @@
     </div>
 
     <p class="personal-nota">
+      <i class="bi bi-life-preserver"></i> ¿Problemas para entrar? Pide a un administrador que
+      revise tu cuenta y tu ámbito territorial.
+      <br>
+      <i class="bi bi-person-plus"></i> ¿Aún no tienes cuenta del personal?
+      <a href="/solicitud-acceso">Solicita acceso aquí</a>.
+      <br>
       <i class="bi bi-info-circle"></i> La sesión queda abierta en este dispositivo:
       <a href="/">vuelve a la aplicación</a> para usarla.
+      <br>
+      <a href="/acerca" target="_blank" rel="noopener">Acerca de este sistema</a>
     </p>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 <div class="loading-overlay" id="loading">
-  <div style="text-align:center;">
+  <div class="u-centro">
     <div class="spinner"></div>
     <div id="loadingText">Procesando…</div>
   </div>

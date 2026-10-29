@@ -4,6 +4,7 @@
  * el store; aquí solo se pinta.
  */
 import { $, esc } from '../core/utils.js';
+import { esPersonal } from '../core/roles.js';
 import { seleccionarIcono, limpiarPicker, iconoSeleccionado } from './tipos.view.js';
 
 const ICONOS_STATUS = {
@@ -13,14 +14,35 @@ const ICONOS_STATUS = {
 };
 
 /** Deja el formulario listo para un reporte nuevo. */
-export function prepararAlta(usuario = null) {
+export function prepararAlta(usuario = null, municipios = [], municipioActivo = null) {
   $('modalIncTitle').textContent = 'Reportar incidencia';
   $('incGuardarTexto').textContent = 'Enviar reporte';
+
+  // El municipio de la sesión ya viene elegido: no se vuelve a preguntar salvo
+  // que la persona marque «Estoy reportando en otro municipio».
+  renderSelectMunicipios(municipios, municipioActivo?.id || '', usuario);
+  const selector = $('incMunicipio');
+  if (selector) selector.disabled = false;
+  const otro = $('incOtroMunicipio');
+  if (otro) otro.checked = false;
+  $('incMunicipioBox')?.classList.add('u-oculto');
+  const cajaOtro = $('incOtroMunicipioBox');
+  if (cajaOtro) {
+    cajaOtro.classList.toggle(
+      'u-oculto',
+      municipiosPermitidos(usuario, municipios).length <= 1
+    );
+  }
+  actualizarResumenMunicipio(municipioActivo);
+
   $('incTipo').value = '';
   $('incTitulo').value = '';
   $('incDescripcion').value = '';
   $('incIndicaciones').value = '';
   $('incCoordsTexto').value = '';
+  renderAmbito('urbano');
+  const bloqueVia = document.querySelector('.bloque-opcional');
+  if (bloqueVia) bloqueVia.open = false;
   $('ejemploTipoBox').style.display = 'none';
   renderAviso(null);
   $('locStatus').style.display = 'none';
@@ -28,6 +50,63 @@ export function prepararAlta(usuario = null) {
   renderIconoBox('');
   renderZonaBadge(null);
   renderFirma(usuario);
+}
+
+/**
+ * Municipios que el usuario puede elegir en el formulario.
+ * El personal municipal solo ve los que tiene asignados; el resto, el catálogo.
+ */
+export function municipiosPermitidos(usuario = null, municipios = []) {
+  const asignados = Array.isArray(usuario?.municipios) ? usuario.municipios : [];
+  if (esPersonal(usuario) && asignados.length) {
+    return municipios.filter((m) => asignados.map(String).includes(String(m.id)));
+  }
+  return municipios;
+}
+
+/** Pinta el municipio que se usará si no se marca «otro municipio». */
+export function actualizarResumenMunicipio(municipio = null) {
+  const resumen = $('incMunicipioResumen');
+  if (!resumen) return;
+  resumen.textContent = municipio
+    ? `${municipio.nombre}${municipio.estado ? `, ${municipio.estado}` : ''}`
+    : 'Sin municipio seleccionado';
+}
+
+/**
+ * Puebla el municipio del reporte, agrupado por estado.
+ *
+ * No se marca ninguna opción por defecto: el usuario debe elegir. Es el punto
+ * que antes se autoseleccionaba con el municipio activo de la barra superior.
+ */
+export function renderSelectMunicipios(municipios = [], seleccionado = '', usuario = null) {
+  const select = $('incMunicipio');
+  if (!select) return;
+
+  const disponibles = municipiosPermitidos(usuario, municipios);
+  const porEstado = new Map();
+  for (const municipio of disponibles) {
+    const estado = municipio.estado || 'Sin estado';
+    if (!porEstado.has(estado)) porEstado.set(estado, []);
+    porEstado.get(estado).push(municipio);
+  }
+
+  const grupos = [...porEstado.entries()]
+    .sort(([a], [b]) => String(a).localeCompare(String(b), 'es'))
+    .map(
+      ([estado, lista]) =>
+        `<optgroup label="${esc(estado)}">${lista
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+          .map(
+            (m) =>
+              `<option value="${esc(m.id)}"${m.id === seleccionado ? ' selected' : ''}>${esc(m.nombre)}</option>`
+          )
+          .join('')}</optgroup>`
+    )
+    .join('');
+
+  select.innerHTML = '<option value="">— Selecciona un municipio —</option>' + grupos;
+  select.value = seleccionado || '';
 }
 
 /** Concepto que sí deja elegir icono: los demás usan el de su tipo. */
@@ -86,16 +165,51 @@ export function actualizarNotaFirma(usuario) {
   renderFirma(usuario, { anonima: $('incAnonima')?.checked === true });
 }
 
+/**
+ * Selecciona el ámbito y muestra u oculta los datos de la vía.
+ * `urbano` mantiene la geocerca municipal; el resto permite puntos de carretera.
+ */
+export function renderAmbito(ambito = 'urbano') {
+  const selector = $('incAmbito');
+  if (selector) selector.value = ambito || 'urbano';
+  const caja = $('viaBox');
+  if (caja) caja.classList.toggle('u-oculto', (ambito || 'urbano') === 'urbano');
+}
+
+/** ¿El ámbito elegido es una vialidad fuera del polígono urbano? */
+export function ambitoVial() {
+  return ($('incAmbito')?.value || 'urbano') !== 'urbano';
+}
+
 /** Rellena el formulario con una incidencia existente. */
-export function prepararEdicion(incidencia) {
+export function prepararEdicion(incidencia, municipios = []) {
   $('modalIncTitle').textContent = 'Editar incidencia';
   $('incGuardarTexto').textContent = 'Guardar cambios';
+  renderSelectMunicipios(municipios, incidencia.municipioId || '');
+  const selector = $('incMunicipio');
+  // El municipio no se cambia al editar: la incidencia ya tiene su geocerca.
+  if (selector) selector.disabled = true;
+  $('incOtroMunicipioBox')?.classList.add('u-oculto');
+  const caja = $('incMunicipioBox');
+  if (caja) caja.classList.remove('u-oculto');
+  actualizarResumenMunicipio(
+    municipios.find((m) => String(m.id) === String(incidencia.municipioId)) || {
+      nombre: incidencia.municipioNombre || incidencia.municipioId || '—'
+    }
+  );
   $('incTipo').value = incidencia.tipoId || '';
   $('incTitulo').value = incidencia.titulo || '';
   $('incDescripcion').value = incidencia.descripcion || '';
   $('incIndicaciones').value = incidencia.indicaciones || '';
   $('incCoordsTexto').value =
     incidencia.lat != null ? `${incidencia.lat.toFixed(6)}, ${incidencia.lng.toFixed(6)}` : '';
+  renderAmbito(incidencia.ambito || 'urbano');
+  $('incViaNombre').value = incidencia.viaNombre || '';
+  $('incViaClave').value = incidencia.viaClave || '';
+  $('incKilometro').value = incidencia.kilometro ?? '';
+  $('incSentido').value = incidencia.sentido || '';
+  $('incTramo').value = incidencia.tramo || '';
+  $('incDependencia').value = incidencia.dependencia || '';
   // El icono propio de un reporte antiguo solo se conserva si es de «Otro».
   renderIconoBox(incidencia.tipoId);
   if (incidencia.tipoId === TIPO_OTRO && incidencia.iconoCustom) {
@@ -116,6 +230,14 @@ export function renderSelectTipos(tipos = []) {
 
 export function leerFormulario() {
   return {
+    municipioId: $('incMunicipio')?.value || null,
+    ambito: $('incAmbito')?.value || 'urbano',
+    viaNombre: $('incViaNombre')?.value.trim() || '',
+    viaClave: $('incViaClave')?.value.trim() || '',
+    kilometro: $('incKilometro')?.value === '' ? null : Number($('incKilometro').value),
+    sentido: $('incSentido')?.value.trim() || '',
+    tramo: $('incTramo')?.value.trim() || '',
+    dependencia: $('incDependencia')?.value.trim() || '',
     tipoId: $('incTipo').value,
     titulo: $('incTitulo').value.trim(),
     descripcion: $('incDescripcion').value.trim(),
@@ -127,14 +249,23 @@ export function leerFormulario() {
 }
 
 /** Refleja la ubicación elegida y el resultado de la geocerca. */
-export function aplicarUbicacion({ lat, lng, zona, dentro = true }) {
+export function aplicarUbicacion({ lat, lng, zona, dentro = true, fueraPoligono = false, vial = false }) {
   const texto = $('incCoordsTexto');
   if (texto && lat != null) texto.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
   if (!dentro) {
     mostrarLocStatus(
-      'Ubicación fuera del municipio activo. Elige un punto dentro del área marcada en el mapa.',
+      'Ubicación fuera del municipio seleccionado. Elige un punto dentro del área marcada en el mapa.',
       'error'
+    );
+    renderZonaBadge(null);
+    return;
+  }
+
+  if (vial && fueraPoligono) {
+    mostrarLocStatus(
+      'Punto de vialidad fuera del polígono municipal: se guardará con el municipio de referencia.',
+      'ok'
     );
     renderZonaBadge(null);
     return;
@@ -170,7 +301,7 @@ export function renderZonaBadge(zona) {
   elemento.style.display = 'inline-flex';
   elemento.style.background = zona.color;
   elemento.innerHTML = `<i class="bi bi-pin-map-fill"></i> ${esc(zona.nombre)}
-    <span style="opacity:.8;text-transform:capitalize;">(${esc(zona.tipo)})</span>`;
+    <span class="u-opacidad-80 u-capitalizar">(${esc(zona.tipo)})</span>`;
 }
 
 export function textoCoordenadas() {

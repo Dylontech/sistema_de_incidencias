@@ -1,0 +1,95 @@
+:root {
+  color-scheme: light;
+  --primario: #006657;
+  --tinta: #1e293b;
+  --gris: #64748b;
+  --borde: #dbe3ec;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  background: linear-gradient(135deg, #006657 0%, #008f7a 100%);
+  color: var(--tinta);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.tarjeta {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+}
+
+h1 {
+  font-size: 1.35rem;
+  margin: 0 0 6px;
+  color: var(--primario);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sub { color: var(--gris); font-size: 13px; margin: 0 0 22px; }
+
+label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+
+input[type="url"],
+input[type="text"] {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+input:focus { outline: 2px solid rgba(0, 102, 87, 0.35); border-color: var(--primario); }
+
+.campo { margin-bottom: 16px; }
+
+.nota { font-size: 11px; color: var(--gris); margin-top: 6px; line-height: 1.5; }
+
+.botones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+
+button {
+  border: 1px solid var(--borde);
+  background: #fff;
+  color: var(--tinta);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button.primario { background: var(--primario); border-color: var(--primario); color: #fff; }
+button:hover { filter: brightness(0.97); }
+button:disabled { opacity: 0.6; cursor: wait; }
+
+.estado {
+  margin-top: 14px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  display: none;
+}
+
+.estado.ok { display: block; background: #e6f4ea; color: #1e5b31; }
+.estado.err { display: block; background: #fde8e8; color: #8a1f1f; }
+.estado.info { display: block; background: #e8f0fe; color: #1f3f8a; }
+
+.pasos { font-size: 12px; color: var(--gris); line-height: 1.6; padding-left: 18px; }
+.pasos code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
+
+.pie { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--borde); font-size: 11px; color: var(--gris); }
+.pie a { color: var(--primario); }

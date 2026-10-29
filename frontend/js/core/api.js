@@ -31,6 +31,13 @@ export const token = {
 
 export const BASE = '/api';
 
+/** URL de un archivo privado con el token de la sesión (para <img> y enlaces). */
+export function urlPrivada(url) {
+  if (!url) return '';
+  const actual = token.leer();
+  return actual ? `${url}?token=${encodeURIComponent(actual)}` : url;
+}
+
 /**
  * Rutas de entrada. En ellas un 401 significa «credenciales incorrectas», no
  * «sesión caducada»: si se trataran igual, fallar al escribir la contraseña
@@ -81,6 +88,15 @@ async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
         new CustomEvent('cuenta-suspendida', { detail: { mensaje: datos.error } })
       );
     }
+    // El servidor exige una nueva aceptación de los términos (puede haber
+    // cambiado la versión mientras la aplicación estaba abierta).
+    if (respuesta.status === 428 && datos?.detalles?.codigo === 'terminos_pendientes') {
+      document.dispatchEvent(
+        new CustomEvent('terminos-pendientes', {
+          detail: { mensaje: datos.error, versiones: datos.detalles.versiones }
+        })
+      );
+    }
     throw new ErrorApi(
       datos?.error || `Error ${respuesta.status}`,
       respuesta.status,
@@ -97,10 +113,10 @@ export const api = {
   put: (ruta, cuerpo) => peticion(ruta, { metodo: 'PUT', cuerpo }),
   patch: (ruta, cuerpo) => peticion(ruta, { metodo: 'PATCH', cuerpo }),
   del: (ruta) => peticion(ruta, { metodo: 'DELETE' }),
-  /** Sube archivos al endpoint de evidencia (campo `archivos`). */
-  subir: (ruta, archivos) => {
+  /** Sube archivos; por defecto usa el campo `archivos` de evidencia. */
+  subir: (ruta, archivos, { campo = 'archivos' } = {}) => {
     const formulario = new FormData();
-    Array.from(archivos).forEach((archivo) => formulario.append('archivos', archivo, archivo.name));
+    Array.from(archivos).forEach((archivo) => formulario.append(campo, archivo, archivo.name));
     return peticion(ruta, { metodo: 'POST', formulario });
   }
 };

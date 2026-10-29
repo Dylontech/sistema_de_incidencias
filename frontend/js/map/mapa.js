@@ -5,18 +5,29 @@
  *  - el municipio es un **polígono real** (ya no un rectángulo bbox): el mapa
  *    encuadra ese polígono, limita el desplazamiento a su envolvente y sombrea
  *    con una máscara todo lo que quede fuera;
- *  - hay 4 capas base conmutables (Satélite, Calles, Relieve, Físico);
+ *  - hay 3 capas base conmutables (Satélite, Calles y Relieve);
  *  - las zonas (colonias/tenencias) se dibujan como polígonos de geocerca.
  */
-import { $, esc, fmtFechaCorta, textoAntiguedad, colorHex, etiquetaEstado } from '../core/utils.js';
+import {
+  $,
+  esc,
+  fmtFechaCorta,
+  textoAntiguedad,
+  COLOR_HEX,
+  etiquetaEstado,
+  aplicarEstilosDinamicos
+} from '../core/utils.js';
 import { anillosDe, boundsDePoligono } from '../core/geocerca.js';
 
 let mapa = null;
 let marcadores = {};
+let marcadorUsuario = null;
+let circuloUsuario = null;
 let capaMunicipio = null;
 let capaMascara = null;
 let capasZonas = [];
-let capasBase = {};
+let capaBaseActiva = null;
+let claveCapaActiva = 'satelite';
 let controlCapas = null;
 let zonasVisibles = true;
 let modoElegir = false;
@@ -38,50 +49,142 @@ function boundsDe(poligono) {
   return L.latLngBounds([latMin, lngMin], [latMax, lngMax]);
 }
 
-/**
- * Capas base. Se usan servicios de Esri (satélite y calles) y OpenTopoMap
- * (relieve) porque no imponen las restricciones que la política de
- * OpenStreetMap aplica al tráfico directo desde el navegador.
- */
-function crearCapasBase() {
-  const satelital = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    {
-      maxZoom: 18,
-      attribution:
-        '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, Maxar, Earthstar Geographics',
-      crossOrigin: true
-    }
-  );
-  const calles = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    {
-      maxZoom: 18,
-      attribution:
-        '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, HERE, Garmin, FAO, USGS',
-      crossOrigin: true
-    }
-  );
-  const relieve = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 17,
-    maxNativeZoom: 17,
-    subdomains: 'abc',
-    attribution:
-      'Map data: &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, SRTM | &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>',
-    crossOrigin: true
-  });
-  const fisico = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}',
-    {
-      maxZoom: 8,
-      maxNativeZoom: 8,
-      attribution:
-        '&copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, USGS, NOAA',
-      crossOrigin: true
-    }
-  );
+const CLAVE_CAPA = 'inc_capa_mapa';
 
-  return { Satélite: satelital, Calles: calles, 'Relieve / Topográfico': relieve, Físico: fisico };
+function teselasEsri(servicio, attribution) {
+  return L.tileLayer(
+    `https://server.arcgisonline.com/ArcGIS/rest/services/${servicio}/MapServer/tile/{z}/{y}/{x}`,
+    { maxZoom: 18, attribution, crossOrigin: true }
+  );
+}
+
+function teselasEtiquetas() {
+  return L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 18, crossOrigin: true, opacity: 0.9 }
+  );
+}
+
+/** Catálogo único de capas; lo consumen el control y el tutorial. */
+export const CATALOGO_CAPAS = {
+  satelite: {
+    etiqueta: 'Satélite',
+    icono: 'bi-globe-americas',
+    crear: () => teselasEsri('World_Imagery', '&copy; Esri, Maxar, Earthstar Geographics')
+  },
+  hibrido: {
+    etiqueta: 'Satélite con etiquetas',
+    icono: 'bi-geo-alt-fill',
+    crear: () =>
+      L.layerGroup([
+        teselasEsri('World_Imagery', '&copy; Esri, Maxar, Earthstar Geographics'),
+        teselasEtiquetas()
+      ])
+  },
+  calles: {
+    etiqueta: 'Calles',
+    icono: 'bi-map-fill',
+    crear: () => teselasEsri('World_Street_Map', '&copy; Esri, HERE, Garmin, FAO, USGS')
+  },
+  relieve: {
+    etiqueta: 'Relieve / Topográfico',
+    icono: 'bi-triangle-half',
+    crear: () =>
+      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        maxNativeZoom: 17,
+        subdomains: 'abc',
+        attribution:
+          'Map data: &copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap',
+        crossOrigin: true
+      })
+  }
+};
+
+function guardarCapaBase(clave) {
+  try {
+    localStorage.setItem(CLAVE_CAPA, clave);
+  } catch {
+    // Almacenamiento no disponible (modo privado); se mantiene la capa en memoria.
+  }
+}
+
+function leerCapaBase() {
+  try {
+    const clave = localStorage.getItem(CLAVE_CAPA);
+    return clave && CATALOGO_CAPAS[clave] ? clave : 'satelite';
+  } catch {
+    return 'satelite';
+  }
+}
+
+export function capasDisponibles() {
+  return Object.entries(CATALOGO_CAPAS).map(([clave, definicion]) => ({
+    clave,
+    etiqueta: definicion.etiqueta,
+    icono: definicion.icono
+  }));
+}
+
+export function capaBaseActual() {
+  return claveCapaActiva;
+}
+
+/** Cambia la capa base y persiste la elección en el dispositivo. */
+export function cambiarCapaBase(clave) {
+  if (!mapa || !CATALOGO_CAPAS[clave]) return false;
+  if (capaBaseActiva) mapa.removeLayer(capaBaseActiva);
+  capaBaseActiva = CATALOGO_CAPAS[clave].crear();
+  capaBaseActiva.addTo(mapa);
+  claveCapaActiva = clave;
+  guardarCapaBase(clave);
+  actualizarControlCapas();
+  return true;
+}
+
+function restaurarCapaBase() {
+  claveCapaActiva = leerCapaBase();
+  capaBaseActiva = CATALOGO_CAPAS[claveCapaActiva].crear();
+  capaBaseActiva.addTo(mapa);
+}
+
+function actualizarControlCapas() {
+  const contenedor = controlCapas?.getContainer?.();
+  if (!contenedor) return;
+  contenedor.querySelectorAll('[data-capa]').forEach((boton) => {
+    boton.setAttribute('aria-pressed', String(boton.dataset.capa === claveCapaActiva));
+  });
+}
+
+function crearControlCapas() {
+  const Control = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const contenedor = L.DomUtil.create('div', 'mapa-capas');
+      contenedor.setAttribute('role', 'group');
+      contenedor.setAttribute('aria-label', 'Capas del mapa');
+      for (const [clave, definicion] of Object.entries(CATALOGO_CAPAS)) {
+        const boton = L.DomUtil.create('button', 'mapa-capa', contenedor);
+        boton.type = 'button';
+        boton.dataset.capa = clave;
+        boton.title = definicion.etiqueta;
+        boton.setAttribute('aria-label', definicion.etiqueta);
+        boton.setAttribute('aria-pressed', String(clave === claveCapaActiva));
+        const icono = L.DomUtil.create('i', `bi ${definicion.icono}`, boton);
+        icono.setAttribute('aria-hidden', 'true');
+        const texto = L.DomUtil.create('span', 'mapa-capa-texto', boton);
+        texto.textContent = definicion.etiqueta;
+        L.DomEvent.on(boton, 'click', (evento) => {
+          L.DomEvent.stop(evento);
+          cambiarCapaBase(clave);
+        });
+      }
+      L.DomEvent.disableClickPropagation(contenedor);
+      L.DomEvent.disableScrollPropagation(contenedor);
+      return contenedor;
+    }
+  });
+  controlCapas = new Control().addTo(mapa);
 }
 
 export function inicializar(municipio) {
@@ -97,11 +200,8 @@ export function inicializar(municipio) {
     maxZoom: 18
   });
 
-  capasBase = crearCapasBase();
-  capasBase['Satélite'].addTo(mapa);
-  controlCapas = L.control
-    .layers(capasBase, null, { position: 'topright', collapsed: true })
-    .addTo(mapa);
+  restaurarCapaBase();
+  crearControlCapas();
 
   // Encuadrar el municipio completo y no permitir alejarse más allá.
   if (bounds) {
@@ -153,6 +253,28 @@ function dibujarLimiteMunicipio(municipio) {
   capaMascara.bringToBack();
 }
 
+/**
+ * Enfoca el mapa en un municipio distinto del activo (selector del reporte).
+ * Actualiza el límite de arrastre, el encuadre y la máscara.
+ */
+export function enfocarMunicipio(municipio) {
+  if (!mapa || !municipio) return;
+  // La ubicación anterior puede quedar fuera del nuevo municipio y no debe
+  // quedar visible sobre el que se acaba de abrir.
+  limpiarUbicacionUsuario();
+
+  const bounds = boundsDe(municipio.poligono);
+  if (!bounds) {
+    mapa.setView(municipio.center, municipio.zoom || 12);
+    return;
+  }
+
+  mapa.setMaxBounds(bounds.pad(0.03));
+  mapa.fitBounds(bounds, { padding: [12, 12] });
+  mapa.setMinZoom(mapa.getBoundsZoom(bounds, false));
+  dibujarLimiteMunicipio(municipio);
+}
+
 /** Dibuja los polígonos de zona y actualiza la leyenda del mapa. */
 export function dibujarZonas(zonas = []) {
   if (!mapa) return;
@@ -168,7 +290,7 @@ export function dibujarZonas(zonas = []) {
       fillOpacity: 0.14
     });
     poligono.bindTooltip(
-      `<strong>${esc(zona.nombre)}</strong><br><span style="font-size:10.5px;text-transform:capitalize;">${esc(zona.tipo)}</span>`,
+      `<strong>${esc(zona.nombre)}</strong><br><span class="u-fs-105px u-capitalizar">${esc(zona.tipo)}</span>`,
       { sticky: true }
     );
     poligono.zonaId = zona.id;
@@ -181,10 +303,12 @@ export function dibujarZonas(zonas = []) {
     leyenda.innerHTML =
       zonas
         .map(
-          (z) => `<div class="legend-item"><div class="legend-color" style="background:${z.color};"></div>
-            ${esc(z.nombre)} <span style="color:#94a3b8;text-transform:capitalize;">· ${esc(z.tipo)}</span></div>`
+          (z) => `<div class="legend-item"><div class="legend-color" data-fondo="${esc(z.color)}"></div>
+            ${esc(z.nombre)} <span class="u-suave u-capitalizar">· ${esc(z.tipo)}</span></div>`
         )
-        .join('') || '<div style="font-size:11px;color:#94a3b8;">Sin zonas definidas</div>';
+        .join('') || '<div class="u-fs-11px u-suave">Sin zonas definidas</div>';
+    // El color de cada zona es un hex del catálogo: se aplica por CSSOM.
+    aplicarEstilosDinamicos(leyenda);
   }
 }
 
@@ -202,9 +326,12 @@ function crearIcono(incidencia, tipos) {
   const emoji = incidencia.iconoCustom || (tipo ? tipo.icono : '❗');
   // Las peligrosas llevan un anillo rojo pulsante para que salten a la vista.
   const peligrosa = incidencia.peligrosa === true ? ' pin-peligrosa' : '';
+  // El color del marcador es el del semáforo de antigüedad: una clase y no un
+  // estilo en línea. Un valor inesperado cae en el gris de respaldo.
+  const color = COLOR_HEX[incidencia.color] ? incidencia.color : 'otro';
   return L.divIcon({
     className: 'marker-icon',
-    html: `<div class="pin${peligrosa}" style="background:${colorHex(incidencia.color)};">
+    html: `<div class="pin pin-${color}${peligrosa}">
              <span class="pin-inner">${emoji}</span>
            </div>`,
     iconSize: [32, 32],
@@ -217,36 +344,43 @@ function crearIcono(incidencia, tipos) {
 export function contenidoPopup(incidencia, tipos) {
   const tipo = tipos.find((t) => t.id === incidencia.tipoId);
   const autor = incidencia.esAnonimo ? 'Anónimo' : esc(incidencia.autorNombre || incidencia.autor || '—');
-  const descripcion = esc(incidencia.descripcion);
-  const color = colorHex(incidencia.color);
+  const descripcion = esc(incidencia.resumen || incidencia.descripcion || '');
 
   return `
-    <div style="font-size:13px;min-width:200px;">
+    <div class="u-fs-13px u-min-200">
       ${
         incidencia.peligrosa
-          ? '<div style="background:#dc2626;color:#fff;font-size:11px;font-weight:800;border-radius:6px;padding:3px 8px;margin-bottom:6px;text-align:center;">⚠️ INCIDENCIA PELIGROSA</div>'
+          ? '<div class="insignia-oculta">⚠️ INCIDENCIA PELIGROSA</div>'
           : ''
       }
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-        <span style="font-size:1.3rem;">${tipo ? tipo.icono : '❗'}</span>
-        <strong style="color:#1a202c;">${esc(incidencia.titulo)}</strong>
+      <div class="fila-icono">
+        <span class="icono-13rem">${tipo ? tipo.icono : '❗'}</span>
+        <strong class="u-tinta">${esc(incidencia.titulo)}</strong>
       </div>
-      <div style="font-size:11px;color:#718096;margin-bottom:4px;">
+      <div class="u-fs-11px u-gris-medio u-mb-4">
         ${esc(tipo ? tipo.nombre : '—')} · ${fmtFechaCorta(incidencia.fecha)}${
           incidencia.zonaNombre ? ' · ' + esc(incidencia.zonaNombre) : ''
         }
       </div>
-      <div style="font-size:12px;color:#4a5568;line-height:1.4;margin-bottom:8px;">
+      ${
+        incidencia.ambito && incidencia.ambito !== 'urbano'
+          ? `<div class="u-fs-11px u-gris-medio u-mb-4">🛣️ ${esc(
+              incidencia.viaNombre || 'Vialidad'
+            )}${incidencia.viaClave ? ' · ' + esc(incidencia.viaClave) : ''}${
+              incidencia.kilometro != null ? ' · km ' + esc(String(incidencia.kilometro)) : ''
+            }</div>`
+          : ''
+      }
+      <div class="u-fs-12px u-pizarra u-lh-14 u-mb-8">
         ${descripcion.slice(0, 160)}${descripcion.length > 160 ? '…' : ''}
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;">
-        <span style="background:${color};color:${incidencia.color === 'amarillo' ? '#333' : '#fff'};padding:2px 8px;border-radius:8px;font-weight:700;">
+      <div class="pila-filas-chica">
+        <span class="pastilla-estado ${esc(incidencia.color)}">
           ${incidencia.estado === 'resuelta' ? 'RESUELTA' : textoAntiguedad(incidencia.dias)}
         </span>
-        <span style="color:#94a3b8;">${autor}</span>
+        <span class="u-suave">${autor}</span>
       </div>
-      <button data-action="detalle:abrir" data-id="${esc(incidencia.id)}"
-        style="margin-top:8px;width:100%;padding:6px;background:#006657;color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;">
+      <button class="boton-verde-ancho" data-action="detalle:abrir" data-id="${esc(incidencia.id)}">
         Ver detalles (${etiquetaEstado(incidencia.estado)})
       </button>
     </div>
@@ -274,6 +408,62 @@ export function abrirPopup(id) {
   marcadores[id]?.openPopup();
 }
 
+/** Envolvente visible en el formato que espera el backend (`oeste,sur,este,norte`). */
+export function bboxActual() {
+  return mapa ? mapa.getBounds().toBBoxString() : null;
+}
+
+export function zoomActual() {
+  return mapa ? mapa.getZoom() : 12;
+}
+
+/** Avisa al mover o hacer zoom, para recargar solo los puntos visibles. */
+export function alMover(callback) {
+  if (!mapa) return;
+  mapa.on('moveend zoomend', callback);
+}
+
+/**
+ * Pinta los puntos ligeros del endpoint `/incidencias/mapa`.
+ * Los grupos se dibujan como un pin con el total; al pulsarlo se acerca.
+ */
+export function refrescarPuntos(puntos = [], tipos = []) {
+  if (!mapa) return;
+  Object.values(marcadores).forEach((m) => mapa.removeLayer(m));
+  marcadores = {};
+
+  puntos.forEach((punto, indice) => {
+    if (punto.lat == null || punto.lng == null) return;
+
+    if (punto.cluster) {
+      const icono = L.divIcon({
+        className: 'marker-cluster',
+        html: `<div class="cluster-pin${punto.peligrosa ? ' cluster-peligro' : ''}">${punto.total}</div>`,
+        iconSize: [42, 42],
+        iconAnchor: [21, 21]
+      });
+      const marcador = L.marker([punto.lat, punto.lng], { icon: icono });
+      marcador.bindTooltip(
+        `${punto.total} incidencias · pulsa para acercar`,
+        { direction: 'top' }
+      );
+      marcador.on('click', () => {
+        mapa.setView([punto.lat, punto.lng], Math.min(mapa.getZoom() + 2, 18));
+      });
+      marcador.addTo(mapa);
+      marcadores[`cluster_${indice}`] = marcador;
+      return;
+    }
+
+    const marcador = L.marker([punto.lat, punto.lng], {
+      icon: crearIcono(punto, tipos)
+    });
+    marcador.bindPopup(contenidoPopup(punto, tipos), { maxWidth: 320 });
+    marcador.addTo(mapa);
+    marcadores[punto.id] = marcador;
+  });
+}
+
 /** Encuadra todo el municipio (equivale a `Mapa.centrarMunicipio`). */
 export function centrarMunicipio(municipio) {
   const bounds = boundsDe(municipio?.poligono);
@@ -285,20 +475,78 @@ export function fijarVista(lat, lng, zoom = 16) {
   mapa?.setView([lat, lng], zoom);
 }
 
-export function centrarEnUsuario() {
+/** Pide la ubicación al navegador sin mover el mapa. */
+export function obtenerUbicacion() {
   if (!navigator.geolocation) {
     throw new Error('Geolocalización no disponible en este navegador');
   }
   return new Promise((resolver, rechazar) => {
     navigator.geolocation.getCurrentPosition(
-      (posicion) => {
-        mapa?.setView([posicion.coords.latitude, posicion.coords.longitude], 16);
-        resolver(posicion.coords);
-      },
+      (posicion) => resolver(posicion.coords),
       (error) => rechazar(new Error(error.message)),
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   });
+}
+
+function crearIconoUsuario() {
+  return L.divIcon({
+    className: 'marker-usuario',
+    html: '<div class="usuario-pin"><i class="bi bi-person-fill" aria-hidden="true"></i></div>',
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -20]
+  });
+}
+
+/** Marca la ubicación GPS del usuario con un icono distinto de las incidencias. */
+export function marcarUbicacionUsuario(coords) {
+  if (!mapa || coords?.latitude == null || coords?.longitude == null) return null;
+  limpiarUbicacionUsuario();
+
+  const precision = Number(coords.accuracy);
+  const textoPrecision = Number.isFinite(precision) ? ` (±${Math.round(precision)} m)` : '';
+  marcadorUsuario = L.marker([coords.latitude, coords.longitude], {
+    icon: crearIconoUsuario(),
+    title: 'Tu ubicación',
+    alt: 'Tu ubicación',
+    zIndexOffset: 1000
+  });
+  marcadorUsuario.bindTooltip(`Tu ubicación${textoPrecision}`, { direction: 'top' });
+  marcadorUsuario.addTo(mapa);
+
+  // El círculo de precisión solo se dibuja si el GPS reporta un radio útil;
+  // un valor enorme taparía el mapa.
+  if (Number.isFinite(precision) && precision > 0 && precision <= 500) {
+    circuloUsuario = L.circle([coords.latitude, coords.longitude], {
+      radius: precision,
+      color: '#2563eb',
+      weight: 1,
+      opacity: 0.55,
+      fillColor: '#2563eb',
+      fillOpacity: 0.08,
+      interactive: false
+    }).addTo(mapa);
+  }
+  return marcadorUsuario;
+}
+
+export function limpiarUbicacionUsuario() {
+  if (marcadorUsuario) {
+    mapa?.removeLayer(marcadorUsuario);
+    marcadorUsuario = null;
+  }
+  if (circuloUsuario) {
+    mapa?.removeLayer(circuloUsuario);
+    circuloUsuario = null;
+  }
+}
+
+export async function centrarEnUsuario() {
+  const coords = await obtenerUbicacion();
+  mapa?.setView([coords.latitude, coords.longitude], 16);
+  marcarUbicacionUsuario(coords);
+  return coords;
 }
 
 /** Activa el modo "haz clic en el mapa" del formulario. */
@@ -319,6 +567,7 @@ export function cancelarModoElegir() {
 
 /** Cambia de municipio activo (paridad con `Mapa.resetMunicipio`). */
 export function reiniciarMunicipio(municipio) {
+  limpiarUbicacionUsuario();
   const bounds = boundsDe(municipio?.poligono);
   if (!mapa || !bounds) return;
   mapa.setMaxBounds(bounds.pad(0.03));

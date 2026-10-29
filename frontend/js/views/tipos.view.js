@@ -53,17 +53,17 @@ export function renderListaTipos(tipos = [], { puedeEliminar } = {}) {
           .map(
             (tipo) => `
           <tr>
-            <td style="font-size:1.5rem;">${tipo.icono}</td>
+            <td class="u-fs-15rem">${tipo.icono}</td>
             <td><strong>${esc(tipo.nombre)}</strong>${
-              tipo.custom ? ' <span style="font-size:10px;color:#006657;">(personalizado)</span>' : ''
+              tipo.custom ? ' <span class="pastilla-personalizado">(personalizado)</span>' : ''
             }</td>
-            <td><code style="font-size:10.5px;">${esc(tipo.id)}</code></td>
+            <td><code class="u-fs-105px">${esc(tipo.id)}</code></td>
             <td>${
               tipo.custom && puedeEliminar
                 ? `<button class="btn btn-sm btn-danger" data-action="tipos:eliminar" data-id="${esc(tipo.id)}">
                      <i class="bi bi-trash3"></i>
                    </button>`
-                : '<span style="font-size:11px;color:#94a3b8;">Predefinido</span>'
+                : '<span class="u-fs-11px u-suave">Predefinido</span>'
             }</td>
           </tr>`
           )

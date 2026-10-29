@@ -55,3 +55,10 @@
   vertical-align: middle;
 }
 .data-table tbody tr:hover { background: #f8f9fc; }
+
+/* Accesos rápidos por municipio en la pestaña Municipios. */
+.municipio-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

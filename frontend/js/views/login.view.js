@@ -1,6 +1,7 @@
 /** Vista de login y del armazón de la aplicación. */
 import { $, esc } from '../core/utils.js';
 import { crearBuscador } from '../core/buscador.js';
+import { esPersonal, puedeAtenderTickets } from '../core/roles.js';
 
 /**
  * Buscador del municipio activo de la barra superior.
@@ -25,13 +26,52 @@ function comboMunicipio() {
  */
 export function mostrarModoAnon(modo = 'inicio') {
   const vistas = { inicio: 'anonInicio', login: 'anonLogin', registro: 'anonRegistro' };
+  const elegido = vistas[modo] ? modo : 'inicio';
   Object.entries(vistas).forEach(([nombre, id]) => {
     const elemento = $(id);
-    if (elemento) elemento.style.display = nombre === modo ? 'block' : 'none';
+    if (elemento) elemento.hidden = nombre !== elegido;
   });
-  if (modo === 'registro') alternarPseudonimo(false);
-  if (modo === 'login') $('ciud-correo')?.focus();
-  if (modo === 'registro') $('reg-correo')?.focus();
+  // Cada sub-paso arranca sin el aviso del anterior.
+  limpiarMensaje();
+  if (elegido === 'registro') alternarPseudonimo(false);
+  if (elegido === 'login') $('ciud-nombre')?.focus();
+  if (elegido === 'registro') $('reg-correo')?.focus();
+}
+
+/**
+ * Aviso dentro de la tarjeta de acceso.
+ *
+ * Es independiente del toast: la pantalla de acceso es una capa fija y el
+ * aviso debe verse siempre. `accion` añade un botón que dispara una acción de
+ * la delegación (por ejemplo, pasar al acceso con el correo ya escrito).
+ */
+export function mensaje(texto, tipo = 'err', { accion = null } = {}) {
+  const caja = $('loginMensaje');
+  if (!caja) return;
+  caja.className = `publico-msg ${tipo}`;
+  caja.textContent = texto || '';
+  caja.hidden = false;
+  caja.classList.remove('u-oculto');
+
+  if (accion?.etiqueta) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'btn btn-outline btn-sm u-mt-8';
+    boton.textContent = accion.etiqueta;
+    if (accion.accion) boton.dataset.action = accion.accion;
+    if (accion.valor !== undefined && accion.valor !== null) {
+      boton.dataset.valor = String(accion.valor);
+    }
+    caja.append(boton);
+  }
+}
+
+export function limpiarMensaje() {
+  const caja = $('loginMensaje');
+  if (!caja) return;
+  caja.textContent = '';
+  caja.className = 'publico-msg u-oculto';
+  caja.hidden = true;
 }
 
 /**
@@ -39,58 +79,125 @@ export function mostrarModoAnon(modo = 'inicio') {
  * nombre se oculta porque el servidor sortea el pseudónimo.
  */
 export function alternarPseudonimo(activo) {
+  const marcado = activo === true;
   const casilla = $('reg-pseudonimo');
-  if (casilla) casilla.checked = activo === true;
+  if (casilla) casilla.checked = marcado;
+  // Se oculta el bloque completo (etiqueta + campo) y se apaga el `required`
+  // para que un campo oculto no bloquee el envío.
+  const bloque = $('regNombreCampo') || $('reg-nombre');
+  if (bloque) {
+    bloque.hidden = marcado;
+    bloque.classList.toggle('u-oculto', marcado);
+  }
   const campo = $('reg-nombre');
-  if (campo) campo.style.display = activo ? 'none' : 'block';
+  if (campo) campo.required = !marcado;
   const nota = $('regNombreNota');
   if (nota) {
-    nota.textContent = activo
-      ? 'Te asignaremos un nombre como «Águila Nocturna»: nadie sabrá quién eres y aun así recibirás los avisos de tus reportes.'
-      : 'Escribe tu nombre o marca la casilla para que te asignemos un pseudónimo.';
+    nota.textContent = marcado
+      ? 'Te asignaremos un nombre libre, como «Águila Nocturna»: nadie sabrá quién eres y aun así recibirás los avisos de tus reportes.'
+      : 'Con este nombre entrarás a tu cuenta y aparecerá en tus reportes; no puede repetirse.';
   }
 }
 
 /**
  * Abre la pantalla de acceso ciudadano sin perder la sesión anónima que ya está
  * activa. Si hay sesión, se muestra la «×» para volver a la aplicación.
+ * `modo` permite entrar directo al alta de cuenta (`registro`) o al inicio de
+ * sesión (`login`), que es lo que usan los accesos de la vista principal.
  */
-export function mostrarLogin({ puedeCancelar = false } = {}) {
-  $('loginScreen').style.display = 'flex';
+export function mostrarLogin({ puedeCancelar = false, modo = 'inicio' } = {}) {
+  const pantalla = $('loginScreen');
+  if (pantalla) pantalla.hidden = false;
   const cancelar = $('loginCancelBtn');
-  if (cancelar) cancelar.style.display = puedeCancelar ? 'block' : 'none';
-  mostrarModoAnon('inicio');
+  if (cancelar) {
+    cancelar.hidden = !puedeCancelar;
+    cancelar.classList.toggle('u-oculto', !puedeCancelar);
+  }
+  mostrarModoAnon(modo);
+}
+
+/**
+ * Abre el acceso con el nombre ya escrito.
+ * Se usa cuando el servidor avisa de que ese nombre ya tiene cuenta: así la
+ * persona solo escribe su contraseña en lugar de volver a empezar.
+ */
+export function prepararLogin({ nombre = '' } = {}) {
+  const pantalla = $('loginScreen');
+  if (pantalla) pantalla.hidden = false;
+  mostrarModoAnon('login');
+  const campo = $('ciud-nombre');
+  if (campo && nombre) campo.value = nombre;
+  $('ciud-pass')?.focus();
+}
+
+/** ¿Está visible la pantalla de acceso? */
+export function estaVisible() {
+  const pantalla = $('loginScreen');
+  return Boolean(pantalla && !pantalla.hidden);
 }
 
 /** Cierra la pantalla de acceso y vuelve a la aplicación. */
 export function cancelarLogin() {
-  $('loginScreen').style.display = 'none';
+  const pantalla = $('loginScreen');
+  if (pantalla) pantalla.hidden = true;
 }
 
 /** Oculta el login y prepara la interfaz según el rol (paridad con Auth.iniciarApp). */
 export function mostrarApp({ usuario, municipioActivo }) {
-  $('loginScreen').style.display = 'none';
+  const pantalla = $('loginScreen');
+  if (pantalla) pantalla.hidden = true;
   $('app').classList.add('active');
 
-  const esEmpleado = usuario.rol === 'funcionario' || usuario.rol === 'admin';
+  const esEmpleado = esPersonal(usuario);
+  const permisos = new Set(usuario.permisos || []);
+  const puede = (clave) => usuario.rol === 'admin' || permisos.has(clave);
   // Cualquier cuenta (ciudadana o del personal) puede cerrar sesión.
   const tieneCuenta = usuario.rol !== 'anonimo';
   $('btn-admin').style.display = esEmpleado ? 'inline-flex' : 'none';
-  $('btn-informes').style.display = esEmpleado ? 'inline-flex' : 'none';
+  $('btn-monitoreo').style.display =
+    esEmpleado && puede('ver_monitoreo') ? 'inline-flex' : 'none';
+  $('btn-bandeja').style.display = esEmpleado ? 'inline-flex' : 'none';
+  $('btn-servidor').style.display = usuario.rol === 'admin' ? 'inline-flex' : 'none';
+  $('btn-notif-config').style.display = esEmpleado ? 'inline-flex' : 'none';
+  $('btn-informes').style.display =
+    esEmpleado && puede('exportar') ? 'inline-flex' : 'none';
   $('btn-logout').style.display = tieneCuenta ? 'inline-flex' : 'none';
   $('visibilidadNota').style.display = esEmpleado ? 'none' : 'block';
+  // El acceso al alta de cuenta solo tiene sentido para quien entró como
+  // anónimo: con cuenta ciudadana o del personal ya no se muestra.
+  const botonRegistro = $('btn-registro');
+  if (botonRegistro) botonRegistro.style.display = usuario.rol === 'anonimo' ? 'inline-flex' : 'none';
+  const botonLogin = $('btn-login');
+  if (botonLogin) botonLogin.style.display = usuario.rol === 'anonimo' ? 'inline-flex' : 'none';
+
+  // El panel técnico solo tiene sentido para quien atiende tickets.
+  const enlaceSoporte = $('linkSoporte');
+  if (enlaceSoporte) {
+    const atiende = puedeAtenderTickets(usuario);
+    enlaceSoporte.hidden = !atiende;
+    enlaceSoporte.setAttribute('aria-hidden', String(!atiende));
+  }
+
+  // Tickets y solicitudes de informe exigen una cuenta registrada. La sesión
+  // anónima puede reportar, pero no abrir estos trámites.
+  for (const id of ['linkTickets', 'linkInformesPublicos']) {
+    const enlace = $(id);
+    if (!enlace) continue;
+    enlace.hidden = !tieneCuenta;
+    enlace.setAttribute('aria-hidden', String(!tieneCuenta));
+  }
 
   $('userName').textContent = usuario.nombre;
   actualizarMunicipioTitulo(municipioActivo);
   actualizarNotaCuenta(usuario);
 
-  // El funcionario está atado a su municipio: el selector se queda fijo.
+  // El personal territorial no cambia de municipio; el admin sí puede acotarse.
+  const territorial = esEmpleado && usuario.rol !== 'admin';
   fijarSelectorMunicipio({
-    bloqueado: usuario.rol === 'funcionario',
-    motivo:
-      usuario.rol === 'funcionario'
-        ? 'Tu municipio asignado no se puede cambiar'
-        : 'Municipio activo (catálogo del INEGI)'
+    bloqueado: territorial,
+    motivo: territorial
+      ? 'Tu ámbito territorial está asignado por el administrador'
+      : 'Municipio activo (catálogo del INEGI)'
   });
 }
 
@@ -101,7 +208,7 @@ export function mostrarApp({ usuario, municipioActivo }) {
 function actualizarNotaCuenta(usuario) {
   const nota = $('notaCuenta');
   if (!nota) return;
-  if (usuario.rol === 'funcionario' || usuario.rol === 'admin') {
+  if (esPersonal(usuario)) {
     nota.style.display = 'none';
     return;
   }
@@ -109,7 +216,7 @@ function actualizarNotaCuenta(usuario) {
   nota.innerHTML =
     usuario.rol === 'ciudadano'
       ? `<i class="bi bi-bell-fill"></i> Recibirás avisos de tus reportes en el buzón (la campana). Estás como <strong>${esc(usuario.nombre)}</strong>.`
-      : `<i class="bi bi-bell-slash"></i> Estás como <strong>anónimo</strong>: puedes reportar, pero no recibirás avisos. <a href="#" data-action="auth:mostrarLogin" data-valor="anon">Crea una cuenta</a> para seguir tus reportes.`;
+      : `<i class="bi bi-bell-slash"></i> Estás como <strong>anónimo</strong>: puedes reportar, pero no recibirás avisos. <a href="#" data-action="auth:mostrarLogin" data-valor="registro">Crea una cuenta</a> o <a href="#" data-action="auth:mostrarLogin" data-valor="login">inicia sesión</a> para seguir tus reportes.`;
 }
 
 export function actualizarMunicipioTitulo(municipio) {
@@ -213,20 +320,20 @@ export function renderColindantes(colindantes = [], { visible = true } = {}) {
     .join('');
 }
 
-/** Credenciales de una cuenta ciudadana (se entra con el correo). */
+/** Credenciales de una cuenta ciudadana (nombre o pseudónimo + contraseña). */
 export function valoresCiudadano() {
   return {
-    correo: $('ciud-correo').value.trim(),
-    password: $('ciud-pass').value
+    nombre: ($('ciud-nombre')?.value || '').trim(),
+    password: $('ciud-pass')?.value || ''
   };
 }
 
 /** Datos del alta de cuenta ciudadana. */
 export function valoresRegistro() {
   return {
-    correo: $('reg-correo').value.trim(),
-    password: $('reg-pass').value,
-    nombre: $('reg-nombre').value.trim(),
+    correo: ($('reg-correo')?.value || '').trim(),
+    password: $('reg-pass')?.value || '',
+    nombre: ($('reg-nombre')?.value || '').trim(),
     pseudonimo: $('reg-pseudonimo')?.checked === true
   };
 }
@@ -238,7 +345,7 @@ export function limpiarFormularios() {
     'func-code',
     'admin-user',
     'admin-pass',
-    'ciud-correo',
+    'ciud-nombre',
     'ciud-pass',
     'reg-correo',
     'reg-pass',
@@ -250,12 +357,52 @@ export function limpiarFormularios() {
   alternarPseudonimo(false);
 }
 
-export function alternarSidebar() {
-  $('sidebar')?.classList.toggle('collapsed');
+/**
+ * Abre o cierra el drawer lateral.
+ *
+ * Mantiene `aria-expanded`, muestra el backdrop en móvil, mueve el foco al
+ * panel y lo devuelve al botón al cerrar. Sin esto el botón «funcionaba» pero
+ * el panel quedaba debajo del mapa en pantallas pequeñas.
+ */
+let sidebarEscuchada = false;
+function prepararSidebar() {
+  if (sidebarEscuchada) return;
+  sidebarEscuchada = true;
+  document.addEventListener('keydown', (evento) => {
+    if (evento.key !== 'Escape') return;
+    const sidebar = $('sidebar');
+    if (sidebar && !sidebar.classList.contains('collapsed')) {
+      alternarSidebar(false);
+    }
+  });
+}
+
+export function alternarSidebar(abrir) {
+  prepararSidebar();
+  const sidebar = $('sidebar');
+  const boton = $('btnSidebar');
+  const backdrop = $('sidebarBackdrop');
+  if (!sidebar) return false;
+
+  const abierto =
+    abrir === undefined ? sidebar.classList.contains('collapsed') : abrir === true;
+
+  sidebar.classList.toggle('collapsed', !abierto);
+  backdrop?.classList.toggle('show', abierto);
+  boton?.setAttribute('aria-expanded', String(abierto));
+  boton?.setAttribute('aria-label', abierto ? 'Cerrar menú' : 'Abrir menú');
+
+  if (abierto) {
+    sidebar.setAttribute('tabindex', '-1');
+    sidebar.focus({ preventScroll: true });
+  } else {
+    boton?.focus({ preventScroll: true });
+  }
+  return abierto;
 }
 
 export function cerrarSidebar() {
-  $('sidebar')?.classList.add('collapsed');
+  return alternarSidebar(false);
 }
 
 /* --------------------- panel de leyenda del mapa --------------------- */

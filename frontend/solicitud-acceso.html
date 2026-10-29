@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solicitar acceso — Sistema de Incidencias</title>
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/componentes.css">
+<link rel="stylesheet" href="css/extensiones.css">
+</head>
+<body class="pagina-publica">
+<main class="login-card publico-card">
+  <h1><i class="bi bi-person-badge-fill"></i> Solicitar acceso</h1>
+  <p class="sub">Para funcionarios, auditores y enlaces estatales o federales.</p>
+  <div id="accesoAviso" class="publico-msg info"></div>
+  <form id="accesoForm">
+    <div class="form-group">
+      <label for="accNombre">Nombre completo *</label>
+      <input type="text" id="accNombre" maxlength="160" required>
+    </div>
+    <div class="form-group">
+      <label for="accCorreo">Correo electrónico *</label>
+      <input type="email" id="accCorreo" maxlength="160" required>
+    </div>
+    <div class="form-group">
+      <label for="accRol">Tipo de acceso *</label>
+      <select id="accRol" required>
+        <option value="funcionario">Funcionario municipal</option>
+        <option value="auditor">Auditor</option>
+        <option value="enlace_estatal">Enlace estatal</option>
+        <option value="enlace_federal">Enlace federal</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="accMunicipios">Municipios que necesita</label>
+      <select id="accMunicipios" class="select-multiple" multiple size="6"></select>
+    </div>
+    <div class="form-group">
+      <label for="accJustificacion">Justificación</label>
+      <textarea id="accJustificacion" rows="4" maxlength="2000" placeholder="Dependencia, cargo y motivo del acceso"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Enviar solicitud</button>
+  </form>
+  <p class="u-mt-12"><a href="/personal">Volver al acceso del personal</a></p>
+</main>
+<script type="module" src="js/solicitud-acceso.js"></script>
+</body>
+</html>

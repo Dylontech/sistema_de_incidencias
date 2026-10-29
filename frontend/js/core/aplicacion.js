@@ -7,6 +7,7 @@
 import { store } from './store.js';
 import { sesion } from './session.js';
 import { cerrarTodosLosModales, modalAbierto } from './ui.js';
+import { debounce } from './utils.js';
 import { catalogosService } from '../services/catalogos.service.js';
 import { tiposService } from '../services/tipos.service.js';
 import { incidenciasService } from '../services/incidencias.service.js';
@@ -54,7 +55,9 @@ export async function arrancar({ usuario, municipioActivo }) {
   );
   tiposView.renderIconPickers(catalogos.iconos);
   formView.renderSelectTipos(tipos.tipos);
-  adminView.renderTipos(tipos.tipos, { puedeEliminar: sesion.esEmpleado() });
+  adminView.renderTipos(tipos.tipos, {
+    puedeEliminar: sesion.puede('gestionar_tipos') && sesion.puedeEscribir()
+  });
   adminView.renderMunicipios(municipios.municipios, municipioActivo?.id);
 
   // El listado llega sin polígonos: el del municipio activo se pide aparte para
@@ -74,7 +77,18 @@ export async function arrancar({ usuario, municipioActivo }) {
   loginView.renderMunicipios(municipios.municipios, activo?.id);
 
   montarMapa(activo);
-  await Promise.all([cargarZonas(activo?.id), cargarColindantes(activo?.id), recargarIncidencias()]);
+  // Al mover o hacer zoom solo se recargan los puntos visibles; el listado se
+  // queda como está para no rehacer toda la interfaz.
+  mapa.alMover(
+    debounce(() => {
+      if (document.hidden) return;
+      recargarIncidencias({ soloMapa: true }).catch(() => {
+        /* el refresco del mapa no debe interrumpir al usuario */
+      });
+    }, 450)
+  );
+  // Las zonas (polígonos de localidades) se cargan bajo demanda al activarlas.
+  await Promise.all([cargarColindantes(activo?.id), recargarIncidencias()]);
   await recargarNotificaciones();
 
   if (sesion.esEmpleado()) {
@@ -96,9 +110,21 @@ export function detener() {
  * y, si el panel cambia de tamaño, queda una franja en blanco hasta que se
  * recalcula (lo que hacía `Sidebar.toggle` en la versión nueva del monolito).
  */
-export function alternarSidebar() {
-  loginView.alternarSidebar();
+export function alternarSidebar(abrir) {
+  const abierto = loginView.alternarSidebar(abrir);
+  // La transición del panel dura 250 ms: se recalcula al terminar para evitar
+  // la franja en blanco de Leaflet.
   mapa.invalidarTamano();
+  window.setTimeout(() => mapa.invalidarTamano(), 280);
+  return abierto;
+}
+
+/** Cierra el drawer (útil al navegar en móvil). */
+export function cerrarSidebar() {
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    return alternarSidebar(false);
+  }
+  return false;
 }
 
 /* ------------------------------- mapa ------------------------------- */
@@ -131,7 +157,8 @@ export async function cargarZonas(municipioId) {
  * El funcionario está atado a su municipio, así que no se le ofrecen.
  */
 export async function cargarColindantes(municipioId) {
-  if (!municipioId || sesion.rol === 'funcionario') {
+  const puedeCambiar = !sesion.esEmpleado() || sesion.esAdmin();
+  if (!municipioId || !puedeCambiar) {
     loginView.renderColindantes([], { visible: false });
     return [];
   }
@@ -149,9 +176,27 @@ export async function cargarColindantes(municipioId) {
   }
 }
 
-export async function recargarIncidencias() {
+export async function recargarIncidencias({ soloMapa = false } = {}) {
   const filtros = { ...store.estado.filtros, municipio: store.estado.municipioActivo?.id };
-  const { incidencias } = await incidenciasService.listar(filtros);
+
+  const consultaMapa = incidenciasService.mapa({
+    ...filtros,
+    bbox: mapa.bboxActual(),
+    cluster: true,
+    limite: 4000
+  });
+
+  if (soloMapa) {
+    const datosMapa = await consultaMapa;
+    mapa.refrescarPuntos(datosMapa.puntos, store.estado.tipos);
+    return store.estado.incidencias;
+  }
+
+  const [{ incidencias }, datosMapa] = await Promise.all([
+    incidenciasService.listar(filtros),
+    consultaMapa
+  ]);
+
   store.actualizar({ incidencias }, 'incidencias');
   listaView.renderizar(incidencias, {
     tipos: store.estado.tipos,
@@ -159,7 +204,7 @@ export async function recargarIncidencias() {
     // municipio, pero solo editan lo suyo.
     esCiudadano: !sesion.esEmpleado()
   });
-  mapa.refrescarMarcadores(incidencias, store.estado.tipos);
+  mapa.refrescarPuntos(datosMapa.puntos, store.estado.tipos);
   return incidencias;
 }
 
@@ -181,15 +226,20 @@ export async function cargarTipos() {
     zonas: store.estado.zonas,
     filtros: store.estado.filtros
   });
-  adminView.renderTipos(tipos, { puedeEliminar: sesion.esEmpleado() });
+  adminView.renderTipos(tipos, {
+    puedeEliminar: sesion.puede('gestionar_tipos') && sesion.puedeEscribir()
+  });
   return tipos;
 }
 
-export async function cargarEstadisticas() {
-  const municipioId = store.estado.municipioActivo?.id;
+export async function cargarEstadisticas(filtros = null) {
+  // Sin filtros explícitos se usa el municipio activo, como antes. El panel
+  // puede enviar varios municipios o estados para comparar.
+  const activo = store.estado.municipioActivo?.id;
+  const consulta = filtros || (activo ? { municipios: [activo] } : {});
   const [panel, informes] = await Promise.all([
-    statsService.panel(municipioId),
-    statsService.informes(municipioId)
+    statsService.panel(consulta),
+    statsService.informes(consulta)
   ]);
   store.actualizar({ estadisticas: { panel, informes } }, 'estadisticas');
   adminView.renderStats(panel);
@@ -241,17 +291,19 @@ export async function cargarModeracion() {
     ocultas: store.estado.incidencias.filter((i) => i.oculta === true),
     tipos: store.estado.tipos,
     motivos: store.estado.catalogos.motivosDenuncia || {},
-    puedeEliminar: sesion.esAdmin()
+    puedeEliminar: sesion.puede('moderar')
   });
 
   return { cola, resumen, cuentas };
 }
 
-export async function cargarUsuarios() {
-  const { usuarios } = await catalogosService.usuarios();
+export async function cargarUsuarios(tipo = 'personal') {
+  const { usuarios } = await catalogosService.usuarios(tipo);
   store.actualizar({ usuarios }, 'usuarios');
   adminView.renderUsuarios(usuarios, store.estado.municipios || [], {
-    esAdmin: sesion.esAdmin()
+    esAdmin: sesion.esAdmin(),
+    puedeGestionar: sesion.puede('gestionar_usuarios'),
+    tipo
   });
   return usuarios;
 }
@@ -259,13 +311,15 @@ export async function cargarUsuarios() {
 /**
  * Alta o edición de una cuenta del personal.
  * `id` nulo = alta; con id = parche (la contraseña solo viaja si se escribió).
+ * Devuelve `{ usuario, clave }`: `clave` viene cuando el panel pidió generar una
+ * clave de acceso para esa cuenta.
  */
 export async function guardarUsuario(id, datos) {
   const respuesta = id
     ? await catalogosService.actualizarUsuario(id, datos)
     : await catalogosService.crearUsuario(datos);
   await cargarUsuarios();
-  return respuesta.usuario;
+  return respuesta;
 }
 
 /* --------------------------- temporizador --------------------------- */

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+<title>Sin conexión</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <main class="tarjeta">
+    <h1>No se pudo abrir el servidor</h1>
+    <p class="sub">
+      La aplicación no pudo cargar la dirección configurada. Revisa que el servidor esté
+      encendido, que la red sea la correcta y que la dirección incluya el puerto.
+    </p>
+
+    <div class="campo">
+      <label>Dirección configurada</label>
+      <input type="text" id="direccion" readonly>
+    </div>
+
+    <div class="estado err" id="detalle" role="alert"></div>
+
+    <div class="botones">
+      <button type="button" class="primario" id="reintentar">Reintentar</button>
+      <button type="button" id="configurar">Configurar servidor</button>
+      <button type="button" id="cerrar">Cerrar</button>
+    </div>
+
+    <div class="pie">
+      <div>Si el problema continúa, pide al administrador el diagnóstico del servidor.</div>
+    </div>
+  </main>
+  <script src="offline.js"></script>
+</body>
+</html>

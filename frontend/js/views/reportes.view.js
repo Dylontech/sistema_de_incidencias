@@ -33,7 +33,7 @@ export function renderTabla(resumen) {
       </tr>`
       )
       .join('') ||
-    '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">Sin datos</td></tr>';
+    '<tr><td colspan="5" class="celda-vacia u-p-20">Sin datos</td></tr>';
 }
 
 /** CSV con el mismo formato que exportaba el monolito. */
@@ -96,37 +96,30 @@ export function descargarJSON(datos) {
 }
 
 /** Informe imprimible en una ventana nueva (equivale a `generarReporteImprimible`). */
-export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio }) {
+export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio, plantilla = {} }) {
   const resueltas = incidencias.filter((i) => i.estado === 'resuelta').length;
   const pendientes = incidencias.length - resueltas;
   const tasa = incidencias.length > 0 ? ((resueltas / incidencias.length) * 100).toFixed(1) : 0;
   const nombreMunicipio = municipio ? `${municipio.nombre}, ${municipio.estado}` : '';
   const generado = new Date().toLocaleString('es-MX');
+  const posicionLogo = ['izquierda', 'derecha', 'centro'].includes(plantilla.logoPosicion)
+    ? plantilla.logoPosicion
+    : 'izquierda';
+  const logo = plantilla.logoUrl
+    ? `<img class="informe-logo informe-logo-${posicionLogo}" src="${esc(plantilla.logoUrl)}" alt="Logo institucional">`
+    : '';
 
   const ventana = window.open('', '_blank');
+  // Puede devolver null si el navegador bloquea las ventanas emergentes.
+  if (!ventana) return;
   ventana.document.write(`
     <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
     <title>Reporte de Incidencias — ${esc(nombreMunicipio)}</title>
-    <style>
-      body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; padding: 30px; color: #1a202c; font-size: 12px; }
-      h1 { color: #006657; font-size: 22px; margin-bottom: 4px; }
-      .meta { color: #718096; margin-bottom: 20px; }
-      .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
-      .stat { background: #f0faf8; border: 1px solid #b2dfdb; padding: 12px; border-radius: 8px; text-align: center; }
-      .stat-num { font-size: 22px; font-weight: 800; color: #006657; }
-      .stat-label { font-size: 10px; text-transform: uppercase; color: #4a5568; letter-spacing: .4px; }
-      table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 16px; }
-      th, td { border: 1px solid #cbd5e0; padding: 6px 8px; text-align: left; }
-      th { background: #e8f5f2; color: #006657; font-size: 10px; text-transform: uppercase; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
-      .badge-verde { background: #d4edda; color: #155724; }
-      .badge-amarillo { background: #fff3cd; color: #856404; }
-      .badge-naranja { background: #ffe5d0; color: #8a3d00; }
-      .badge-rojo { background: #f8d7da; color: #721c24; }
-      .footer { margin-top: 30px; text-align: center; color: #94a3b8; font-size: 10px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
-      @media print { body { padding: 15px; } }
-    </style>
+    <link rel="stylesheet" href="/css/impresion-informe.css">
+    <link rel="stylesheet" href="/api/informes/estilo.css">
     </head><body>
+    <main class="informe-contenido">
+    ${logo}
     <h1>Reporte de Incidencias Municipales</h1>
     <div class="meta">${esc(nombreMunicipio)} · Generado: ${esc(generado)}</div>
     <div class="stats">
@@ -135,7 +128,7 @@ export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio
       <div class="stat"><div class="stat-num">${pendientes}</div><div class="stat-label">Pendientes</div></div>
       <div class="stat"><div class="stat-num">${tasa}%</div><div class="stat-label">Resolución</div></div>
     </div>
-    <h2 style="font-size:15px;color:#006657;margin-bottom:8px;">Detalle de incidencias</h2>
+    <h2 class="titulo-detalle">Detalle de incidencias</h2>
     <table>
       <thead><tr><th>#</th><th>Tipo</th><th>Título</th><th>Estado</th><th>Días</th><th>Reportó</th></tr></thead>
       <tbody>
@@ -154,8 +147,11 @@ export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio
           .join('')}
       </tbody>
     </table>
-    <div class="footer">Sistema de Incidencias Municipales · ${esc(nombreMunicipio)} · ${fmtFecha(new Date().toISOString())}</div>
-    <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
+    <div class="footer">${esc(plantilla.pieTexto || 'Sistema de Incidencias Municipales')} · ${esc(nombreMunicipio)} · ${fmtFecha(new Date().toISOString())}</div>
+    </main>
+    <script src="/js/informe-paged-config.js"></script>
+    <script src="/vendor/pagedjs/paged.polyfill.js"></script>
+    <script src="/js/informe-imprimir.js"></script>
     </body></html>
   `);
   ventana.document.close();

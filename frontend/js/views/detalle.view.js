@@ -1,5 +1,15 @@
 /** Vista del modal de detalle de una incidencia. */
-import { $, esc, fmtFecha, colorHex, etiquetaEstado, textoAntiguedad } from '../core/utils.js';
+import { $, esc, fmtFecha, etiquetaEstado, textoAntiguedad, aplicarEstilosDinamicos } from '../core/utils.js';
+import { urlPrivada } from '../core/api.js';
+
+const ETIQUETAS_AMBITO = {
+  urbano: 'Zona urbana o municipal',
+  carretera_estatal: 'Carretera estatal',
+  carretera_federal: 'Carretera federal',
+  autopista: 'Autopista',
+  camino_rural: 'Camino rural',
+  otro: 'Otra vialidad'
+};
 
 function evidenciaHTML(evidencia, { abrirImagen = true } = {}) {
   const esImagen = evidencia.tipo?.startsWith('image/');
@@ -9,7 +19,7 @@ function evidenciaHTML(evidencia, { abrirImagen = true } = {}) {
     <div class="evidence-item">
       ${
         esImagen
-          ? `<img src="${esc(evidencia.url)}" alt="${esc(evidencia.nombre)}"${abrirImagen ? ' data-action="detalle:verImagen" data-id="' + esc(evidencia.url) + '" style="cursor:pointer;"' : ''}>`
+          ? `<img src="${esc(evidencia.url)}" alt="${esc(evidencia.nombre)}"${abrirImagen ? ' class="u-cursor" data-action="detalle:verImagen" data-id="' + esc(evidencia.url) + '"' : ''}>`
           : esVideo
             ? `<video src="${esc(evidencia.url)}" controls muted preload="metadata"></video>`
             : `<div class="ev-file"><i class="bi bi-file-earmark-fill"></i></div>`
@@ -18,8 +28,101 @@ function evidenciaHTML(evidencia, { abrirImagen = true } = {}) {
     </div>`;
 }
 
+function firmasHTML(incidencia, firmas, usuario) {
+  if (!firmas) {
+    return `
+      <div class="detail-section">
+        <div class="detail-section-title"><i class="bi bi-pen-fill"></i> Firmas ciudadanas</div>
+        <p class="campo-nota">No se pudo cargar el resumen de firmas.</p>
+      </div>`;
+  }
+  const total = Number(firmas.total) || 0;
+  const meta = Number(firmas.meta) || 0;
+  const porcentaje = meta > 0 ? Math.min(Math.round((total / meta) * 100), 100) : 0;
+  const firmantes = Array.isArray(firmas.firmantes) ? firmas.firmantes : [];
+  const anonimo = usuario?.rol === 'anonimo';
+  return `
+    <div class="detail-section firmas-panel">
+      <div class="detail-section-title">
+        <i class="bi bi-pen-fill"></i> Firmas ciudadanas
+        <span class="chip-aviso">${total}${meta ? ` / ${meta}` : ''}</span>
+      </div>
+      <p class="campo-nota u-mb-8">
+        Firmar respalda el reporte. Una cuenta puede firmar una sola vez por incidencia y hasta
+        ${esc(String(firmas.maximoPorUsuario || 10))} incidencias en total.
+      </p>
+      ${
+        meta
+          ? `<div class="firmas-progreso-caja">
+               <div class="firmas-progreso-texto">${porcentaje}% de la meta</div>
+               <progress class="firmas-progreso" value="${total}" max="${meta}">${porcentaje}%</progress>
+             </div>`
+          : '<p class="campo-nota">Todavía no se fijó una meta de firmas.</p>'
+      }
+      <div class="u-fila-sep u-mt-10">
+        ${
+          firmas.firmada
+            ? `<span class="chip-aviso verde"><i class="bi bi-check2-circle"></i> Ya firmaste</span>
+               <button class="btn btn-outline btn-sm" data-action="firmas:retirar" data-id="${esc(incidencia.id)}">
+                 <i class="bi bi-x-circle"></i> Retirar mi firma
+               </button>`
+            : firmas.puedeFirmar
+              ? `<button class="btn btn-primary btn-sm" data-action="firmas:firmar" data-id="${esc(incidencia.id)}">
+                   <i class="bi bi-pen"></i> Firmar esta incidencia
+                 </button>`
+              : anonimo
+                ? `<button class="btn btn-primary btn-sm" data-action="auth:mostrarLogin" data-valor="registro">
+                     <i class="bi bi-person-plus-fill"></i> Crea tu cuenta para firmar
+                   </button>`
+                : '<span class="campo-nota">No puedes firmar esta incidencia en este momento.</span>'
+        }
+        ${
+          firmas.id
+            ? `<button class="btn btn-outline btn-sm" data-action="firmas:exportar" data-id="${esc(firmas.id)}" data-valor="csv">
+                 <i class="bi bi-filetype-csv"></i> CSV
+               </button>
+               <button class="btn btn-outline btn-sm" data-action="firmas:exportar" data-id="${esc(firmas.id)}" data-valor="pdf">
+                 <i class="bi bi-filetype-pdf"></i> PDF
+               </button>`
+            : ''
+        }
+        ${
+          firmas.esAutor && firmas.id
+            ? `<button class="btn btn-outline btn-sm" data-action="firmas:solicitar" data-id="${esc(firmas.id)}">
+                 <i class="bi bi-send"></i> Solicitar al admin
+               </button>`
+            : ''
+        }
+      </div>
+      ${
+        firmas.puedeEditarMeta
+          ? `<div class="u-fila-simple u-mt-10">
+               <label class="campo-nota" for="firmasMetaInput">Meta de firmas</label>
+               <input type="number" id="firmasMetaInput" class="campo-linea" min="1" max="10000" value="${meta || 100}">
+               <button class="btn btn-outline btn-sm" data-action="firmas:meta" data-id="${esc(incidencia.id)}">
+                 <i class="bi bi-check2"></i> Guardar meta
+               </button>
+             </div>`
+          : ''
+      }
+      ${
+        firmantes.length
+          ? `<details class="firmas-lista">
+               <summary>Ver firmantes (${firmantes.length})</summary>
+               <ul>
+                 ${firmantes
+                   .slice(0, 100)
+                   .map((f) => `<li>${esc(f.nombre || 'Ciudadano')} <span class="campo-nota">${fmtFecha(f.creadoEn)}</span></li>`)
+                   .join('')}
+               </ul>
+             </details>`
+          : ''
+      }
+    </div>`;
+}
+
 /** Pinta el detalle completo (equivale a UI.abrirDetalle). */
-export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {}) {
+export function renderizar(incidencia, { tipos = [], zonas = [], usuario, firmas = null } = {}) {
   const contenedor = $('detalleBody');
   if (!contenedor) return;
 
@@ -30,7 +133,7 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
 
   const estadoBadge = {
     reportada: `<span class="inc-badge badge-${incidencia.color}">Reportada</span>`,
-    en_proceso: '<span class="inc-badge" style="background:#d1ecf1;color:#0c5460;">En proceso</span>',
+    en_proceso: '<span class="inc-badge estado-proceso">En proceso</span>',
     resuelta: '<span class="inc-badge badge-verde">Resuelta</span>'
   }[incidencia.estado] || '';
 
@@ -38,11 +141,11 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
     ${
       incidencia.oculta
         ? `<div class="detalle-oculta">
-             <i class="bi bi-eye-slash-fill" style="font-size:1.4rem;"></i>
+             <i class="bi bi-eye-slash-fill icono-14rem"></i>
              <div>
                <strong>PUBLICACIÓN OCULTA POR MODERACIÓN</strong>
                ${incidencia.ocultaMotivo ? ` · ${esc(incidencia.ocultaMotivo)}` : ''}
-               <div style="font-size:11.5px;">
+               <div class="u-fs-115px">
                  Retirada por ${esc(incidencia.ocultaPor || 'el personal')}${
                    incidencia.ocultaFecha ? ` el ${fmtFecha(incidencia.ocultaFecha)}` : ''
                  }. ${
@@ -68,11 +171,11 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
     ${
       incidencia.peligrosa
         ? `<div class="detalle-peligro">
-             <i class="bi bi-exclamation-triangle-fill" style="font-size:1.4rem;"></i>
+             <i class="bi bi-exclamation-triangle-fill icono-14rem"></i>
              <div>
                <strong>INCIDENCIA PELIGROSA</strong>
                ${incidencia.peligrosaMotivo ? ` · ${esc(incidencia.peligrosaMotivo)}` : ''}
-               <div style="font-size:11.5px;">
+               <div class="u-fs-115px">
                  Marcada por ${esc(incidencia.peligrosaPor || 'el personal')}${
                    incidencia.peligrosaFecha ? ` el ${fmtFecha(incidencia.peligrosaFecha)}` : ''
                  }
@@ -89,14 +192,14 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
            </div>`
         : ''
     }
-    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
-      <span style="font-size:2.5rem;line-height:1;">${incidencia.iconoCustom || (tipo ? tipo.icono : '❗')}</span>
-      <div style="flex:1;min-width:0;">
-        <h3 style="font-size:1.15rem;margin-bottom:4px;">${esc(incidencia.titulo)}</h3>
-        <div style="font-size:12px;color:#718096;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <div class="fila-detalle">
+      <span class="icono-25rem">${incidencia.iconoCustom || (tipo ? tipo.icono : '❗')}</span>
+      <div class="u-flex-1 u-min-0">
+        <h3 class="titulo-incidencia">${esc(incidencia.titulo)}</h3>
+        <div class="meta-fila">
           <span>${esc(tipo ? tipo.nombre : '—')}</span>
           ${estadoBadge}
-          ${!esResuelta ? `<span style="color:#94a3b8;">${textoAntiguedad(incidencia.dias)} activa</span>` : ''}
+          ${!esResuelta ? `<span class="u-suave">${textoAntiguedad(incidencia.dias)} activa</span>` : ''}
         </div>
       </div>
     </div>
@@ -117,7 +220,7 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
       <div class="label">Ubicación</div>
       <div class="value">
         ${Number(incidencia.lat).toFixed(6)}, ${Number(incidencia.lng).toFixed(6)}
-        <button class="btn btn-sm btn-outline" style="margin-left:8px;" data-action="detalle:verMapa"
+        <button class="btn btn-sm btn-outline u-ml-8" data-action="detalle:verMapa"
           data-id="${incidencia.id}" data-valor="${incidencia.lat},${incidencia.lng}">
           <i class="bi bi-crosshair"></i> Ver en mapa
         </button>
@@ -128,9 +231,25 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
         ? `<div class="detail-row">
              <div class="label">Zona</div>
              <div class="value">
-               <span style="background:${zona ? zona.color : '#6c757d'};color:#fff;padding:2px 10px;border-radius:12px;font-size:11.5px;font-weight:700;">
+               <span class="chip-zona chip-zona-lg" data-fondo="${esc(zona ? zona.color : '#6c757d')}">
                  ${esc(incidencia.zonaNombre)}
                </span>
+             </div>
+           </div>`
+        : ''
+    }
+    ${
+      incidencia.ambito && incidencia.ambito !== 'urbano'
+        ? `<div class="detail-row">
+             <div class="label">Vialidad</div>
+             <div class="value">
+               <strong>${esc(ETIQUETAS_AMBITO[incidencia.ambito] || incidencia.ambito)}</strong>
+               ${incidencia.viaNombre ? ` · ${esc(incidencia.viaNombre)}` : ''}
+               ${incidencia.viaClave ? ` · ${esc(incidencia.viaClave)}` : ''}
+               ${incidencia.kilometro != null ? ` · km ${esc(String(incidencia.kilometro))}` : ''}
+               ${incidencia.sentido ? `<div class="campo-nota">Sentido: ${esc(incidencia.sentido)}</div>` : ''}
+               ${incidencia.tramo ? `<div class="campo-nota">Tramo: ${esc(incidencia.tramo)}</div>` : ''}
+               ${incidencia.dependencia ? `<div class="campo-nota">Dependencia: ${esc(incidencia.dependencia)}</div>` : ''}
              </div>
            </div>`
         : ''
@@ -156,18 +275,18 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
   if (esResuelta) {
     html += `
       <div class="detail-section">
-        <div class="detail-section-title" style="color:var(--verde);">
+        <div class="detail-section-title u-verde">
           <i class="bi bi-check-circle-fill"></i> Solución aplicada
         </div>
-        <div style="background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:12px;font-size:13px;">
-          <div style="font-weight:600;color:#155724;margin-bottom:4px;">
+        <div class="caja-resuelto">
+          <div class="u-peso-600 u-verde-exito u-mb-4">
             Resuelta el ${fmtFecha(incidencia.fechaResolucion)}
           </div>
-          <div style="color:#1a202c;">${esc(incidencia.solucion || 'Sin descripción')}</div>
+          <div class="u-tinta">${esc(incidencia.solucion || 'Sin descripción')}</div>
         </div>
         ${
           incidencia.evidenciaSolucion?.length
-            ? `<div class="evidence-list" style="margin-top:10px;">
+            ? `<div class="evidence-list u-mt-10">
                  ${incidencia.evidenciaSolucion.map((e) => evidenciaHTML(e)).join('')}
                </div>`
             : ''
@@ -187,8 +306,8 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
               (h) => `
             <div class="timeline-item">
               <div class="t-dot"></div>
-              <div style="flex:1;">
-                <div style="font-weight:600;color:#1a202c;">${esc(h.accion)}</div>
+              <div class="u-flex-1">
+                <div class="u-peso-600 u-tinta">${esc(h.accion)}</div>
                 <div class="t-time">${fmtFecha(h.fecha)} · ${esc(h.por || '—')}</div>
               </div>
             </div>`
@@ -198,10 +317,16 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
       </div>`;
   }
 
+  html += firmasHTML(incidencia, firmas, usuario);
+
   const comentarios = incidencia.comentarios || [];
   html += `
     <div class="detail-section">
       <div class="detail-section-title"><i class="bi bi-chat-dots-fill"></i> Comentarios (${comentarios.length})</div>
+      <p class="campo-nota u-mb-8">
+        Normas: sé respetuoso, no publiques datos personales ni spam. Los comentarios pueden
+        moderarse y las cuentas con abuso pueden quedar restringidas.
+      </p>
       <div class="comment-list" id="commentList">
         ${
           comentarios.length
@@ -210,8 +335,12 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
                   // El texto de un comentario moderado no llega al cliente salvo
                   // al personal y a su autor (`visible: false`).
                   const retirado = c.visible === false;
+                  const imagenes = (c.adjuntos || []).filter((a) => String(a.tipo || '').startsWith('image/'));
                   const propio = usuario?.userKey && c.userKey === usuario.userKey;
                   const acciones = [
+                    (propio || permisos.puedeOcultar) && !c.eliminadoEn
+                      ? `<button class="c-accion" data-action="detalle:borrarComentario" data-id="${esc(incidencia.id)}" data-valor="${esc(c.id)}"><i class="bi bi-trash3"></i> Borrar</button>`
+                      : '',
                     permisos.puedeDenunciar && !propio
                       ? `<button class="c-accion" data-action="denuncia:abrir" data-id="${esc(incidencia.id)}" data-valor="${esc(c.id)}"><i class="bi bi-flag"></i> Denunciar</button>`
                       : '',
@@ -235,19 +364,20 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
                     ? '<div class="c-text c-retirado"><i class="bi bi-eye-slash-fill"></i> Comentario retirado por moderación</div>'
                     : `<div class="c-text">${esc(c.texto)}</div>`
                 }
+                ${!retirado && imagenes.length ? `<div class="c-adjuntos">${imagenes.map((a) => `<a class="c-adjunto" href="${esc(urlPrivada(a.url))}" target="_blank" rel="noopener"><img src="${esc(urlPrivada(a.url))}" alt="${esc(a.nombre || 'Imagen adjunta')}" loading="lazy"></a>`).join('')}</div>` : ''}
                 ${acciones ? `<div class="c-acciones">${acciones}</div>` : ''}
               </div>`;
                 })
                 .join('')
-            : '<div style="color:#94a3b8;font-size:12px;padding:10px;text-align:center;">Sin comentarios todavía</div>'
+            : '<div class="vacio-suave u-p-10 u-centro">Sin comentarios todavía</div>'
         }
       </div>
       ${
         incidencia.oculta
           ? '<div class="campo-nota"><i class="bi bi-info-circle"></i> Una publicación oculta por moderación no admite comentarios nuevos.</div>'
-          : `<div style="display:flex;gap:8px;margin-top:10px;">
-        <input type="text" id="nuevoComentario" placeholder="Escribe un comentario…" maxlength="500"
-          style="flex:1;padding:8px 12px;border:1px solid #cbd5e0;border-radius:8px;font-size:12.5px;">
+          : `<div class="u-fila-simple u-mt-10">
+        <input class="campo-linea u-flex-1" type="text" id="nuevoComentario" placeholder="Escribe un comentario…" maxlength="500">
+        ${usuario && usuario.rol !== 'anonimo' ? `<label class="btn btn-outline btn-sm c-adjuntar" for="nuevoComentarioArchivo" title="Adjuntar imagen"><i class="bi bi-image"></i><input type="file" id="nuevoComentarioArchivo" class="u-oculto" accept="image/png,image/jpeg,image/webp,image/gif"></label>` : ''}
         <button class="btn btn-primary btn-sm" data-action="detalle:comentar" data-id="${esc(incidencia.id)}">
           <i class="bi bi-send-fill"></i>
         </button>
@@ -314,16 +444,22 @@ export function renderizar(incidencia, { tipos = [], zonas = [], usuario } = {})
   }
 
   if (acciones.length) {
-    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:16px;padding-top:16px;border-top:1px solid var(--borde);">
+    html += `<div class="pie-modal">
       ${acciones.join('')}
     </div>`;
   }
 
   contenedor.innerHTML = html;
+  // El color de la comunidad es un hex del catálogo: se aplica por CSSOM.
+  aplicarEstilosDinamicos(contenedor);
 }
 
 export function valorComentario() {
   return $('nuevoComentario')?.value.trim() || '';
+}
+
+export function archivoComentario() {
+  return $('nuevoComentarioArchivo')?.files?.[0] || null;
 }
 
 export function limpiarComentario() {

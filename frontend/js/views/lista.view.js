@@ -21,6 +21,7 @@ export function renderizarFiltros({ tipos = [], zonas = [], filtros = {} }) {
   if ($('filterEstado')) $('filterEstado').value = filtros.estado || 'todos';
   if ($('filterColor')) $('filterColor').value = filtros.color || 'todos';
   if ($('filterOrden')) $('filterOrden').value = filtros.orden || 'reciente';
+  if ($('filterAmbito')) $('filterAmbito').value = filtros.ambito || 'todos';
   if ($('filterText') && document.activeElement !== $('filterText')) {
     $('filterText').value = filtros.texto || '';
   }
@@ -33,6 +34,7 @@ export function leerFiltros() {
     tipo: $('filterTipo')?.value || 'todos',
     color: $('filterColor')?.value || 'todos',
     zona: $('filterZona')?.value || 'todos',
+    ambito: $('filterAmbito')?.value || 'todos',
     orden: $('filterOrden')?.value || 'reciente'
   };
 }
@@ -45,7 +47,7 @@ export function renderizar(incidencias = [], { tipos = [], esCiudadano = false }
     contenedor.innerHTML = `<div class="empty-state">
       <i class="bi bi-inbox"></i>
       <div>${esCiudadano ? 'Todavía no hay reportes en este municipio' : 'No hay incidencias que mostrar'}</div>
-      <div style="font-size:11.5px;margin-top:6px;">
+      <div class="u-fs-115px u-mt-6">
         ${esCiudadano ? 'Usa el botón + para reportar el primero' : 'Prueba ajustar los filtros o reporta una nueva'}
       </div>
     </div>`;
@@ -66,10 +68,11 @@ export function renderizar(incidencias = [], { tipos = [], esCiudadano = false }
           <div class="inc-meta">
             <span><i class="bi bi-clock"></i> ${textoDias(inc.dias)}</span>
             <span class="inc-badge badge-${inc.color}">${etiquetaEstado(inc.estado)}</span>
+            ${inc.ambito && inc.ambito !== 'urbano' ? '<span class="inc-badge badge-vial" title="Incidencia en una vialidad">🛣️ Vía</span>' : ''}
             ${inc.peligrosa ? '<span class="inc-badge badge-peligro" title="Marcada por el personal como peligrosa">⚠️ PELIGROSA</span>' : ''}
             ${inc.oculta ? '<span class="inc-badge badge-oculta" title="Retirada de la vista pública por moderación">🚫 OCULTA</span>' : ''}
           </div>
-          <div class="inc-meta" style="margin-top:4px;">
+          <div class="inc-meta u-mt-4">
             <span><i class="bi bi-person"></i> ${esc(autor)}</span>
             <span>${esc(tipo ? tipo.nombre : '—')}</span>
           </div>
