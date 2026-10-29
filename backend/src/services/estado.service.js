@@ -7,7 +7,7 @@
  */
 import { DIAS_LIMITES, PRIORIDAD_COLOR } from '../config/constantes.js';
 import { diasDesde } from '../utils/fechas.js';
-import { construirNotificacion } from '../models/notificacion.model.js';
+import { emitir } from './notificaciones.service.js';
 
 /** Regla del monolito: resuelta → verde; ≥30 días → rojo; ≥15 → naranja; resto amarillo. */
 export function colorPorAntiguedad(incidencia, ahora = new Date()) {
@@ -59,33 +59,42 @@ export function ordenarPorPrioridad(lista) {
  * Crea las notificaciones de alerta para incidencias con más de 30 días.
  * Es idempotente: no repite la alerta si ya existe una para esa incidencia,
  * de modo que puede ejecutarse periódicamente sin efectos acumulativos.
+ *
+ * Antes era una notificación global que cualquiera marcaba como leída; ahora
+ * el despachador crea una fila por funcionario/auditor del municipio y la
+ * empuja por SSE.
  */
 export async function sincronizarAlertas(repositorio, ahora = new Date()) {
   const incidencias = await repositorio.todasLasIncidencias();
   const notificaciones = await repositorio.todasLasNotificaciones();
   const yaAvisadas = new Set(
-    notificaciones.filter((n) => n.tipo === 'alerta').map((n) => n.incidenciaId)
+    notificaciones
+      .filter((n) => n.evento === 'incidencia_alerta' || n.tipo === 'alerta')
+      .map((n) => n.incidenciaId)
   );
 
   let creadas = 0;
   for (const incidencia of incidencias) {
     if (incidencia.estado === 'resuelta') continue;
-    // El aviso es global (lo ve todo el vecindario), así que un contenido
-    // oculto por moderación no puede nombrarse aquí.
+    // El aviso es del personal del municipio; un contenido oculto por
+    // moderación no puede nombrarse aquí.
     if (incidencia.oculta === true) continue;
     if (yaAvisadas.has(incidencia.id)) continue;
     if (colorPorAntiguedad(incidencia, ahora) !== 'rojo') continue;
 
-    await repositorio.crearNotificacion(
-      construirNotificacion({
-        tipo: 'alerta',
-        titulo: '🔴 Incidencia crítica',
-        mensaje: `"${incidencia.titulo}" lleva más de ${DIAS_LIMITES.naranja} días sin resolver.`,
-        incidenciaId: incidencia.id,
-        paraUsuario: null
-      })
-    );
-    creadas++;
+    const avisos = await emitir(repositorio, {
+      evento: 'incidencia_alerta',
+      titulo: '🔴 Incidencia crítica',
+      mensaje: `"${incidencia.titulo}" lleva más de ${DIAS_LIMITES.naranja} días sin resolver.`,
+      severidad: 'alerta',
+      incidenciaId: incidencia.id,
+      entidadTipo: 'incidencia',
+      entidadId: incidencia.id,
+      municipioId: incidencia.municipioId || null,
+      url: `/?incidencia=${incidencia.id}`,
+      claveDedupe: `incidencia_alerta:${incidencia.id}`
+    });
+    if (avisos > 0) creadas++;
   }
   return creadas;
 }

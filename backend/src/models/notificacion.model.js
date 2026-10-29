@@ -1,7 +1,8 @@
 /**
  * MODELO: Notificación.
  * `paraUsuario` es el `userKey` del destinatario; si es null la notificación
- * es global (la ven todos), igual que en el monolito.
+ * es global (la ven todos), igual que en el monolito. Las notificaciones nuevas
+ * siempre llevan destinatario: el despachador crea una fila por cuenta.
  */
 import { TIPOS_NOTIFICACION } from '../config/constantes.js';
 import { nuevoId } from '../utils/ids.js';
@@ -9,9 +10,16 @@ import { ahoraIso } from '../utils/fechas.js';
 
 export function construirNotificacion({
   tipo,
+  evento = null,
+  severidad = 'info',
   titulo,
   mensaje,
   incidenciaId = null,
+  entidadTipo = null,
+  entidadId = null,
+  municipioId = null,
+  url = null,
+  claveDedupe = null,
   paraUsuario = null,
   ahora = ahoraIso()
 }) {
@@ -19,10 +27,18 @@ export function construirNotificacion({
     id: nuevoId(),
     fecha: ahora,
     leida: false,
+    leidaEn: null,
     tipo: TIPOS_NOTIFICACION.includes(tipo) ? tipo : 'estado',
+    evento: evento || tipo,
+    severidad,
     titulo: String(titulo || ''),
     mensaje: String(mensaje || ''),
     incidenciaId,
+    entidadTipo,
+    entidadId,
+    municipioId,
+    url,
+    claveDedupe,
     paraUsuario
   };
 }

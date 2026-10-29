@@ -6,10 +6,14 @@ import * as incidencias from '../services/incidencias.service.js';
 function filtrosDeQuery(query = {}) {
   return {
     municipioId: query.municipio || null,
+    estadoEntidad: query.estadoEntidad || null,
     texto: query.texto || '',
     estado: query.estado || 'todos',
     tipoId: query.tipo || 'todos',
     zonaId: query.zona || 'todos',
+    ambito: query.ambito || 'todos',
+    desde: query.desde || null,
+    hasta: query.hasta || null,
     color: query.color || 'todos',
     orden: query.orden || 'reciente'
   };
@@ -18,6 +22,18 @@ function filtrosDeQuery(query = {}) {
 export const listar = asyncHandler(async (req, res) => {
   const lista = await incidencias.listar(req.repositorio, req.usuario, filtrosDeQuery(req.query));
   res.json({ incidencias: lista });
+});
+
+/** Puntos ligeros para el mapa (sin evidencias ni comentarios). */
+export const mapa = asyncHandler(async (req, res) => {
+  const datos = await incidencias.mapa(req.repositorio, req.usuario, {
+    ...filtrosDeQuery(req.query),
+    bbox: req.query.bbox || null,
+    cluster: req.query.cluster === '1' || req.query.cluster === 'true',
+    celdas: Number(req.query.celdas) || 48,
+    limite: Number(req.query.limite) || 3000
+  });
+  res.json(datos);
 });
 
 export const obtener = asyncHandler(async (req, res) => {

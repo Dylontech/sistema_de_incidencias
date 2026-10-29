@@ -8,6 +8,12 @@
 import { LIMITES_TEXTO, ESTADOS, TIPO_OTRO } from '../config/constantes.js';
 import { AppError } from '../utils/AppError.js';
 import { ahoraIso } from '../utils/fechas.js';
+
+function folioDeIncidencia(fecha) {
+  const dia = new Date(fecha || Date.now()).toISOString().slice(0, 10).replace(/-/g, '');
+  const azar = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `INC-${dia}-${azar}`;
+}
 import { recolector } from '../utils/validacion.js';
 import {
   validarEntrada,
@@ -18,7 +24,8 @@ import {
   puedeEditar,
   esDuplicado
 } from '../models/incidencia.model.js';
-import { construirNotificacion, destinatarioDeIncidencia } from '../models/notificacion.model.js';
+import { destinatarioDeIncidencia } from '../models/notificacion.model.js';
+import { avisarNuevaIncidencia, emitir } from './notificaciones.service.js';
 import { localizarZona, dentroDelMunicipio } from './geocerca.service.js';
 import {
   enriquecer,
@@ -31,6 +38,7 @@ import {
   esEmpleado,
   esAutorDe,
   filtroOcultas,
+  puedeOperar,
   puedeSancionarA,
   filtrosDeAlcance,
   municipioDeRegistro,
@@ -52,17 +60,17 @@ export function permisosDe(
   const resuelta = incidencia.estado === 'resuelta';
   return {
     puedeEditar: puedeEditar(incidencia, usuario) && !resuelta,
-    puedeCambiarEstado: esEmpleado(usuario) && !resuelta,
-    puedeResolver: esEmpleado(usuario) && !resuelta,
-    puedeMarcarPeligro: esEmpleado(usuario),
+    puedeCambiarEstado: puedeOperar(usuario) && !resuelta,
+    puedeResolver: puedeOperar(usuario) && !resuelta,
+    puedeMarcarPeligro: puedeOperar(usuario),
     puedeEliminar: esAdmin(usuario),
     puedeComentar: true,
     // Moderación: cualquiera con sesión puede denunciar lo que no es suyo, y el
-    // personal puede retirar contenido y sancionar a su autor.
+    // personal con escritura puede retirar contenido y sancionar a su autor.
     puedeDenunciar: Boolean(usuario) && !esAutorDe(incidencia, usuario),
-    puedeModerar: esEmpleado(usuario),
-    puedeOcultar: esEmpleado(usuario),
-    puedeSancionarAutor: esEmpleado(usuario) && puedeSancionarAutor,
+    puedeModerar: puedeOperar(usuario),
+    puedeOcultar: puedeOperar(usuario),
+    puedeSancionarAutor: puedeOperar(usuario) && puedeSancionarAutor,
     denunciasPendientes
   };
 }
@@ -93,10 +101,14 @@ export async function listar(repositorio, usuario, filtros = {}) {
 
   const consulta = filtrosDeAlcance(usuario, {
     municipioId: resto.municipioId || null,
+    estadoEntidad: resto.estadoEntidad || null,
     texto: resto.texto || '',
     estado: resto.estado || 'todos',
     tipoId: resto.tipoId || 'todos',
     zonaId: resto.zonaId || 'todos',
+    ambito: resto.ambito || 'todos',
+    desde: resto.desde || null,
+    hasta: resto.hasta || null,
     orden: orden === 'antigua' ? 'antigua' : 'reciente',
     ocultas,
     ocultasDe: ocultas === 'propias' ? usuario.userKey : null
@@ -146,6 +158,20 @@ async function zonasDisponibles(repositorio, municipioId) {
 }
 
 export async function crear(repositorio, usuario, datos) {
+  const claveIdempotencia = datos?.claveIdempotencia
+    ? String(datos.claveIdempotencia).slice(0, 80)
+    : null;
+  if (claveIdempotencia) {
+    const previa = await repositorio.incidenciaPorIdempotencia(
+      usuario.userKey,
+      claveIdempotencia
+    );
+    if (previa) return enriquecer(previa);
+  }
+  if (esEmpleado(usuario) && !puedeOperar(usuario)) {
+    throw AppError.prohibido('Tu cuenta es de solo lectura: no puede registrar reportes');
+  }
+
   const entrada = validarEntrada(datos);
 
   const tipo = await repositorio.tipoPorId(entrada.tipoId);
@@ -171,11 +197,23 @@ export async function crear(repositorio, usuario, datos) {
     await zonasDisponibles(repositorio, municipioObjetivo)
   );
 
-  // Manda el límite municipal: es lo que la máscara del mapa deja elegir. La
-  // comunidad (localidad del INEGI) se registra cuando el punto cae en una,
-  // pero las localidades solo cubren las áreas pobladas, no todo el término
-  // municipal, así que un reporte puede quedarse sin comunidad.
-  if (municipio) {
+  const ambito = entrada.ambito || 'urbano';
+  const esVial = ambito !== 'urbano';
+
+  if (esVial) {
+    // En una carretera el punto puede caer entre municipios o fuera del
+    // polígono urbano: se exige un municipio de referencia y el nombre de la vía.
+    if (!municipioObjetivo) {
+      throw AppError.solicitudInvalida('Selecciona el municipio de referencia de la vía');
+    }
+    if (!entrada.viaNombre) {
+      throw AppError.solicitudInvalida('Escribe el nombre de la carretera, autopista o camino');
+    }
+  } else if (municipio) {
+    // Manda el límite municipal: es lo que la máscara del mapa deja elegir. La
+    // comunidad (localidad del INEGI) se registra cuando el punto cae en una,
+    // pero las localidades solo cubren las áreas pobladas, no todo el término
+    // municipal, así que un reporte puede quedarse sin comunidad.
     if (!dentroDelMunicipio(entrada.lat, entrada.lng, municipio)) {
       throw AppError.solicitudInvalida('La ubicación está fuera del municipio');
     }
@@ -188,6 +226,7 @@ export async function crear(repositorio, usuario, datos) {
   }
 
   const municipioFinal = municipioObjetivo || zona?.municipioId || null;
+  const municipioFinalObj = municipio || (municipioFinal ? await repositorio.municipioPorId(municipioFinal) : null);
 
   // Anti-duplicados: mismo usuario + mismo tipo + misma ubicación (±0.0002°).
   const previas = await repositorio.buscarIncidencias({
@@ -208,25 +247,23 @@ export async function crear(repositorio, usuario, datos) {
     entrada,
     usuario,
     zona,
-    municipioId: municipioFinal
+    municipioId: municipioFinal,
+    estadoEntidad: municipioFinalObj?.estado || null
   });
+  incidencia.claveIdempotencia = claveIdempotencia;
+  incidencia.folio = folioDeIncidencia(incidencia.fecha);
 
   await repositorio.crearIncidencia(incidencia);
 
-  // El acuse de recibo solo tiene destinatario si hay cuenta: el anónimo no
-  // recibe notificaciones (por eso el registro sirve para tener seguimiento).
-  const destinatario = destinatarioDeIncidencia(incidencia);
-  if (destinatario) {
-    await repositorio.crearNotificacion(
-      construirNotificacion({
-        tipo: 'reporte',
-        titulo: '✅ Reporte enviado',
-        mensaje: `Tu reporte "${incidencia.titulo}" fue registrado correctamente.`,
-        incidenciaId: incidencia.id,
-        paraUsuario: destinatario
-      })
-    );
-  }
+  // Acuse al autor (si tiene cuenta) y aviso al personal que sigue el municipio.
+  await notificar(
+    repositorio,
+    incidencia,
+    'reporte',
+    '✅ Reporte enviado',
+    `Tu reporte "${incidencia.titulo}" fue registrado correctamente.`
+  );
+  await avisarNuevaIncidencia(repositorio, incidencia, { municipio: municipioFinalObj });
 
   return enriquecer(incidencia);
 }
@@ -260,10 +297,12 @@ export async function actualizar(repositorio, usuario, id, datos) {
       entrada.lng,
       await repositorio.zonasPorMunicipio(actual.municipioId)
     );
-    if (!zona && municipio && !dentroDelMunicipio(entrada.lat, entrada.lng, municipio)) {
+    const ambito = entrada.ambito || actual.ambito || 'urbano';
+    const esVial = ambito !== 'urbano';
+    if (!esVial && !zona && municipio && !dentroDelMunicipio(entrada.lat, entrada.lng, municipio)) {
       throw AppError.solicitudInvalida('La ubicación está fuera del municipio');
     }
-    if (!municipio && !zona) {
+    if (!esVial && !municipio && !zona) {
       throw AppError.solicitudInvalida(
         'La ubicación está fuera de las zonas autorizadas del municipio'
       );
@@ -272,14 +311,21 @@ export async function actualizar(repositorio, usuario, id, datos) {
     entrada.zonaNombre = zona ? zona.nombre : null;
   }
 
+  if ((entrada.ambito || actual.ambito) && (entrada.ambito || actual.ambito) !== 'urbano') {
+    const via = entrada.viaNombre !== undefined ? entrada.viaNombre : actual.viaNombre;
+    if (!via) {
+      throw AppError.solicitudInvalida('Escribe el nombre de la carretera, autopista o camino');
+    }
+  }
+
   const editada = aplicarEdicion(actual, entrada);
   await repositorio.actualizarIncidencia(id, editada);
   return enriquecer(editada);
 }
 
 export async function cambiarEstado(repositorio, usuario, id, estado) {
-  if (!esEmpleado(usuario)) {
-    throw AppError.prohibido('Solo funcionarios y administradores pueden cambiar el estado');
+  if (!puedeOperar(usuario)) {
+    throw AppError.prohibido('Solo el personal con permiso de escritura puede cambiar el estado');
   }
   if (!['reportada', 'en_proceso'].includes(estado)) {
     throw AppError.solicitudInvalida(
@@ -319,8 +365,8 @@ export async function cambiarEstado(repositorio, usuario, id, estado) {
 }
 
 export async function resolver(repositorio, usuario, id, { solucion, evidenciaSolucion } = {}) {
-  if (!esEmpleado(usuario)) {
-    throw AppError.prohibido('Solo funcionarios y administradores pueden resolver incidencias');
+  if (!puedeOperar(usuario)) {
+    throw AppError.prohibido('Solo el personal con permiso de escritura puede resolver incidencias');
   }
 
   const actual = await repositorio.incidenciaPorId(id);
@@ -381,6 +427,10 @@ export async function eliminar(repositorio, usuario, id) {
 }
 
 export async function comentar(repositorio, usuario, id, texto) {
+  if (esEmpleado(usuario) && !puedeOperar(usuario)) {
+    throw AppError.prohibido('Tu cuenta es de solo lectura: no puede comentar');
+  }
+
   const incidencia = await repositorio.incidenciaPorId(id);
   exigirVisibilidad(incidencia, usuario);
 
@@ -432,9 +482,9 @@ export async function comentar(repositorio, usuario, id, texto) {
  * encima del resto del listado. El ciudadano que reportó recibe el aviso.
  */
 export async function marcarPeligro(repositorio, usuario, id, { peligrosa = true, motivo = '' } = {}) {
-  if (!esEmpleado(usuario)) {
+  if (!puedeOperar(usuario)) {
     throw AppError.prohibido(
-      'Solo funcionarios y administradores pueden marcar incidencias como peligrosas'
+      'Solo el personal con permiso de escritura puede marcar incidencias como peligrosas'
     );
   }
 
@@ -490,17 +540,34 @@ export async function marcarPeligro(repositorio, usuario, id, { peligrosa = true
   return enriquecer(actualizada);
 }
 
-/** Crea la notificación dirigida al autor del reporte. */
+/** Crea la notificación dirigida al autor del reporte y la empuja por SSE. */
 async function notificar(repositorio, incidencia, tipo, titulo, mensaje) {
-  await repositorio.crearNotificacion(
-    construirNotificacion({
-      tipo,
-      titulo,
-      mensaje,
-      incidenciaId: incidencia.id,
-      paraUsuario: destinatarioDeIncidencia(incidencia)
-    })
-  );
+  const destinatario = destinatarioDeIncidencia(incidencia);
+  if (!destinatario) return;
+
+  const eventoPorTipo = {
+    reporte: 'incidencia_creada',
+    resuelta: 'incidencia_resuelta',
+    comentario: 'incidencia_comentario',
+    alerta: 'incidencia_peligro',
+    estado: 'incidencia_estado'
+  };
+  const evento = eventoPorTipo[tipo] || 'incidencia_estado';
+
+  await emitir(repositorio, {
+    evento,
+    tipo,
+    titulo,
+    mensaje,
+    severidad: tipo === 'alerta' ? 'alerta' : tipo === 'resuelta' ? 'exito' : 'info',
+    incidenciaId: incidencia.id,
+    entidadTipo: 'incidencia',
+    entidadId: incidencia.id,
+    municipioId: incidencia.municipioId || null,
+    url: `/?incidencia=${incidencia.id}`,
+    paraUsuarios: [destinatario],
+    claveDedupe: `${evento}:${incidencia.id}:${incidencia.actualizado || incidencia.fecha}`
+  });
 }
 
 /** Borra todas las incidencias y notificaciones (paridad con `limpiarTodo`). */
@@ -511,6 +578,103 @@ export async function limpiar(repositorio, usuario) {
   const incidencias = await repositorio.borrarIncidencias();
   const notificaciones = await repositorio.borrarNotificaciones();
   return { incidencias, notificaciones };
+}
+
+/**
+ * Envolvente geográfica del mapa.
+ * Acepta el formato de Leaflet `toBBoxString()`: oeste,sur,este,norte.
+ */
+function parsearBbox(valor) {
+  if (!valor) return null;
+  const partes = String(valor)
+    .split(',')
+    .map((n) => Number(n));
+  if (partes.length !== 4 || partes.some((n) => !Number.isFinite(n))) return null;
+  const [a, b, c, d] = partes;
+  return [Math.min(a, c), Math.min(b, d), Math.max(a, c), Math.max(b, d)];
+}
+
+/** Agrupa puntos en celdas para no pintar miles de marcadores al alejar. */
+function agruparPuntos(puntos, bbox, celdas = 48) {
+  const [minLng, minLat, maxLng, maxLat] = bbox;
+  const pasoLat = Math.max((maxLat - minLat) / celdas, 0.0005);
+  const pasoLng = Math.max((maxLng - minLng) / celdas, 0.0005);
+  const grupos = new Map();
+
+  for (const punto of puntos) {
+    const fila = Math.floor((punto.lat - minLat) / pasoLat);
+    const columna = Math.floor((punto.lng - minLng) / pasoLng);
+    const clave = `${fila}:${columna}`;
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(punto);
+  }
+
+  const salida = [];
+  for (const grupo of grupos.values()) {
+    if (grupo.length === 1) {
+      salida.push({ ...grupo[0], cluster: false });
+      continue;
+    }
+    const lat = grupo.reduce((suma, p) => suma + p.lat, 0) / grupo.length;
+    const lng = grupo.reduce((suma, p) => suma + p.lng, 0) / grupo.length;
+    const porTipo = {};
+    for (const punto of grupo) {
+      porTipo[punto.tipoId] = (porTipo[punto.tipoId] || 0) + 1;
+    }
+    salida.push({
+      cluster: true,
+      lat,
+      lng,
+      total: grupo.length,
+      porTipo,
+      peligrosa: grupo.some((p) => p.peligrosa === true),
+      ids: grupo.map((p) => p.id)
+    });
+  }
+  return salida;
+}
+
+/**
+ * Datos para pintar el mapa.
+ *
+ * Devuelve solo lo necesario (sin evidencias, historial ni comentarios) y, si
+ * se pide `cluster`, agrupa por celdas dentro de la envolvente visible. El
+ * detalle completo se carga al abrir una incidencia.
+ */
+export async function mapa(repositorio, usuario, filtros = {}) {
+  const { color, orden, cluster = false, celdas = 48, limite = 3000, bbox } = filtros;
+  const ocultas = filtroOcultas(usuario);
+
+  const consulta = filtrosDeAlcance(usuario, {
+    municipioId: filtros.municipioId || null,
+    estadoEntidad: filtros.estadoEntidad || null,
+    texto: filtros.texto || '',
+    estado: filtros.estado || 'todos',
+    tipoId: filtros.tipoId || 'todos',
+    zonaId: filtros.zonaId || 'todos',
+    ambito: filtros.ambito || 'todos',
+    desde: filtros.desde || null,
+    hasta: filtros.hasta || null,
+    ocultas,
+    ocultasDe: ocultas === 'propias' ? usuario.userKey : null
+  });
+
+  const caja = parsearBbox(bbox);
+  const puntos = await repositorio.puntosIncidencias({ ...consulta, bbox: caja, limite });
+
+  let lista = enriquecerLista(puntos);
+  lista = filtrarPorColor(lista, color);
+  if (orden === 'prioridad') lista = ordenarPorPrioridad(lista);
+
+  if (cluster && caja) {
+    return {
+      total: lista.length,
+      cluster: true,
+      puntos: agruparPuntos(lista, caja, Math.min(Number(celdas) || 48, 120))
+    };
+  }
+
+  return { total: lista.length, cluster: false, puntos: lista };
 }
 
 export { ESTADOS };

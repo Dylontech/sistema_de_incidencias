@@ -10,17 +10,85 @@
  * Roles del sistema.
  * - `anonimo`: sesión de navegador sin cuenta (solo puede reportar).
  * - `ciudadano`: cuenta registrada con correo (recibe avisos de sus reportes).
- * - `funcionario` / `admin`: personal del municipio (login con clave de municipio).
+ * - `funcionario`: personal municipal con escritura dentro de sus municipios.
+ * - `auditor`: personal de solo lectura sobre los municipios/estados asignados.
+ * - `enlace_estatal`: solo lectura sobre todos los municipios de sus estados.
+ * - `enlace_federal`: solo lectura sobre los municipios de sus estados asignados.
+ * - `admin`: alcance global y gestión de cuentas/alcances.
  */
-export const ROLES = ['anonimo', 'ciudadano', 'funcionario', 'admin'];
+export const ROLES = [
+  'anonimo',
+  'ciudadano',
+  'funcionario',
+  'auditor',
+  'enlace_estatal',
+  'enlace_federal',
+  'soporte',
+  'admin_municipal',
+  'admin_estatal',
+  'admin'
+];
 
-export const ROLES_EMPLEADO = ['funcionario', 'admin'];
+/** Todo el personal con acceso al panel (lectura o escritura). */
+export const ROLES_PERSONAL = [
+  'funcionario',
+  'auditor',
+  'enlace_estatal',
+  'enlace_federal',
+  'soporte',
+  'admin_municipal',
+  'admin_estatal',
+  'admin'
+];
+
+/** Cualquier nivel de administración (maestro o territorial). */
+export const ROLES_ADMIN = ['admin', 'admin_estatal', 'admin_municipal'];
+
+/** Roles que pueden abrir la cola del panel de soporte técnico. */
+export const ROLES_ATENCION = ['soporte', 'admin_municipal', 'admin_estatal', 'admin'];
+
+/** Compatibilidad: antes «empleado» era funcionario y admin. */
+export const ROLES_EMPLEADO = ROLES_PERSONAL;
+
+/** Roles de solo lectura: pueden consultar e informar, nunca mutar. */
+export const ROLES_LECTURA = ['auditor', 'enlace_estatal', 'enlace_federal'];
+
+/** Roles con escritura (siempre que `usuarios.puede_escribir` no lo revoque). */
+export const ROLES_ESCRITURA = ['funcionario', 'admin'];
 
 /** Roles que puede crear y editar un administrador desde el panel. */
-export const ROLES_PERSONAL = ['funcionario', 'admin'];
+export const ROLES_PERSONAL_ASIGNABLES = ROLES_PERSONAL;
 
 /** Roles con cuenta propia (todo menos la sesión anónima). */
-export const ROLES_CUENTA = ['ciudadano', 'funcionario', 'admin'];
+export const ROLES_CUENTA = ['ciudadano', ...ROLES_PERSONAL];
+
+/** Ámbitos de una incidencia: urbano o vialidad de mayor jerarquía. */
+export const AMBITOS = [
+  'urbano',
+  'carretera_estatal',
+  'carretera_federal',
+  'autopista',
+  'camino_rural',
+  'otro'
+];
+
+export const AMBITO_INICIAL = 'urbano';
+
+/** Etiquetas legibles de los ámbitos (viajan al frontend). */
+export const ETIQUETAS_AMBITO = {
+  urbano: 'Zona urbana o municipal',
+  carretera_estatal: 'Carretera estatal',
+  carretera_federal: 'Carretera federal',
+  autopista: 'Autopista',
+  camino_rural: 'Camino rural',
+  otro: 'Otro tipo de vía'
+};
+
+/** Jurisdicción responsable de atender una incidencia vial. */
+export const JURISDICCIONES = ['municipal', 'estatal', 'federal', 'concesionada'];
+
+/** Tipos de vía que no exigen que el punto caiga dentro del polígono municipal. */
+export const AMBITOS_VIALES = AMBITOS.filter((a) => a !== 'urbano');
 
 /** Estados posibles de una incidencia. */
 export const ESTADOS = ['reportada', 'en_proceso', 'resuelta'];
@@ -49,6 +117,12 @@ export const LIMITES_TEXTO = {
   nombreTipo: 60,
   comentario: 500,
   solucion: 600,
+  /** Datos de la vía en reportes carreteros. */
+  viaNombre: 160,
+  viaClave: 40,
+  tramo: 160,
+  sentido: 40,
+  dependencia: 160,
   /** Motivo por el que el personal marca un reporte como peligroso. */
   motivoPeligro: 140,
   /** Explicación opcional que acompaña a una denuncia ciudadana. */
@@ -104,7 +178,191 @@ export const ADVERTENCIAS_MAX = 3;
 export const PRECISION_DUPLICADO = 0.0002;
 
 /** Tipos de notificación soportados. */
-export const TIPOS_NOTIFICACION = ['reporte', 'resuelta', 'estado', 'alerta', 'comentario'];
+export const TIPOS_NOTIFICACION = [
+  'reporte',
+  'resuelta',
+  'estado',
+  'alerta',
+  'comentario',
+  'mensaje',
+  'contacto',
+  'sugerencia',
+  'solicitud'
+];
+
+/** Modos de suscripción a incidencias nuevas. */
+export const MODOS_NOTIFICACION = ['asignados', 'municipios', 'todos', 'ninguno'];
+
+/** Canales por los que puede salir un aviso. */
+export const CANALES_NOTIFICACION = ['app', 'correo', 'ambos', 'ninguno'];
+
+/** Severidad de un aviso: decide el color y el icono en la campana. */
+export const SEVERIDADES_NOTIFICACION = ['info', 'exito', 'alerta', 'error'];
+
+/** Alcance territorial de una regla de notificación. */
+export const ALCANCES_NOTIFICACION = ['todos', 'estados', 'municipios', 'asignados'];
+
+/** Catálogo cerrado de tickets de soporte. */
+export const CATEGORIAS_TICKET = ['error', 'acceso', 'datos', 'sugerencia', 'otro'];
+export const PRIORIDADES_TICKET = ['baja', 'media', 'alta'];
+export const ESTADOS_TICKET = ['abierto', 'en_revision', 'respondido', 'cerrado'];
+
+/** Historial de un ticket (`ticket_eventos.tipo`). */
+export const EVENTOS_TICKET = [
+  'creado',
+  'asignado',
+  'reasignado',
+  'respondido',
+  'estado',
+  'prioridad',
+  'nota_interna',
+  'reabierto'
+];
+
+/** Permisos granulares que un administrador puede ajustar por cuenta. */
+export const PERMISOS = [
+  'reportar',
+  'editar_propios',
+  'cambiar_estado',
+  'resolver',
+  'moderar',
+  'ver_moderacion',
+  'exportar',
+  'gestionar_usuarios',
+  'ver_usuarios',
+  'gestionar_claves',
+  'ver_incidencias_panel',
+  'ver_tipos',
+  'gestionar_tipos',
+  'ver_municipios_panel',
+  'ver_zonas',
+  'gestionar_zonas',
+  'ver_firmas',
+  'ver_monitoreo',
+  'responder_tickets',
+  'atender_tickets',
+  'configurar_notificaciones',
+  'ver_metricas',
+  'gestionar_solicitudes_informe',
+  'gestionar_legal',
+  'gestionar_configuracion',
+  'gestionar_respaldos',
+  'usar_simulador',
+  'gestionar_publicidad',
+  'gestionar_correos'
+];
+
+/** Permisos que trae cada rol antes de aplicar excepciones por cuenta. */
+export const PERMISOS_POR_ROL = {
+  admin: [...PERMISOS],
+  admin_estatal: [
+    'reportar',
+    'editar_propios',
+    'cambiar_estado',
+    'resolver',
+    'moderar',
+    'ver_moderacion',
+    'exportar',
+    'gestionar_usuarios',
+    'ver_usuarios',
+    'gestionar_claves',
+    'ver_incidencias_panel',
+    'ver_tipos',
+    'gestionar_tipos',
+    'ver_municipios_panel',
+    'ver_zonas',
+    'gestionar_zonas',
+    'ver_firmas',
+    'ver_monitoreo',
+    'responder_tickets',
+    'atender_tickets',
+    'configurar_notificaciones',
+    'ver_metricas'
+  ],
+  admin_municipal: [
+    'reportar',
+    'editar_propios',
+    'cambiar_estado',
+    'resolver',
+    'moderar',
+    'ver_moderacion',
+    'exportar',
+    'gestionar_usuarios',
+    'ver_usuarios',
+    'gestionar_claves',
+    'ver_incidencias_panel',
+    'ver_tipos',
+    'gestionar_tipos',
+    'ver_municipios_panel',
+    'ver_zonas',
+    'gestionar_zonas',
+    'ver_firmas',
+    'responder_tickets',
+    'atender_tickets',
+    'configurar_notificaciones',
+    'ver_metricas'
+  ],
+  funcionario: [
+    'reportar',
+    'editar_propios',
+    'cambiar_estado',
+    'resolver',
+    'moderar',
+    'ver_moderacion',
+    'exportar',
+    'ver_usuarios',
+    'ver_incidencias_panel',
+    'ver_tipos',
+    'gestionar_tipos',
+    'ver_municipios_panel',
+    'ver_zonas',
+    'gestionar_zonas',
+    'ver_firmas',
+    'responder_tickets',
+    'configurar_notificaciones',
+    'ver_metricas'
+  ],
+  auditor: [
+    'exportar',
+    'ver_usuarios',
+    'ver_incidencias_panel',
+    'ver_tipos',
+    'ver_municipios_panel',
+    'ver_zonas',
+    'ver_moderacion',
+    'responder_tickets',
+    'configurar_notificaciones',
+    'ver_metricas'
+  ],
+  soporte: [
+    'responder_tickets',
+    'atender_tickets',
+    'ver_incidencias_panel',
+    'ver_moderacion',
+    'configurar_notificaciones',
+    'ver_metricas'
+  ],
+  enlace_estatal: [
+    'exportar',
+    'ver_incidencias_panel',
+    'ver_moderacion',
+    'responder_tickets',
+    'configurar_notificaciones',
+    'ver_monitoreo',
+    'ver_metricas'
+  ],
+  enlace_federal: [
+    'exportar',
+    'ver_incidencias_panel',
+    'ver_moderacion',
+    'responder_tickets',
+    'configurar_notificaciones',
+    'ver_monitoreo',
+    'ver_metricas'
+  ],
+  ciudadano: ['reportar', 'editar_propios', 'responder_tickets'],
+  anonimo: ['reportar', 'editar_propios']
+};
 
 /** Municipio que se muestra cuando la aplicación acaba de arrancar (Maravatío). */
 export const MUNICIPIO_DEFAULT = '16050';

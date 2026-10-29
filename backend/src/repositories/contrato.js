@@ -127,6 +127,12 @@
  * @property {string} [ocultasDe]  `userKey` del autor cuyas publicaciones ocultas se
  *           incluyen cuando `ocultas` es `'propias'`
  *
+ * @typedef {Object} PreferenciasNotificacion
+ * @property {'asignados'|'municipios'|'todos'|'ninguno'} modo
+ * @property {boolean} porCorreo
+ * @property {string[]} municipios
+ * @property {boolean} [existe]   false si la cuenta nunca guardó preferencias
+ *
  * @typedef {Object} FiltrosDenuncias
  * @property {string} [incidenciaId]
  * @property {string} [comentarioId]
@@ -153,10 +159,19 @@
  * @property {() => Promise<Usuario[]>} todosLosUsuarios
  * @property {(username:string) => Promise<Usuario|null>} usuarioPorUsername
  * @property {(correo:string) => Promise<Usuario|null>} usuarioPorCorreo
+ * @property {(nombre:string) => Promise<Usuario[]>} usuariosPorNombre
  * @property {(id:string) => Promise<Usuario|null>} usuarioPorId
  * @property {(usuario:Usuario) => Promise<Usuario>} crearUsuario
  * @property {(id:string, cambios:Object) => Promise<Usuario|null>} actualizarUsuario
+ * @property {(id:string) => Promise<{municipios:string[], estados:string[]}>} alcanceDeUsuario
+ * @property {(ids:string[]) => Promise<Record<string,{municipios:string[], estados:string[]}>>} alcancesDeUsuarios
+ * @property {(id:string, alcance:{municipios?:string[], estados?:string[]}) => Promise<{municipios:string[], estados:string[]}>} guardarAlcanceUsuario
+ * @property {(roles:string[]) => Promise<Usuario[]>} usuariosPorRoles
+ * @property {(usuarioId:string) => Promise<PreferenciasNotificacion>} preferenciasDe
+ * @property {(ids:string[]) => Promise<Record<string,PreferenciasNotificacion>>} preferenciasDeVarios
+ * @property {(usuarioId:string, datos:PreferenciasNotificacion) => Promise<PreferenciasNotificacion>} guardarPreferencias
  * @property {(filtros:FiltrosIncidencias) => Promise<Incidencia[]>} buscarIncidencias
+ * @property {(filtros:Object) => Promise<Array<Object>>} puntosIncidencias
  * @property {() => Promise<Incidencia[]>} todasLasIncidencias
  * @property {(id:string) => Promise<Incidencia|null>} incidenciaPorId
  * @property {(incidencia:Incidencia) => Promise<Incidencia>} crearIncidencia
@@ -176,6 +191,43 @@
  * @property {(filtros:FiltrosDenuncias) => Promise<Denuncia[]>} denunciasDe
  * @property {(id:string, denuncia:Denuncia) => Promise<Denuncia|null>} actualizarDenuncia
  * @property {() => Promise<number>} borrarDenuncias
+ * @property {(solicitud:Object) => Promise<Object>} crearSolicitudInforme
+ * @property {(folio:string) => Promise<Object|null>} solicitudInformePorFolio
+ * @property {(token:string) => Promise<Object|null>} solicitudInformePorToken
+ * @property {(id:string) => Promise<Object|null>} solicitudInformePorId
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarSolicitudInforme
+ * @property {(filtros:Object) => Promise<Object[]>} solicitudesInforme
+ * @property {(filtros:Object) => Promise<Object|null>} bloqueoVigente
+ * @property {(bloqueo:Object) => Promise<Object>} crearBloqueo
+ * @property {(filtros:Object) => Promise<Object[]>} listarBloqueos
+ * @property {(id:string, datos:Object) => Promise<Object|null>} desactivarBloqueo
+ * @property {(envio:Object) => Promise<Object>} registrarEnvioCorreo
+ * @property {(filtros:Object) => Promise<Object[]>} enviosCorreo
+ * @property {(mensaje:Object) => Promise<Object>} crearMensajeContacto
+ * @property {(filtros:Object) => Promise<Object[]>} mensajesContacto
+ * @property {(id:string) => Promise<Object|null>} mensajeContactoPorId
+ * @property {(id:string) => Promise<Object|null>} mensajeContactoFuncionarioPorId
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarMensajeContacto
+ * @property {(sugerencia:Object) => Promise<Object>} crearSugerencia
+ * @property {(filtros:Object) => Promise<Object[]>} sugerencias
+ * @property {(folio:string) => Promise<Object|null>} sugerenciaPorFolio
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarSugerencia
+ * @property {(mensaje:Object) => Promise<Object>} crearMensajeDirecto
+ * @property {(filtros:Object) => Promise<Object[]>} mensajesDirectos
+ * @property {(id:string) => Promise<Object|null>} mensajeDirectoPorId
+ * @property {(id:string, usuario:string) => Promise<Object|null>} marcarMensajeLeido
+ * @property {(suscripcion:Object) => Promise<Object>} crearSuscripcion
+ * @property {(correo:string) => Promise<Object|null>} suscripcionPorCorreo
+ * @property {(token:string) => Promise<Object|null>} suscripcionPorToken
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarSuscripcion
+ * @property {(filtros:Object) => Promise<Object[]>} suscripcionesCorreo
+ * @property {(campana:Object) => Promise<Object>} crearCampana
+ * @property {(id:string) => Promise<Object|null>} campanaPorId
+ * @property {(filtros:Object) => Promise<Object[]>} campanasCorreo
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarCampana
+ * @property {(campanaId:string, destinatarios:Object[]) => Promise<number>} guardarDestinatariosCampana
+ * @property {(campanaId:string) => Promise<Object[]>} destinatariosCampana
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarDestinatarioCampana
  */
 
 export const METODOS_REQUERIDOS = [
@@ -185,6 +237,7 @@ export const METODOS_REQUERIDOS = [
   'todosMunicipios',
   'municipioPorId',
   'municipioPorClave',
+  'resumenPorMunicipio',
   'todasLasZonas',
   'zonasPorMunicipio',
   'todosLosTipos',
@@ -194,29 +247,220 @@ export const METODOS_REQUERIDOS = [
   'todosLosUsuarios',
   'usuarioPorUsername',
   'usuarioPorCorreo',
+  'usuariosPorNombre',
   'usuarioPorId',
   'crearUsuario',
   'actualizarUsuario',
+  'alcanceDeUsuario',
+  'alcancesDeUsuarios',
+  'guardarAlcanceUsuario',
+  'usuariosPorRoles',
+  'preferenciasDe',
+  'preferenciasDeVarios',
+  'guardarPreferencias',
+  'todasLasClaves',
+  'claveAccesoPorCodigo',
+  'crearClaveAcceso',
+  'revocarClaveAcceso',
+  'actualizarClaveAcceso',
+  'registrarUsoClave',
+  'registrarSesion',
+  'sesionPorId',
+  'cerrarSesion',
+  'listarSesiones',
+  'crearTicket',
+  'ticketsDe',
+  'ticketPorId',
+  'actualizarTicket',
+  'crearTicketMensaje',
+  'crearTicketEvento',
+  'reglasTickets',
+  'crearReglaTicket',
+  'eliminarReglaTicket',
+  'crearSolicitudAcceso',
+  'solicitudesAcceso',
+  'solicitudAccesoPorId',
+  'solicitudAccesoAbiertaPorCorreo',
+  'actualizarSolicitudAcceso',
   'buscarIncidencias',
+  'puntosIncidencias',
   'todasLasIncidencias',
   'incidenciaPorId',
+  'incidenciaPorIdempotencia',
   'crearIncidencia',
   'actualizarIncidencia',
   'eliminarIncidencia',
   'insertarIncidencias',
   'borrarIncidencias',
   'notificacionesDe',
+  'notificacionPorId',
+  'notificacionPorDedupe',
   'todasLasNotificaciones',
   'crearNotificacion',
   'marcarNotificacionLeida',
   'marcarNotificacionesLeidas',
   'eliminarNotificacion',
   'borrarNotificaciones',
+  'preferenciasEventosDe',
+  'guardarPreferenciaEvento',
+  'configuracionNotificacion',
+  'configuracionesNotificacion',
+  'guardarConfiguracionNotificacion',
+  'usuariosPorKeys',
   'crearDenuncia',
   'denunciaPorId',
   'denunciasDe',
   'actualizarDenuncia',
-  'borrarDenuncias'
+  'borrarDenuncias',
+  'crearSolicitudInforme',
+  'solicitudInformePorFolio',
+  'solicitudInformePorToken',
+  'solicitudInformePorId',
+  'actualizarSolicitudInforme',
+  'solicitudesInforme',
+  'bloqueoVigente',
+  'crearBloqueo',
+  'listarBloqueos',
+  'desactivarBloqueo',
+  'registrarEnvioCorreo',
+  'enviosCorreo',
+  'crearMensajeContacto',
+  'mensajesContacto',
+  'mensajeContactoPorId',
+  'mensajeContactoFuncionarioPorId',
+  'actualizarMensajeContacto',
+  'crearSugerencia',
+  'sugerencias',
+  'sugerenciaPorFolio',
+  'actualizarSugerencia',
+  'crearMensajeDirecto',
+  'mensajesDirectos',
+  'mensajeDirectoPorId',
+  'marcarMensajeLeido',
+  // Adjuntos polimórficos y comentarios
+  'crearAdjunto',
+  'adjuntoPorId',
+  'adjuntosDeContexto',
+  'adjuntosDeContextos',
+  'vincularAdjunto',
+  'adjuntosPendientes',
+  'eliminarAdjunto',
+  'comentarioIncidenciaPorId',
+  'crearSuscripcion',
+  'suscripcionPorCorreo',
+  'suscripcionPorToken',
+  'actualizarSuscripcion',
+  'suscripcionesCorreo',
+  'crearCampana',
+  'campanaPorId',
+  'campanasCorreo',
+  'actualizarCampana',
+  'guardarDestinatariosCampana',
+  'destinatariosCampana',
+  'actualizarDestinatarioCampana',
+  // Configuración clave-valor
+  'configuracion',
+  'configuraciones',
+  'guardarConfiguracion',
+  // Firmas y recolecciones
+  'crearRecoleccionFirma',
+  'recoleccionFirmaPorId',
+  'recoleccionFirmaPorIncidencia',
+  'recoleccionesFirmas',
+  'actualizarRecoleccionFirma',
+  'crearFirmaIncidencia',
+  'firmaDeUsuario',
+  'firmasDeRecoleccion',
+  'eliminarFirmaIncidencia',
+  'contarFirmasDeUsuario',
+  'crearEnvioFirma',
+  'enviosDeRecoleccion',
+  // Comentarios con reglas
+  'comentariosDeIncidencia',
+  'crearComentarioIncidencia',
+  'actualizarComentarioIncidencia',
+  'restriccionComentariosVigente',
+  'crearRestriccionComentarios',
+  'desactivarRestriccionComentarios',
+  'contarComentariosRecientes',
+  // Legal editable
+  'documentoLegal',
+  'documentosLegales',
+  'guardarDocumentoLegal',
+  'historialLegal',
+  'crearVersionLegal',
+  'versionLegal',
+  'ultimaAceptacionLegal',
+  'registrarAceptacionLegal',
+  // Contacto directo a funcionarios
+  'crearContactoFuncionario',
+  'contactosFuncionarios',
+  'contactoFuncionarioPorId',
+  'actualizarContactoFuncionario',
+  'contactoFuncionarioDestinatarios',
+  'marcarContactoFuncionarioLeido',
+  'crearMensajeContactoFuncionario',
+  'mensajesContactoFuncionario',
+  'crearSolicitudFuncionario',
+  'solicitudesFuncionario',
+  'actualizarSolicitudFuncionario',
+  // Historial de notificaciones
+  'notificacionesHistorial',
+  'archivarNotificacion',
+  'restaurarNotificacion',
+  'archivarNotificaciones',
+  // Folios
+  'incidenciaPorFolio',
+  // Respaldos
+  'crearRespaldo',
+  'respaldos',
+  'respaldoPorId',
+  'actualizarRespaldo',
+  'crearEventoRespaldo',
+  'eventosRespaldo',
+  // Publicidad en redes
+  'crearPublicacionRed',
+  'publicacionesRed',
+  'publicacionRedPorId',
+  'actualizarPublicacionRed',
+  'eliminarPublicacionRed',
+  // Códigos QR y sus escaneos
+  'crearCodigoQr',
+  'codigoQrPorCodigo',
+  'codigoQrPorPublicacion',
+  'actualizarCodigoQr',
+  'registrarEscaneoQr',
+  'escaneosQr',
+  'escaneoQrReciente',
+  // Directorio de correos institucionales
+  'crearCorreoInstitucional',
+  'correosInstitucionales',
+  'correoInstitucionalPorId',
+  'actualizarCorreoInstitucional',
+  'eliminarCorreoInstitucional',
+  // Simulador del administrador
+  'crearSesionSimulacion',
+  'sesionesSimulacion',
+  'sesionSimulacionPorId',
+  'actualizarSesionSimulacion',
+  'crearOperacionSimulacion',
+  'operacionesSimulacion',
+  'limpiarOperacionesSimulacion',
+  // Fichas municipales con aprobación
+  'fichaMunicipio',
+  'fichasMunicipios',
+  'guardarFichaMunicipio',
+  'actualizarFichaMunicipio',
+  // Roles especiales y solicitudes de permisos
+  'rolesPersonalizados',
+  'rolPersonalizadoPorId',
+  'crearRolPersonalizado',
+  'actualizarRolPersonalizado',
+  'eliminarRolPersonalizado',
+  'crearSolicitudPermiso',
+  'solicitudesPermiso',
+  'solicitudPermisoPorId',
+  'actualizarSolicitudPermiso'
 ];
 
 /** Comprueba que un repositorio cumple el contrato (usado en pruebas). */

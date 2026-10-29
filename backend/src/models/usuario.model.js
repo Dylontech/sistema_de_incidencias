@@ -3,7 +3,7 @@
  * Las contraseñas se guardan siempre con bcrypt (el monolito las tenía en claro).
  */
 import bcrypt from 'bcryptjs';
-import { ROLES_PERSONAL, LIMITES_TEXTO } from '../config/constantes.js';
+import { ROLES_ADMIN, ROLES_PERSONAL, LIMITES_TEXTO } from '../config/constantes.js';
 import { recolector } from '../utils/validacion.js';
 import { nuevoId } from '../utils/ids.js';
 
@@ -34,6 +34,21 @@ export function publico(usuario) {
   return resto;
 }
 
+/**
+ * ¿Puede este usuario modificar datos (no solo consultarlos)?
+ *
+ * Los roles de lectura (auditor, enlace estatal/federal) nunca escriben. Un
+ * funcionario sí, salvo que el administrador le haya revocado el permiso con
+ * `puedeEscribir=false`. El admin siempre puede.
+ */
+export function puedeEscribirDe(usuario) {
+  if (!usuario) return false;
+  if (usuario.rol === 'admin') return true;
+  if (ROLES_ADMIN.includes(usuario.rol)) return usuario.puedeEscribir !== false;
+  if (usuario.rol !== 'funcionario') return false;
+  return usuario.puedeEscribir !== false;
+}
+
 /** Datos que viajan dentro del token y del objeto `req.usuario`. */
 export function paraSesion(usuario) {
   return {
@@ -41,7 +56,10 @@ export function paraSesion(usuario) {
     nombre: usuario.nombre,
     rol: usuario.rol,
     municipioId: usuario.municipioId || null,
-    correo: usuario.correo || null
+    correo: usuario.correo || null,
+    puedeEscribir: puedeEscribirDe(usuario),
+    municipios: Array.isArray(usuario.municipios) ? usuario.municipios : undefined,
+    estados: Array.isArray(usuario.estados) ? usuario.estados : undefined
   };
 }
 
@@ -65,7 +83,13 @@ export function validarEntrada(datos = {}, { parcial = false } = {}) {
   if (datos.municipioId !== undefined) {
     salida.municipioId = datos.municipioId ? String(datos.municipioId) : null;
   }
+  if (datos.puedeEscribir !== undefined) salida.puedeEscribir = datos.puedeEscribir === true;
   if (datos.activo !== undefined) salida.activo = datos.activo !== false;
+  if (datos.rolPersonalizadoId !== undefined) {
+    salida.rolPersonalizadoId = datos.rolPersonalizadoId
+      ? String(datos.rolPersonalizadoId)
+      : null;
+  }
 
   v.terminar();
   return salida;
@@ -106,7 +130,9 @@ export function construirUsuario({
   rol,
   municipioId = null,
   passwordHash,
-  pseudonimo = false
+  pseudonimo = false,
+  rolPersonalizadoId = null,
+  puedeEscribir = ['funcionario', 'admin', 'admin_estatal', 'admin_municipal'].includes(rol)
 }) {
   return {
     id: nuevoId(),
@@ -115,9 +141,14 @@ export function construirUsuario({
     correo,
     rol,
     municipioId,
+    rolPersonalizadoId,
     activo: true,
     pseudonimo: pseudonimo === true,
     passwordHash,
+    // Solo los roles operativos pueden mutar; auditor/enlaces quedan en lectura.
+    puedeEscribir: puedeEscribir === true,
+    // Excepciones a la matriz de permisos del rol: { permiso: true|false }.
+    permisos: {},
     // Moderación: advertencias acumuladas y estado de la suspensión.
     advertencias: 0,
     suspendido: false,

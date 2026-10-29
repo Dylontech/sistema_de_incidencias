@@ -33,7 +33,18 @@ export class AlmacenJson {
     }
   }
 
+  /**
+   * Lectura serializada con las escrituras de la misma colección.
+   *
+   * En Windows, `rename` falla (EPERM) si otro descriptor tiene abierto el
+   * archivo de destino. Al pasar también las lecturas por la cola, una lectura
+   * concurrente no puede dejar el archivo abierto en mitad de un reemplazo.
+   */
   async leer(coleccion, porDefecto = []) {
+    return this.#enCola(coleccion, () => this.#leerDirecto(coleccion, porDefecto));
+  }
+
+  async #leerDirecto(coleccion, porDefecto = []) {
     await this.asegurarDirectorio();
     try {
       const crudo = await fs.readFile(this.ruta(coleccion), 'utf8');
@@ -55,7 +66,8 @@ export class AlmacenJson {
    */
   async transaccion(coleccion, porDefecto, fn) {
     return this.#enCola(coleccion, async () => {
-      const actuales = await this.leer(coleccion, porDefecto);
+      // Ya se está dentro de la cola: leer sin volver a encolar (deadlock).
+      const actuales = await this.#leerDirecto(coleccion, porDefecto);
       const salida = await fn(actuales);
       const datos = salida && typeof salida === 'object' && 'datos' in salida ? salida.datos : salida;
       if (datos !== undefined) await this.#escribirDirecto(coleccion, datos);
@@ -68,7 +80,22 @@ export class AlmacenJson {
     const destino = this.ruta(coleccion);
     const temporal = `${destino}.${process.pid}.${Date.now()}.tmp`;
     await fs.writeFile(temporal, JSON.stringify(datos, null, 2), 'utf8');
-    await fs.rename(temporal, destino);
+
+    // En Windows el reemplazo puede fallar un instante si otro proceso (antivirus,
+    // indexador) tiene el archivo abierto. Se reintenta unas pocas veces.
+    for (let intento = 0; ; intento += 1) {
+      try {
+        await fs.rename(temporal, destino);
+        break;
+      } catch (error) {
+        const transitorio = error.code === 'EPERM' || error.code === 'EBUSY';
+        if (!transitorio || intento >= 4) {
+          await fs.rm(temporal, { force: true }).catch(() => {});
+          throw error;
+        }
+        await new Promise((resolver) => setTimeout(resolver, 25 * (intento + 1)));
+      }
+    }
     return datos;
   }
 

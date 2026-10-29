@@ -22,7 +22,9 @@ try {
   const nombres = (filas[0] || []).map((f) => f.nombre);
 
   for (const nombre of nombres) {
-    await admin.raw(`DROP DATABASE \`${nombre}\``);
+    // IF EXISTS evita fallar si otra limpieza (o una prueba que acaba de
+    // terminar) ya borró la base entre la consulta y el DROP.
+    await admin.raw(`DROP DATABASE IF EXISTS \`${nombre}\``);
   }
 
   console.log(

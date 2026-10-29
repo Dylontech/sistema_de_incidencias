@@ -31,8 +31,8 @@ describe('Cuentas: registro ciudadano', () => {
     assert.equal(yo.body.usuario.rol, 'ciudadano');
     assert.equal(yo.body.usuario.nombre, 'Ana Ruiz');
     assert.equal(yo.body.usuario.esAnonimo, false);
-    // El correo identifica la cuenta, pero el userKey de sus reportes es opaco
-    // (viaja en el listado público, así que no puede ser el correo).
+    // El correo es solo un dato de contacto; el userKey de sus reportes es
+    // opaco (viaja en el listado público, así que no puede ser el correo).
     assert.match(yo.body.usuario.userKey, /^cdad_[0-9a-f]+$/);
     assert.ok(yo.body.usuario.correo.includes('@'));
   });
@@ -51,10 +51,15 @@ describe('Cuentas: registro ciudadano', () => {
 
   test('no se admiten dos cuentas con el mismo correo ni correos inválidos', async () => {
     const email = correoUnico('repetido');
-    await Api.ciudadano(app, { correo: email });
+    await Api.ciudadano(app, { correo: email, nombre: 'Correo Repetido Uno' });
 
-    const repetido = await Api.registrar(app, { correo: email, password: 'segura1234', nombre: 'Otra' });
+    const repetido = await Api.registrar(app, {
+      correo: email.toUpperCase(),
+      password: 'segura1234',
+      nombre: 'Correo Repetido Dos'
+    });
     assert.equal(repetido.status, 409);
+    assert.match(repetido.body.error, /correo ya está registrado/i);
 
     const invalido = await Api.registrar(app, {
       correo: 'sin-arroba',
@@ -71,6 +76,18 @@ describe('Cuentas: registro ciudadano', () => {
     assert.equal(corta.status, 400);
   });
 
+  test('el nombre de acceso no se repite entre ciudadanos', async () => {
+    await Api.ciudadano(app, { correo: correoUnico('nombre1'), nombre: 'Nombre Repetido' });
+
+    const repetido = await Api.registrar(app, {
+      correo: correoUnico('nombre2'),
+      password: 'segura1234',
+      nombre: 'Nombre Repetido'
+    });
+    assert.equal(repetido.status, 409);
+    assert.match(repetido.body.error, /ya está en uso/i);
+  });
+
   test('sin nombre real hay que pedir el nombre generado', async () => {
     const sinNombre = await Api.registrar(app, {
       correo: correoUnico('sinnombre'),
@@ -79,19 +96,30 @@ describe('Cuentas: registro ciudadano', () => {
     assert.equal(sinNombre.status, 400);
   });
 
-  test('la cuenta ciudadana entra con correo y contraseña', async () => {
+  test('la cuenta ciudadana entra con su nombre y contraseña', async () => {
     const email = correoUnico('entrada');
     await Api.ciudadano(app, { correo: email, nombre: 'Luis Prado' });
 
-    const r = await Api.entrarCiudadano(app, { correo: email, password: 'segura1234' });
+    const r = await Api.entrarCiudadano(app, { nombre: 'Luis Prado', password: 'segura1234' });
     assert.equal(r.status, 200);
     assert.equal(r.body.usuario.nombre, 'Luis Prado');
 
-    const mala = await Api.entrarCiudadano(app, { correo: email, password: 'equivocada' });
+    // El nombre no distingue mayúsculas ni acentos.
+    const sinAcentos = await Api.entrarCiudadano(app, {
+      nombre: 'luis prado',
+      password: 'segura1234'
+    });
+    assert.equal(sinAcentos.status, 200);
+
+    // El correo sigue sirviendo para las cuentas creadas antes del cambio.
+    const porCorreo = await Api.entrarCiudadano(app, { correo: email, password: 'segura1234' });
+    assert.equal(porCorreo.status, 200);
+
+    const mala = await Api.entrarCiudadano(app, { nombre: 'Luis Prado', password: 'equivocada' });
     assert.equal(mala.status, 401);
 
     const desconocida = await Api.entrarCiudadano(app, {
-      correo: correoUnico('nadie'),
+      nombre: 'Nadie con ese nombre',
       password: 'segura1234'
     });
     assert.equal(desconocida.status, 401);
@@ -99,7 +127,7 @@ describe('Cuentas: registro ciudadano', () => {
 
   test('un funcionario no entra por la puerta de los ciudadanos', async () => {
     const r = await Api.entrarCiudadano(app, {
-      correo: correo('funcionario'),
+      nombre: 'funcionario',
       password: 'func123'
     });
     assert.equal(r.status, 401);

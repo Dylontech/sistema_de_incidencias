@@ -33,25 +33,31 @@ export async function seed(knex) {
   await knex('incidencia_evidencias').del();
   await knex('incidencias').del();
   await knex('notificaciones').del();
+  // Las asignaciones N:M referencian a usuarios y municipios.
+  await knex('usuario_municipios').del();
+  await knex('usuario_estados').del();
   await knex('usuarios').del();
   await knex('zonas').del();
   await knex('tipos').del();
   await knex('municipios').del();
 
-  await knex('municipios').insert(
-    municipiosSemilla.map((m) => ({
-      id: m.id,
-      nombre: m.nombre,
-      estado: m.estado,
-      clave: m.clave,
-      center_lat: m.center[0],
-      center_lng: m.center[1],
-      zoom: m.zoom,
-      poblacion: Number(m.poblacion) || 0,
-      cabecera: m.cabecera || null,
-      poligono: JSON.stringify(m.poligono)
-    }))
-  );
+  // Los polígonos municipales son grandes: 175 filas en una sola sentencia
+  // superan el max_allowed_packet por defecto de MySQL (16 MB).
+  const municipios = municipiosSemilla.map((m) => ({
+    id: m.id,
+    nombre: m.nombre,
+    estado: m.estado,
+    clave: m.clave,
+    center_lat: m.center[0],
+    center_lng: m.center[1],
+    zoom: m.zoom,
+    poblacion: Number(m.poblacion) || 0,
+    cabecera: m.cabecera || null,
+    poligono: JSON.stringify(m.poligono)
+  }));
+  for (const lote of enLotes(municipios, 10)) {
+    await knex('municipios').insert(lote);
+  }
 
   const zonas = zonasSemilla.map((z) => ({
     id: z.id,
@@ -87,6 +93,10 @@ export async function seed(knex) {
       rol: u.rol,
       municipio_id: u.municipioId ?? null,
       activo: u.activo !== false,
+      // En JSON `puedeEscribir` va implícito; en MySQL la columna tiene
+      // DEFAULT 0, así que hay que dejarlo explícito o el funcionario
+      // sembrado queda como cuenta de solo lectura.
+      puede_escribir: u.rol === 'funcionario' || u.rol === 'admin',
       password_hash: await hashearPassword(u.passwordInicial)
     });
   }

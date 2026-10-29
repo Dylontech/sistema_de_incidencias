@@ -67,11 +67,37 @@ services:
       DB_CHARSET: utf8mb4
       UPLOAD_DIR: /app/backend/uploads
       MAX_FOTO_BYTES: ${MAX_FOTO_BYTES:-104857600}
+      # Si algún día se pone un proxy inverso delante, hay que declarar cuántos
+      # saltos hay (TRUST_PROXY=1) para que la IP del cliente sea la real.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Actívalo solo cuando la app se sirva por HTTPS (HSTS + upgrade-insecure-requests).
+      ASUMIR_HTTPS: ${ASUMIR_HTTPS:-false}
+      CSP_MODO: ${CSP_MODO:-estricto}
+      RATE_LIMIT_ACTIVO: ${RATE_LIMIT_ACTIVO:-true}
+      # Correo saliente y formularios públicos. Si no hay SMTP, el sistema
+      # funciona en modo simulado y lo registra en la bitácora.
+      MAIL_ACTIVO: ${MAIL_ACTIVO:-true}
+      MAIL_DRY_RUN: ${MAIL_DRY_RUN:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Sistema de Incidencias <no-reply@localhost>}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      CORREO_MAX_POR_MINUTO: ${CORREO_MAX_POR_MINUTO:-20}
+      CORREO_MAX_REINTENTOS: ${CORREO_MAX_REINTENTOS:-3}
+      URL_PUBLICA: ${URL_PUBLICA:-http://localhost:3100}
+      LIMITE_SOLICITUDES_HORA: ${LIMITE_SOLICITUDES_HORA:-5}
+      LIMITE_CONSULTAS_HORA: ${LIMITE_CONSULTAS_HORA:-30}
+      RATE_LIMIT_MAX_PUBLICO: ${RATE_LIMIT_MAX_PUBLICO:-10}
     volumes:
       # Las fotografías de evidencia sobreviven a recrear el contenedor.
       - evidencia:/app/backend/uploads
+    # Publicado solo en 127.0.0.1 por omisión: la aplicación no queda expuesta a
+    # la red local. Para probarla desde el móvil, APP_BIND=0.0.0.0 en el .env.
     ports:
-      - "${APP_PORT:-3100}:3000"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3100}:3000"
     healthcheck:
       test:
         - CMD

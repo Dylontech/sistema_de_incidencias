@@ -87,6 +87,19 @@ describe('Autenticación', () => {
     assert.equal(sinCampos.body.error, 'Completa todos los campos');
   });
 
+  test('la sesión distingue personal de quien puede atender soporte', async () => {
+    const funcionario = await Api.funcionario(app);
+    const yoFuncionario = await funcionario.get('/api/auth/me');
+    assert.equal(yoFuncionario.status, 200);
+    assert.equal(yoFuncionario.body.usuario.esPersonal, true);
+    assert.equal(yoFuncionario.body.usuario.puedeAtenderTickets, false);
+
+    const ciudadano = await Api.ciudadano(app, { correo: `atencion-${Date.now()}@ejemplo.mx` });
+    const yoCiudadano = await ciudadano.get('/api/auth/me');
+    assert.equal(yoCiudadano.body.usuario.esPersonal, false);
+    assert.equal(yoCiudadano.body.usuario.puedeAtenderTickets, false);
+  });
+
   test('el administrador entra sin municipio forzado y ve la clave de los municipios', async () => {
     const admin = await Api.admin(app);
 
@@ -94,6 +107,8 @@ describe('Autenticación', () => {
     assert.equal(yo.status, 200);
     assert.equal(yo.body.usuario.rol, 'admin');
     assert.equal(yo.body.usuario.municipioId, null); // ya no se fuerza un municipio
+    assert.equal(yo.body.usuario.esPersonal, true);
+    assert.equal(yo.body.usuario.puedeAtenderTickets, true);
 
     const municipios = await admin.get('/api/municipios');
     assert.equal(municipios.status, 200);

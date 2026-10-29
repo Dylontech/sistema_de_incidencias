@@ -10,13 +10,17 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test test/*.test.js",
+    "dev": "node scripts/dev.mjs",
+    "test": "node --test \"test/*.test.js\"",
+    "test:archivo": "node --test",
     "test:mysql": "sh scripts/pruebas-mysql.sh",
     "extraer-semilla": "node scripts/extraer-semilla.mjs",
     "importar-inegi": "node scripts/importar-inegi.mjs",
+    "vendorizar-frontend": "node scripts/vendorizar-frontend.mjs",
     "migrar-catalogo": "node scripts/migrar-catalogo.mjs",
     "datos-demo": "node scripts/datos-demo.mjs",
+    "datos-nuevos": "node scripts/datos-nuevos.mjs",
+    "verificar-funciones": "node scripts/verificar-funciones.mjs",
     "importar-legacy": "node scripts/importar-legacy.mjs",
     "limpiar-bases-prueba": "node scripts/limpiar-bases-prueba.mjs",
     "migrate": "knex --knexfile knexfile.js migrate:latest",
@@ -25,12 +29,18 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
     "dotenv": "^18.0.3",
     "express": "^4.22.3",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.3.0",
     "multer": "^2.4.0",
-    "mysql2": "^3.24.4"
+    "mysql2": "^3.24.4",
+    "nodemailer": "^10.2.1",
+    "pdfkit": "^0.20.2",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "supertest": "^7.3.0"

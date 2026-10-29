@@ -1,15 +1,15 @@
 /** SERVICIO: Tipos de incidencia (catálogo). */
 import { AppError } from '../utils/AppError.js';
 import { validarEntrada, construirTipo, esPersonalizado, nombreRepetido } from '../models/tipo.model.js';
-import { esEmpleado } from './alcance.service.js';
+import { puedeOperar } from './alcance.service.js';
 
 export async function listar(repositorio) {
   return repositorio.todosLosTipos();
 }
 
 export async function crear(repositorio, usuario, datos) {
-  if (!esEmpleado(usuario)) {
-    throw AppError.prohibido('Solo funcionarios y administradores pueden crear tipos');
+  if (!puedeOperar(usuario)) {
+    throw AppError.prohibido('Tu cuenta es de solo lectura: no puede crear tipos');
   }
 
   const entrada = validarEntrada(datos);
@@ -22,8 +22,8 @@ export async function crear(repositorio, usuario, datos) {
 }
 
 export async function eliminar(repositorio, usuario, id) {
-  if (!esEmpleado(usuario)) {
-    throw AppError.prohibido('Solo funcionarios y administradores pueden eliminar tipos');
+  if (!puedeOperar(usuario)) {
+    throw AppError.prohibido('Tu cuenta es de solo lectura: no puede eliminar tipos');
   }
 
   const tipo = await repositorio.tipoPorId(id);

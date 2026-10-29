@@ -34,6 +34,7 @@ import {
   esEmpleado,
   exigirVisibilidad,
   filtrosDeAlcance,
+  puedeOperar,
   puedeSancionarA
 } from './alcance.service.js';
 import { enriquecer } from './estado.service.js';
@@ -41,8 +42,10 @@ import { enriquecer } from './estado.service.js';
 /* ------------------------------------------------------------------ ayudas */
 
 function exigirEmpleado(usuario, mensaje) {
-  if (!esEmpleado(usuario)) {
-    throw AppError.prohibido(mensaje || 'Solo funcionarios y administradores pueden moderar');
+  if (!puedeOperar(usuario)) {
+    throw AppError.prohibido(
+      mensaje || 'Tu cuenta es de solo lectura: no puede moderar contenido'
+    );
   }
 }
 
@@ -89,6 +92,9 @@ async function cuentaDeContenido(repositorio, contenido) {
  * la cola), pero no se puede denunciar el contenido propio.
  */
 export async function denunciar(repositorio, usuario, incidenciaId, datos = {}) {
+  if (esEmpleado(usuario) && !puedeOperar(usuario)) {
+    throw AppError.prohibido('Tu cuenta es de solo lectura: no puede denunciar contenido');
+  }
   const incidencia = await repositorio.incidenciaPorId(incidenciaId);
   exigirVisibilidad(incidencia, usuario);
 
@@ -737,10 +743,23 @@ export async function sanciones(repositorio, usuario) {
   const usuarios = await repositorio.todosLosUsuarios();
   return usuarios
     .filter((u) => puedeSancionarA(usuario, u))
-    .filter((u) => u.suspendido === true || (u.advertencias || 0) > 0)
+    .filter(
+      (u) =>
+        u.suspendido === true ||
+        (u.advertencias || 0) > 0 ||
+        u.comentariosRestringidos === true
+    )
     .map((u) => ({
       ...publico(u),
-      suspendidoAhora: estaSuspendido(u)
+      suspendidoAhora: estaSuspendido(u),
+      restriccionComentarios:
+        u.comentariosRestringidos === true
+          ? {
+              hasta: u.comentariosRestringidosHasta || null,
+              motivo: u.comentariosRestringidosMotivo || '',
+              por: u.comentariosRestringidosPor || null
+            }
+          : null
     }))
     .sort((a, b) => (b.advertencias || 0) - (a.advertencias || 0));
 }

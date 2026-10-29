@@ -30,6 +30,10 @@ export class AppError extends Error {
     return new AppError(409, mensaje);
   }
 
+  static precondicionRequerida(mensaje = 'Debes aceptar los términos para continuar', detalles = null) {
+    return new AppError(428, mensaje, detalles);
+  }
+
   static errorInterno(mensaje = 'Error interno del servidor') {
     return new AppError(500, mensaje);
   }

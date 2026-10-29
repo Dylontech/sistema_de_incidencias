@@ -1,6 +1,10 @@
 /** Cliente de pruebas: envuelve supertest y adjunta el token cuando existe. */
 import request from 'supertest';
 
+/** Sufijo único para correos y nombres de prueba (el nombre no se repite). */
+const sufijo = () =>
+  `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 export class Api {
   constructor(app, token = null) {
     this.app = app;
@@ -41,11 +45,15 @@ export class Api {
    * Ciudadano registrado (correo + contraseña). Es quien recibe los avisos de
    * sus reportes: la sesión anónima no tiene buzón.
    */
-  static async ciudadano(app, { correo, password = 'segura1234', nombre = 'Vecina Prueba', pseudonimo = false } = {}) {
-    const email = correo || `prueba-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}@ejemplo.mx`;
+  static async ciudadano(app, { correo, password = 'segura1234', nombre = null, pseudonimo = false } = {}) {
+    const email = correo || `prueba-${sufijo()}@ejemplo.mx`;
+    // El nombre es la credencial de acceso y no puede repetirse entre
+    // ciudadanos: por defecto se usa uno único para que varias cuentas de
+    // prueba convivan en la misma base.
+    const nombreFinal = nombre || `Vecina Prueba ${sufijo()}`;
     const r = await request(app)
       .post('/api/auth/registro')
-      .send({ correo: email, password, nombre, pseudonimo });
+      .send({ correo: email, password, nombre: nombreFinal, pseudonimo });
     if (r.status !== 201) {
       throw new Error(`No se pudo registrar el ciudadano de prueba: ${r.body?.error || r.status}`);
     }
@@ -54,7 +62,7 @@ export class Api {
 
   /**
    * Alta de cuenta ciudadana devolviendo la respuesta cruda: así se pueden
-   * comprobar los rechazos (correo repetido, contraseña corta, sin nombre…).
+   * comprobar los rechazos (nombre repetido, contraseña corta, sin nombre…).
    */
   static registrar(app, cuerpo = {}) {
     return request(app).post('/api/auth/registro').send(cuerpo);
@@ -71,7 +79,7 @@ export class Api {
     const respuesta = await request(app).post('/api/auth/registro').send({
       correo,
       password,
-      nombre: datos.nombre || 'Vecino Moderación',
+      nombre: datos.nombre || `Vecino Moderación ${sufijo()}`,
       pseudonimo: datos.pseudonimo === true
     });
     if (respuesta.status !== 201) {

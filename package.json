@@ -13,7 +13,13 @@
     "migrate:rollback": "npm --prefix backend run migrate:rollback",
     "seed": "npm --prefix backend run seed",
     "importar-inegi": "npm --prefix backend run importar-inegi",
+    "vendorizar-frontend": "npm --prefix backend run vendorizar-frontend",
     "migrar-catalogo": "npm --prefix backend run migrar-catalogo",
-    "datos-demo": "npm --prefix backend run datos-demo"
+    "datos-demo": "npm --prefix backend run datos-demo",
+    "desktop": "npm --prefix desktop start",
+    "desktop:install": "npm --prefix desktop install",
+    "desktop:dist:win": "npm --prefix desktop run dist:win",
+    "desktop:dist:linux": "npm --prefix desktop run dist:linux",
+    "mapas:offline": "npm --prefix desktop run mapas:generar"
   }
 }

@@ -9,10 +9,18 @@
  * siempre derivado de la fecha y el estado (ver services/estado.service.js),
  * de modo que existe una única fuente de verdad.
  */
-import { ESTADO_INICIAL, LIMITES_TEXTO, PRECISION_DUPLICADO } from '../config/constantes.js';
+import {
+  AMBITO_INICIAL,
+  AMBITOS,
+  ESTADO_INICIAL,
+  JURISDICCIONES,
+  LIMITES_TEXTO,
+  PRECISION_DUPLICADO
+} from '../config/constantes.js';
 import { recolector, normalizarBusqueda } from '../utils/validacion.js';
 import { ahoraIso } from '../utils/fechas.js';
 import { nuevoId } from '../utils/ids.js';
+import { puedeEscribirDe } from './usuario.model.js';
 
 /** Campos que el cliente puede enviar al crear o editar. */
 export const CAMPOS_ENTRADA = [
@@ -24,7 +32,16 @@ export const CAMPOS_ENTRADA = [
   'lat',
   'lng',
   'anonima',
-  'evidencia'
+  'evidencia',
+  // Ámbito vial (carreteras estatales/federales, autopistas, caminos).
+  'ambito',
+  'jurisdiccion',
+  'viaNombre',
+  'viaClave',
+  'kilometro',
+  'sentido',
+  'tramo',
+  'dependencia'
 ];
 
 // La evidencia es solo de fotografías; el PDF se admite como documento de la
@@ -89,6 +106,39 @@ export function validarEntrada(datos = {}, { parcial = false, exigirUbicacion = 
     salida.municipioId = v.texto(datos.municipioId, 'municipioId', { max: 64 });
   }
 
+  // Ámbito: urbano (geocerca municipal estricta) o vialidad de mayor jerarquía.
+  if (!parcial || tiene('ambito')) {
+    salida.ambito = v.enumeracion(datos.ambito ?? AMBITO_INICIAL, 'ambito', AMBITOS, {
+      requerido: true
+    });
+  }
+  if (tiene('jurisdiccion')) {
+    salida.jurisdiccion =
+      v.enumeracion(datos.jurisdiccion, 'jurisdiccion', JURISDICCIONES, { requerido: false }) ||
+      null;
+  }
+  if (!parcial || tiene('viaNombre')) {
+    salida.viaNombre = v.texto(datos.viaNombre, 'viaNombre', { max: LIMITES_TEXTO.viaNombre });
+  }
+  if (tiene('viaClave')) {
+    salida.viaClave = v.texto(datos.viaClave, 'viaClave', { max: LIMITES_TEXTO.viaClave });
+  }
+  if (tiene('kilometro')) {
+    const kilometro = v.numero(datos.kilometro, 'kilometro', { min: 0, max: 99999 });
+    salida.kilometro = kilometro === null ? null : kilometro;
+  }
+  if (tiene('sentido')) {
+    salida.sentido = v.texto(datos.sentido, 'sentido', { max: LIMITES_TEXTO.sentido });
+  }
+  if (tiene('tramo')) {
+    salida.tramo = v.texto(datos.tramo, 'tramo', { max: LIMITES_TEXTO.tramo });
+  }
+  if (tiene('dependencia')) {
+    salida.dependencia = v.texto(datos.dependencia, 'dependencia', {
+      max: LIMITES_TEXTO.dependencia
+    });
+  }
+
   v.terminar();
   return salida;
 }
@@ -121,7 +171,14 @@ function normalizarEvidencia(lista, v) {
 }
 
 /** Documento completo de una incidencia nueva. */
-export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora = ahoraIso() }) {
+export function construirIncidencia({
+  entrada,
+  usuario,
+  zona,
+  municipioId,
+  estadoEntidad = null,
+  ahora = ahoraIso()
+}) {
   // Una sesión sin cuenta solo puede reportar en anónimo. Con cuenta, manda la
   // elección que venga en el formulario (por omisión, firma el reporte).
   const anonima = usuario.rol === 'anonimo' ? true : entrada.anonima === true;
@@ -147,6 +204,18 @@ export function construirIncidencia({ entrada, usuario, zona, municipioId, ahora
     autorNombre: anonima ? 'Anónimo' : usuario.nombre,
     userKey: usuario.userKey,
     municipioId,
+    // Entidad federativa denormalizada: permite filtrar por estado sin unir
+    // con el catálogo de municipios en cada consulta.
+    estadoEntidad,
+    // Ámbito y datos de la vía (solo se usan en reportes carreteros).
+    ambito: entrada.ambito || AMBITO_INICIAL,
+    jurisdiccion: entrada.jurisdiccion || null,
+    viaNombre: entrada.viaNombre || '',
+    viaClave: entrada.viaClave || '',
+    kilometro: entrada.kilometro ?? null,
+    sentido: entrada.sentido || '',
+    tramo: entrada.tramo || '',
+    dependencia: entrada.dependencia || '',
     zonaId: zona ? zona.id : null,
     zonaNombre: zona ? zona.nombre : null,
     // Marca de peligro: solo el personal puede activarla (ver
@@ -199,6 +268,7 @@ export function aplicarEdicion(actual, entrada, { ahora = ahoraIso() } = {}) {
   editado.autorNombre = actual.autorNombre;
   editado.esAnonimo = actual.esAnonimo;
   editado.municipioId = actual.municipioId;
+  editado.estadoEntidad = actual.estadoEntidad;
   // La marca de peligro la controla el personal, no el autor del reporte.
   editado.peligrosa = actual.peligrosa === true;
   editado.peligrosaPor = actual.peligrosaPor ?? null;
@@ -256,7 +326,9 @@ export function puedeVer(incidencia, usuario) {
 /** Reglas de edición (paridad con la vista de detalle del monolito). */
 export function puedeEditar(incidencia, usuario) {
   if (!usuario) return false;
-  if (usuario.rol === 'admin' || usuario.rol === 'funcionario') return true;
+  if (usuario.rol === 'admin') return true;
+  // Un auditor o enlace estatal/federal nunca escribe, aunque sea personal.
+  if (usuario.rol === 'funcionario') return puedeEscribirDe(usuario);
   if (incidencia.userKey !== usuario.userKey) return false;
   // Un contenido oculto por moderación se queda congelado para su autor: si
   // pudiera editarlo, estaría modificando algo que ya no se ve.
