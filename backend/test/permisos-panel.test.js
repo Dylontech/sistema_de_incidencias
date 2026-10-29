@@ -55,7 +55,9 @@ describe('Permisos por pestaña del panel', () => {
       'backend/src/routes/correos-institucionales.routes.js',
       'backend/src/routes/configuracion.routes.js',
       'backend/src/routes/firmas.routes.js',
-      'backend/src/routes/sesiones.routes.js'
+      'backend/src/routes/sesiones.routes.js',
+      'backend/src/routes/claves.routes.js',
+      'backend/src/routes/auditoria.routes.js'
     ];
     for (const ruta of rutas) {
       const contenido = fs.readFileSync(path.join(raiz, ruta), 'utf8');

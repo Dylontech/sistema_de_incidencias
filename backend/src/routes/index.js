@@ -1,6 +1,7 @@
 /** Enrutador raíz de la API (/api). */
 import { Router } from 'express';
 import adjuntosRoutes from './adjuntos.routes.js';
+import auditoriaRoutes from './auditoria.routes.js';
 import authRoutes from './auth.routes.js';
 import catalogosRoutes from './catalogos.routes.js';
 import clavesRoutes from './claves.routes.js';
@@ -62,6 +63,7 @@ router.use('/', catalogosRoutes);
 // `router.use(requiereSesion)`, porque esos interceptan todo lo montado después.
 router.use('/', reportesRoutes);
 router.use('/', clavesRoutes);
+router.use('/', auditoriaRoutes);
 router.use('/', contactosFuncionariosRoutes);
 router.use('/', comunicacionRoutes);
 router.use('/', correosInstitucionalesRoutes);

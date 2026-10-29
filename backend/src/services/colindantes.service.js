@@ -3,7 +3,7 @@
  *
  * Un municipio es colindante de otro cuando sus fronteras se tocan. La pregunta
  * se responde con geometría, no con una lista escrita a mano: el catálogo del
- * INEGI ya trae el contorno de los 175 municipios.
+ * INEGI ya trae el contorno de los municipios del catálogo nacional.
  *
  * Cómo se decide
  * --------------

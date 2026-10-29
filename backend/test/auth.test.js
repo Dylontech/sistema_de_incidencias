@@ -112,12 +112,23 @@ describe('Autenticación', () => {
 
     const municipios = await admin.get('/api/municipios');
     assert.equal(municipios.status, 200);
-    // Los 175 municipios de los tres estados, ordenados por estado y nombre y
+    // Los 175 municipios del catálogo de pruebas, ordenados por estado y nombre y
     // sin los polígonos (el listado ligero no los lleva; el detalle sí).
     assert.equal(municipios.body.municipios.length, 175);
     const estados = [...new Set(municipios.body.municipios.map((m) => m.estado))];
     assert.deepEqual(estados, ['Ciudad de México', 'Guanajuato', 'Michoacán']);
+    // El catálogo ligero declara las 32 entidades aunque solo tres tengan
+    // municipios importados: el selector puede ofrecer cualquier estado.
+    assert.equal(municipios.body.estados.length, 32);
+    assert.ok(municipios.body.estados.includes('Aguascalientes'));
+    assert.ok(municipios.body.estados.includes('Michoacán'));
+    assert.ok(municipios.body.estados.includes('Zacatecas'));
     assert.equal(municipios.body.municipios[0].estado, 'Ciudad de México');
+
+    const publicos = await request(app).get('/api/publico/municipios');
+    assert.equal(publicos.status, 200);
+    assert.equal(publicos.body.estados.length, 32);
+    assert.equal(publicos.body.municipios.length, 175);
     // En la CDMX el INEGI codifica las alcaldías como municipios.
     assert.ok(
       municipios.body.municipios.some((m) => m.id === '09015' && m.nombre === 'Cuauhtémoc')

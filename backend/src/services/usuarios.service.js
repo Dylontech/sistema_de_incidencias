@@ -12,6 +12,7 @@
  */
 import { AppError } from '../utils/AppError.js';
 import {
+  ESTADOS_REPUBLICA,
   LIMITES_TEXTO,
   ROLES_ADMIN,
   ROLES_LECTURA,
@@ -70,7 +71,13 @@ async function validarAlcance(repositorio, rol, { municipios = [], estados = [] 
 
   const catalogo = await repositorio.todosMunicipios();
   const porId = new Map(catalogo.map((m) => [m.id, m]));
-  const estadosValidos = new Set(catalogo.map((m) => m.estado));
+  // Los estados se validan contra las 32 entidades, no solo contra los que ya
+  // tienen municipios importados: una cuenta puede quedar preparada para un
+  // estado cuyo catálogo se importe después.
+  const estadosValidos = new Set([
+    ...ESTADOS_REPUBLICA,
+    ...catalogo.map((m) => m.estado)
+  ]);
 
   for (const id of idsMunicipios) {
     if (!porId.has(id)) {

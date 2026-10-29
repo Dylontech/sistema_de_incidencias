@@ -33,8 +33,10 @@ const TABLAS = [
   'preferencia_municipios',
   'claves_acceso',
   'clave_acceso_municipios',
+  'clave_acceso_estados',
   'clave_acceso_usos',
   'sesiones_usuario',
+  'auditoria',
   'solicitudes_acceso',
   'tickets',
   'ticket_mensajes',
@@ -74,6 +76,7 @@ const COLUMNAS = {
   solicitudes_informe: ['municipios', 'estados', 'tipos_todos'],
   notificaciones: ['archivada_en', 'simulado'],
   claves_acceso: ['correo_contacto', 'correo_institucional_id'],
+  sesiones_usuario: ['clave_id'],
   publicaciones_redes: [
     'color_primario',
     'color_secundario',
@@ -567,7 +570,7 @@ export class RepositorioMysql {
 
   /* ----------------------------- claves de acceso -------------------------- */
 
-  #aClave(fila, municipios = []) {
+  #aClave(fila, municipios = [], estados = []) {
     if (!fila) return null;
     return {
       id: fila.id,
@@ -583,22 +586,35 @@ export class RepositorioMysql {
       revocadaEn: desdeFecha(fila.revocada_en),
       correoContacto: fila.correo_contacto || null,
       correoInstitucionalId: fila.correo_institucional_id || null,
-      municipios
+      municipios,
+      estados
     };
   }
 
   async todasLasClaves() {
     const filas = await this.knex('claves_acceso').orderBy('creado_en', 'desc');
     const ids = filas.map((f) => f.id);
-    const municipios = ids.length
-      ? await this.knex('clave_acceso_municipios').whereIn('clave_id', ids)
-      : [];
-    const mapa = new Map();
+    const [municipios, estados] = await Promise.all([
+      ids.length
+        ? this.knex('clave_acceso_municipios').whereIn('clave_id', ids)
+        : [],
+      ids.length
+        ? this.knex('clave_acceso_estados').whereIn('clave_id', ids)
+        : []
+    ]);
+    const mapaMunicipios = new Map();
     for (const fila of municipios) {
-      if (!mapa.has(fila.clave_id)) mapa.set(fila.clave_id, []);
-      mapa.get(fila.clave_id).push(fila.municipio_id);
+      if (!mapaMunicipios.has(fila.clave_id)) mapaMunicipios.set(fila.clave_id, []);
+      mapaMunicipios.get(fila.clave_id).push(fila.municipio_id);
     }
-    return filas.map((f) => this.#aClave(f, mapa.get(f.id) || []));
+    const mapaEstados = new Map();
+    for (const fila of estados) {
+      if (!mapaEstados.has(fila.clave_id)) mapaEstados.set(fila.clave_id, []);
+      mapaEstados.get(fila.clave_id).push(fila.estado);
+    }
+    return filas.map((f) =>
+      this.#aClave(f, mapaMunicipios.get(f.id) || [], mapaEstados.get(f.id) || [])
+    );
   }
 
   async claveAccesoPorCodigo(codigo) {
@@ -606,10 +622,11 @@ export class RepositorioMysql {
       .whereRaw('UPPER(codigo) = ?', [String(codigo || '').trim().toUpperCase()])
       .first();
     if (!fila) return null;
-    const municipios = await this.knex('clave_acceso_municipios')
-      .where({ clave_id: fila.id })
-      .pluck('municipio_id');
-    return this.#aClave(fila, municipios);
+    const [municipios, estados] = await Promise.all([
+      this.knex('clave_acceso_municipios').where({ clave_id: fila.id }).pluck('municipio_id'),
+      this.knex('clave_acceso_estados').where({ clave_id: fila.id }).pluck('estado')
+    ]);
+    return this.#aClave(fila, municipios, estados);
   }
 
   async crearClaveAcceso(clave) {
@@ -632,8 +649,18 @@ export class RepositorioMysql {
           clave.municipios.map((municipioId) => ({ clave_id: clave.id, municipio_id: municipioId }))
         );
       }
+      if ((clave.estados || []).length) {
+        await trx('clave_acceso_estados').insert(
+          clave.estados.map((estado) => ({ clave_id: clave.id, estado }))
+        );
+      }
     });
-    return { ...clave, municipios: clave.municipios || [], usos: 0 };
+    return {
+      ...clave,
+      municipios: clave.municipios || [],
+      estados: clave.estados || [],
+      usos: 0
+    };
   }
 
   async revocarClaveAcceso(id) {
@@ -642,10 +669,49 @@ export class RepositorioMysql {
       .update({ activa: false, revocada_en: this.knex.fn.now() });
     const fila = await this.knex('claves_acceso').where({ id }).first();
     if (!fila) return null;
-    const municipios = await this.knex('clave_acceso_municipios')
-      .where({ clave_id: id })
-      .pluck('municipio_id');
-    return this.#aClave(fila, municipios);
+    const [municipios, estados] = await Promise.all([
+      this.knex('clave_acceso_municipios').where({ clave_id: id }).pluck('municipio_id'),
+      this.knex('clave_acceso_estados').where({ clave_id: id }).pluck('estado')
+    ]);
+    return this.#aClave(fila, municipios, estados);
+  }
+
+  /** Elimina la clave y sus asignaciones; las sesiones se cierran aparte. */
+  async eliminarClaveAcceso(id) {
+    const fila = await this.knex('claves_acceso').where({ id }).first();
+    if (!fila) return null;
+    const [municipios, estados] = await Promise.all([
+      this.knex('clave_acceso_municipios').where({ clave_id: id }).pluck('municipio_id'),
+      this.knex('clave_acceso_estados').where({ clave_id: id }).pluck('estado')
+    ]);
+    await this.knex('claves_acceso').where({ id }).del();
+    return this.#aClave(fila, municipios, estados);
+  }
+
+  async usuariosDeClaves(ids = []) {
+    const mapa = {};
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    if (!limpios.length) return mapa;
+    const filas = await this.knex('clave_acceso_usos as cu')
+      .leftJoin('usuarios as u', 'u.id', 'cu.usuario_id')
+      .whereIn('cu.clave_id', limpios)
+      .select('cu.clave_id', 'cu.usuario_id', 'u.username', 'u.nombre');
+    const vistos = new Set();
+    for (const fila of filas) {
+      const clave = fila.clave_id;
+      const identidad = String(fila.usuario_id || fila.username || '');
+      if (!identidad) continue;
+      const llave = `${clave}:${identidad}`;
+      if (vistos.has(llave)) continue;
+      vistos.add(llave);
+      if (!mapa[clave]) mapa[clave] = [];
+      mapa[clave].push({
+        id: fila.usuario_id || null,
+        username: fila.username || null,
+        nombre: fila.nombre || null
+      });
+    }
+    return mapa;
   }
 
   async actualizarClaveAcceso(id, cambios = {}) {
@@ -658,10 +724,11 @@ export class RepositorioMysql {
     if (Object.keys(fila).length) await this.knex('claves_acceso').where({ id }).update(fila);
     const actual = await this.knex('claves_acceso').where({ id }).first();
     if (!actual) return null;
-    const municipios = await this.knex('clave_acceso_municipios')
-      .where({ clave_id: id })
-      .pluck('municipio_id');
-    return this.#aClave(actual, municipios);
+    const [municipios, estados] = await Promise.all([
+      this.knex('clave_acceso_municipios').where({ clave_id: id }).pluck('municipio_id'),
+      this.knex('clave_acceso_estados').where({ clave_id: id }).pluck('estado')
+    ]);
+    return this.#aClave(actual, municipios, estados);
   }
 
   async registrarUsoClave(id, { usuarioId = null, ipHash = null } = {}) {
@@ -686,6 +753,9 @@ export class RepositorioMysql {
       userKey: fila.user_key || null,
       rol: fila.rol || null,
       municipioId: fila.municipio_id || null,
+      claveId: fila.clave_id || null,
+      claveCodigo: fila.clave_codigo || null,
+      claveNombre: fila.clave_nombre || null,
       ipHash: fila.ip_hash || null,
       userAgent: fila.user_agent || null,
       inicio: desdeFecha(fila.inicio),
@@ -698,11 +768,14 @@ export class RepositorioMysql {
   async registrarSesion(sesion) {
     const existe = await this.knex('sesiones_usuario').where({ id: sesion.id }).first();
     if (existe) {
-      await this.knex('sesiones_usuario').where({ id: sesion.id }).update({
+      const cambios = {
         rol: sesion.rol || null,
         municipio_id: sesion.municipioId || null,
         ultima_actividad: this.knex.fn.now()
-      });
+      };
+      if (sesion.claveId) cambios.clave_id = sesion.claveId;
+      if (sesion.usuarioId) cambios.usuario_id = sesion.usuarioId;
+      await this.knex('sesiones_usuario').where({ id: sesion.id }).update(cambios);
       return;
     }
 
@@ -712,6 +785,7 @@ export class RepositorioMysql {
       user_key: sesion.userKey || null,
       rol: sesion.rol || null,
       municipio_id: sesion.municipioId || null,
+      clave_id: sesion.claveId || null,
       ip_hash: sesion.ipHash || null,
       user_agent: sesion.userAgent || null
     });
@@ -728,12 +802,111 @@ export class RepositorioMysql {
       .update({ cerrada_en: this.knex.fn.now(), motivo_cierre: motivo });
   }
 
-  async listarSesiones({ limite = 200 } = {}) {
+  /** Cierra todas las sesiones abiertas con una clave y devuelve las afectadas. */
+  async cerrarSesionesPorClave(claveId, motivo = 'clave eliminada') {
     const filas = await this.knex('sesiones_usuario')
+      .where({ clave_id: claveId })
       .whereNull('cerrada_en')
-      .orderBy('ultima_actividad', 'desc')
+      .select('id', 'usuario_id', 'user_key', 'clave_id');
+    if (filas.length) {
+      await this.knex('sesiones_usuario')
+        .whereIn('id', filas.map((f) => f.id))
+        .update({ cerrada_en: this.knex.fn.now(), motivo_cierre: motivo });
+    }
+    return filas.map((f) => ({
+      id: f.id,
+      usuarioId: f.usuario_id || null,
+      userKey: f.user_key || null,
+      claveId: f.clave_id || null
+    }));
+  }
+
+  async listarSesiones({ limite = 200, claveId = null } = {}) {
+    const consulta = this.knex('sesiones_usuario as s')
+      .leftJoin('claves_acceso as c', 'c.id', 's.clave_id')
+      .whereNull('s.cerrada_en')
+      .select('s.*', 'c.codigo as clave_codigo', 'c.nombre as clave_nombre')
+      .orderBy('s.ultima_actividad', 'desc')
       .limit(Math.min(Number(limite) || 200, 500));
+    if (claveId) consulta.where('s.clave_id', claveId);
+    const filas = await consulta;
     return filas.map((f) => this.#aSesion(f));
+  }
+
+  /* ------------------------------- auditoría ------------------------------- */
+
+  async registrarAuditoria(registro) {
+    await this.knex('auditoria').insert({
+      id: registro.id,
+      usuario_id: registro.usuarioId || null,
+      username: registro.username || null,
+      user_key: registro.userKey || null,
+      rol: registro.rol || null,
+      clave_id: registro.claveId || null,
+      metodo: registro.metodo,
+      ruta: registro.ruta,
+      estado_http: registro.estadoHttp ?? null,
+      accion: registro.accion || null,
+      entidad: registro.entidad || null,
+      entidad_id: registro.entidadId || null,
+      detalle: registro.detalle || null,
+      ip_hash: registro.ipHash || null,
+      user_agent: registro.userAgent || null
+    });
+    return registro;
+  }
+
+  async listarAuditoria({
+    limite = 200,
+    username = null,
+    accion = null,
+    desde = null,
+    hasta = null
+  } = {}) {
+    const consulta = this.knex('auditoria as a')
+      .leftJoin('claves_acceso as c', 'a.clave_id', 'c.id')
+      .select('a.*', 'c.codigo as clave_codigo', 'c.nombre as clave_nombre')
+      .orderBy('a.creado_en', 'desc')
+      .limit(Math.min(Number(limite) || 200, 500));
+    if (username) {
+      consulta.whereRaw('LOWER(a.username) LIKE ?', [`%${String(username).toLowerCase()}%`]);
+    }
+    if (accion) {
+      consulta.whereRaw('LOWER(a.accion) LIKE ?', [`%${String(accion).toLowerCase()}%`]);
+    }
+    if (desde) {
+      const valor = /^\d{4}-\d{2}-\d{2}$/.test(String(desde))
+        ? `${desde} 00:00:00`
+        : desde;
+      consulta.where('a.creado_en', '>=', valor);
+    }
+    if (hasta) {
+      const valor = /^\d{4}-\d{2}-\d{2}$/.test(String(hasta))
+        ? `${hasta} 23:59:59`
+        : hasta;
+      consulta.where('a.creado_en', '<=', valor);
+    }
+    const filas = await consulta;
+    return filas.map((f) => ({
+      id: f.id,
+      usuarioId: f.usuario_id || null,
+      username: f.username || null,
+      userKey: f.user_key || null,
+      rol: f.rol || null,
+      claveId: f.clave_id || null,
+      claveCodigo: f.clave_codigo || null,
+      claveNombre: f.clave_nombre || null,
+      metodo: f.metodo,
+      ruta: f.ruta,
+      estadoHttp: f.estado_http === null ? null : Number(f.estado_http),
+      accion: f.accion || null,
+      entidad: f.entidad || null,
+      entidadId: f.entidad_id || null,
+      detalle: f.detalle || null,
+      ipHash: f.ip_hash || null,
+      userAgent: f.user_agent || null,
+      creadoEn: desdeFecha(f.creado_en)
+    }));
   }
 
   /** Traduce el objeto de dominio a columnas (y viceversa con `parcial`). */

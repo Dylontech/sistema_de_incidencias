@@ -16,9 +16,8 @@ import { hashearPassword } from '../../src/models/usuario.model.js';
 /**
  * Trocea una lista para insertarla por lotes.
  *
- * Con los tres estados el catálogo pasa de 6 000 comunidades y una sola
- * sentencia INSERT se acerca al `max_allowed_packet` de MariaDB, así que se
- * inserta por partes.
+ * Con el catálogo nacional (50 763 comunidades) una sola sentencia INSERT
+ * supera el `max_allowed_packet` de MariaDB, así que se inserta por partes.
  */
 function enLotes(lista, tamano = 500) {
   const lotes = [];

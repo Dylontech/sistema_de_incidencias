@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/admin/claves', requierePermiso('gestionar_claves'), claves.listar);
 router.post('/admin/claves', requierePermiso('gestionar_claves'), claves.crear);
-router.delete('/admin/claves/:id', requierePermiso('gestionar_claves'), claves.revocar);
+router.post('/admin/claves/:id/revocar', requierePermiso('gestionar_claves'), claves.revocar);
+router.delete('/admin/claves/:id', requierePermiso('gestionar_claves'), claves.eliminar);
 
 export default router;

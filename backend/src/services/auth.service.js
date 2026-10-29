@@ -66,7 +66,7 @@ function contexto({ username, nombre, rol, municipioId, userKey, permisos = {} }
   return { username, nombre, rol, municipioId: municipioId || null, userKey, permisos };
 }
 
-function sesion({ usuario, municipioActivo = null }) {
+function sesion({ usuario, municipioActivo = null, claveId = null }) {
   const esPersonal = ROLES_PERSONAL.includes(usuario.rol);
   const puedeEscribir = puedeEscribirDe(usuario);
   const permisos = permisosDe(usuario);
@@ -82,7 +82,8 @@ function sesion({ usuario, municipioActivo = null }) {
       municipioId: usuario.municipioId || null,
       correo: usuario.correo || null,
       userKey: usuario.userKey,
-      jti: idSesion
+      jti: idSesion,
+      claveId: claveId || null
     }),
     usuario: {
       username: usuario.username,
@@ -91,6 +92,7 @@ function sesion({ usuario, municipioActivo = null }) {
       municipioId: usuario.municipioId || null,
       correo: usuario.correo || null,
       userKey: usuario.userKey,
+      claveId: claveId || null,
       pseudonimo: usuario.pseudonimo === true,
       esAnonimo: usuario.rol === 'anonimo',
       esPersonal,
@@ -380,7 +382,7 @@ export async function entrarFuncionario(
       const municipio = municipioId ? await repositorio.municipioPorId(municipioId) : null;
       if (!municipio) throw AppError.prohibido('No tienes acceso a este municipio');
       usuario.municipioId = municipio.id;
-      return sesion({ usuario, municipioActivo: municipio });
+      return sesion({ usuario, municipioActivo: municipio, claveId: clave.id });
     }
 
     if (!claveMunicipio) {
@@ -404,7 +406,7 @@ export async function entrarFuncionario(
   if (clave) {
     const municipio = await repositorio.municipioPorId(clave.municipios[0]);
     usuario.municipioId = municipio?.id || null;
-    return sesion({ usuario, municipioActivo: municipio || null });
+    return sesion({ usuario, municipioActivo: municipio || null, claveId: clave.id });
   }
 
   const activo = await municipioSugerido(repositorio, usuario);
@@ -442,7 +444,8 @@ export function usuarioDesdeToken(payload) {
     municipioId: payload.municipioId || null,
     correo: payload.correo || null,
     userKey: payload.userKey || payload.username,
-    jti: payload.jti || null
+    jti: payload.jti || null,
+    claveId: payload.claveId || null
   };
 }
 
@@ -480,9 +483,17 @@ export async function cambiarMunicipioActivo(repositorio, usuario, { municipioId
     }
 
     ctx.municipioId = municipio.id;
-    return sesion({ usuario: ctx, municipioActivo: municipio });
+    return sesion({
+      usuario: ctx,
+      municipioActivo: municipio,
+      claveId: usuario.claveId || null
+    });
   }
 
   const actualizado = contexto({ ...usuario, municipioId: municipio.id });
-  return sesion({ usuario: actualizado, municipioActivo: municipio });
+  return sesion({
+    usuario: actualizado,
+    municipioActivo: municipio,
+    claveId: usuario.claveId || null
+  });
 }

@@ -1,11 +1,15 @@
 /** Controlador HTTP de municipios, zonas y catálogos de presentación. */
 import { asyncHandler } from '../utils/AppError.js';
+import { ESTADOS_REPUBLICA } from '../config/constantes.js';
 import * as municipios from '../services/municipios.service.js';
 import * as colindantesService from '../services/colindantes.service.js';
 
 export const listar = asyncHandler(async (req, res) => {
   const incluirPoligono = req.query.poligono === '1' || req.query.poligono === 'true';
-  res.json({ municipios: await municipios.listar(req.repositorio, req.usuario, { incluirPoligono }) });
+  res.json({
+    municipios: await municipios.listar(req.repositorio, req.usuario, { incluirPoligono }),
+    estados: ESTADOS_REPUBLICA
+  });
 });
 
 export const detalle = asyncHandler(async (req, res) => {

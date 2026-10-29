@@ -12,6 +12,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
 
 export function prepararEntorno() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'incidencias-test-'));
@@ -21,6 +24,10 @@ export function prepararEntorno() {
   process.env.STORAGE_DRIVER = driver;
   process.env.DATA_DIR = path.join(base, 'data');
   process.env.UPLOAD_DIR = path.join(base, 'uploads');
+  // Las pruebas usan la semilla ligera de tres estados aunque el catálogo
+  // nacional completo viva en src/config/seed-data. Así cada archivo de prueba
+  // no tiene que cargar ni sembrar miles de municipios y comunidades.
+  process.env.SEED_DATA_DIR = path.join(AQUI, '..', 'fixtures', 'seed-data');
   process.env.JWT_SECRET = 'secreto-solo-para-pruebas';
   process.env.JWT_EXPIRES_IN = '1h';
 

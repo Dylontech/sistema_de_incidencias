@@ -12,9 +12,9 @@
  * que el catálogo quepa en el repositorio.
  *
  * Uso:
- *   node scripts/importar-inegi.mjs                       # Michoacán, Guanajuato y CDMX
+ *   node scripts/importar-inegi.mjs                       # las 32 entidades
  *   node scripts/importar-inegi.mjs --estado=16           # sólo Michoacán
- *   node scripts/importar-inegi.mjs --estado=16,11,09     # los tres (por omisión)
+ *   node scripts/importar-inegi.mjs --estado=16,11,09     # tres entidades
  *   node scripts/importar-inegi.mjs --municipios=16050,11001
  *   node scripts/importar-inegi.mjs --tolerancia-zona=0   # sin simplificar
  *
@@ -34,10 +34,12 @@ const FUENTE_POR_DEFECTO =
   'https://raw.githubusercontent.com/MacWilliXD/INEGI-geojson/main/geojson_descargas';
 
 /**
- * Estados que trae el catálogo por omisión: Michoacán, Guanajuato y Ciudad de
- * México (en la CDMX el INEGI codifica las alcaldías como municipios).
+ * Estados que trae el catálogo por omisión: las 32 entidades federativas.
+ * En la CDMX el INEGI codifica las alcaldías como municipios.
  */
-const ESTADOS_POR_DEFECTO = ['16', '11', '09'];
+const ESTADOS_POR_DEFECTO = Array.from({ length: 32 }, (_, indice) =>
+  String(indice + 1).padStart(2, '0')
+);
 
 /** Nombres oficiales abreviados de las 32 entidades federativas. */
 const ESTADOS = {

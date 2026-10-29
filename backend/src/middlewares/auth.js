@@ -31,6 +31,7 @@ async function registrarActividad(repositorio, delToken, req, usuarioId = null) 
     userKey: delToken.userKey || delToken.username,
     rol: delToken.rol,
     municipioId: delToken.municipioId || null,
+    claveId: delToken.claveId || null,
     ipHash: hashIp(req.ip),
     userAgent: String(req.headers['user-agent'] || '').slice(0, 200)
   });

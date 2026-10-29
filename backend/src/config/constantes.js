@@ -62,6 +62,47 @@ export const ROLES_PERSONAL_ASIGNABLES = ROLES_PERSONAL;
 /** Roles con cuenta propia (todo menos la sesión anónima). */
 export const ROLES_CUENTA = ['ciudadano', ...ROLES_PERSONAL];
 
+/**
+ * Las 32 entidades federativas de México, en orden alfabético.
+ * Los nombres coinciden con los que usa el importador del INEGI y el catálogo
+ * (`municipios.estado`). No confundir con `ESTADOS`, que son los estados de
+ * una incidencia.
+ */
+export const ESTADOS_REPUBLICA = [
+  'Aguascalientes',
+  'Baja California',
+  'Baja California Sur',
+  'Campeche',
+  'Coahuila',
+  'Colima',
+  'Chiapas',
+  'Chihuahua',
+  'Ciudad de México',
+  'Durango',
+  'Guanajuato',
+  'Guerrero',
+  'Hidalgo',
+  'Jalisco',
+  'México',
+  'Michoacán',
+  'Morelos',
+  'Nayarit',
+  'Nuevo León',
+  'Oaxaca',
+  'Puebla',
+  'Querétaro',
+  'Quintana Roo',
+  'San Luis Potosí',
+  'Sinaloa',
+  'Sonora',
+  'Tabasco',
+  'Tamaulipas',
+  'Tlaxcala',
+  'Veracruz',
+  'Yucatán',
+  'Zacatecas'
+];
+
 /** Ámbitos de una incidencia: urbano o vialidad de mayor jerarquía. */
 export const AMBITOS = [
   'urbano',
@@ -231,6 +272,7 @@ export const PERMISOS = [
   'gestionar_usuarios',
   'ver_usuarios',
   'gestionar_claves',
+  'ver_auditoria',
   'ver_incidencias_panel',
   'ver_tipos',
   'gestionar_tipos',

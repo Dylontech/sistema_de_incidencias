@@ -95,6 +95,79 @@ describe('V2.3: pantallas nuevas', () => {
     assert.match(js, /crearSelectorTerritorial/);
     assert.match(js, /selectorTerritorio\?\.municipios/);
     assert.match(js, /aceptaTerminos: true/);
+    assert.match(js, /crearSelectorTerritorialPorEstado/);
+    assert.match(js, /catalogoEstados: store\.estado\.estados/);
+    const bloques = leer('js/core/selector-territorial-bloques.js');
+    assert.match(bloques, /Seleccionar todos los municipios/);
+    assert.match(bloques, /data-municipio/);
+    assert.match(bloques, /data-estado-input/);
+    assert.match(html, /Puedes añadir más estados debajo/);
+    assert.match(leer('js/data/tutoriales.js'), /Seleccionar todos los municipios/);
+    assert.match(
+      leer('js/controllers/tutorial.controller.js'),
+      /crearSelectorTerritorialPorEstado/
+    );
+    assert.match(
+      leer('js/controllers/tutorial.controller.js'),
+      /catalogoEstados: store\.estado\.estados/
+    );
+    assert.match(leer('js/core/aplicacion.js'), /estados: municipios\.estados/);
+    assert.match(leer('sw.js'), /selector-territorial-bloques\.js/);
+  });
+
+  test('el selector de informes agrupa por estado y respeta los estados completos', async () => {
+    const url = pathToFileURL(
+      path.join(frontend, 'js', 'core', 'selector-territorial-bloques.js')
+    ).href;
+    const modulo = await import(url);
+    const catalogo = [
+      { id: '1', nombre: 'Morelia', estado: 'Michoacán' },
+      { id: '2', nombre: 'Celaya', estado: 'Guanajuato' },
+      { id: '3', nombre: 'Maravatío', estado: 'Michoacán' }
+    ];
+    assert.deepEqual(modulo.estadosDelCatalogo(catalogo), ['Guanajuato', 'Michoacán']);
+    assert.deepEqual(
+      modulo.estadosDelCatalogo(catalogo, ['Aguascalientes', 'Michoacán']),
+      ['Aguascalientes', 'Guanajuato', 'Michoacán']
+    );
+    assert.deepEqual(
+      modulo.construirBloques(catalogo, {
+        estados: ['Aguascalientes'],
+        catalogoEstados: ['Aguascalientes', 'Guanajuato', 'Michoacán']
+      }),
+      [{ estado: 'Aguascalientes', completo: true, municipios: [] }]
+    );
+    assert.deepEqual(
+      modulo.construirBloques(catalogo, { estados: ['Michoacán'], seleccionados: ['2'] }),
+      [
+        { estado: 'Guanajuato', completo: false, municipios: ['2'] },
+        { estado: 'Michoacán', completo: true, municipios: [] }
+      ]
+    );
+    assert.deepEqual(
+      modulo.construirBloques(catalogo, {
+        estados: ['Michoacán'],
+        seleccionados: ['1', '2', '999']
+      }),
+      [
+        { estado: 'Guanajuato', completo: false, municipios: ['2'] },
+        { estado: 'Michoacán', completo: true, municipios: [] }
+      ]
+    );
+    assert.deepEqual(
+      modulo.construirBloques(catalogo, { estados: ['Inexistente'], seleccionados: ['999'] }),
+      []
+    );
+  });
+
+  test('el splash y el overlay de carga no se muestran a la vez', () => {
+    const ui = leer('js/core/ui.js');
+    assert.match(ui, /retirarArranque/);
+    assert.match(ui, /bootScreen/);
+    assert.match(ui, /cargaPendiente/);
+    const main = leer('js/main.js');
+    assert.match(main, /retirarArranque/);
+    assert.doesNotMatch(main, /function ocultarArranque/);
   });
 
   test('el panel tiene estadísticas territoriales, claves, fichas, roles y perfil', () => {

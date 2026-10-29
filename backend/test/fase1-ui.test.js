@@ -42,9 +42,12 @@ describe('Fase 1: arranque sin parpadeo', () => {
 
   test('el splash se retira al resolver la sesión y antes del paso previo', () => {
     const main = leer('js/main.js');
-    assert.match(main, /function ocultarArranque\(\)/);
-    assert.match(main, /finally\s*\{[\s\S]*ocultarArranque\(\);/);
-    assert.match(main, /function pasoPrevio[\s\S]*ocultarArranque\(\);/);
+    assert.match(main, /retirarArranque/);
+    assert.match(main, /finally\s*\{[\s\S]*retirarArranque\(\);[\s\S]*loading\(false\);/);
+    assert.match(main, /function pasoPrevio[\s\S]*retirarArranque\(\);/);
+    const ui = leer('js/core/ui.js');
+    assert.match(ui, /export function retirarArranque/);
+    assert.match(ui, /cargaPendiente/);
   });
 
   test('el acceso de personal solo vuelve a la app con una sesión del personal validada', () => {

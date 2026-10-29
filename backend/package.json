@@ -16,6 +16,7 @@
     "test:mysql": "sh scripts/pruebas-mysql.sh",
     "extraer-semilla": "node scripts/extraer-semilla.mjs",
     "importar-inegi": "node scripts/importar-inegi.mjs",
+    "sincronizar-catalogo": "node scripts/sincronizar-catalogo.mjs",
     "vendorizar-frontend": "node scripts/vendorizar-frontend.mjs",
     "migrar-catalogo": "node scripts/migrar-catalogo.mjs",
     "datos-demo": "node scripts/datos-demo.mjs",

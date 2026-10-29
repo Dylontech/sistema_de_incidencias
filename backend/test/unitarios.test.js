@@ -132,15 +132,16 @@ describe('Geocerca', () => {
     assert.equal(poligonoValido([]), false);
   });
 
-  test('el catálogo del INEGI cubre los tres estados y sus comunidades', () => {
-    // Michoacán (113), Guanajuato (46) y Ciudad de México (16 demarcaciones).
-    assert.equal(municipiosSemilla.length, 175);
+  test('el catálogo del INEGI cubre las 32 entidades y sus comunidades', () => {
+    // Catálogo nacional: 2 475 municipios y 50 763 localidades.
+    assert.equal(municipiosSemilla.length, 2475);
     assert.ok(municipiosSemilla.every((m) => poligonoValido(m.poligono)));
     assert.ok(municipiosSemilla.every((m) => m.clave && m.nombre && m.estado));
-    assert.deepEqual(
-      [...new Set(municipiosSemilla.map((m) => m.estado))].sort((a, b) => a.localeCompare(b, 'es')),
-      ['Ciudad de México', 'Guanajuato', 'Michoacán']
-    );
+    const estados = [...new Set(municipiosSemilla.map((m) => m.estado))];
+    assert.equal(estados.length, 32);
+    for (const esperado of ['Ciudad de México', 'Guanajuato', 'Michoacán']) {
+      assert.ok(estados.includes(esperado), `Falta ${esperado}`);
+    }
 
     const porMunicipio = new Map();
     for (const zona of zonasSemilla) {

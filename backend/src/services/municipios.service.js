@@ -23,8 +23,8 @@ import {
 /**
  * Listado de municipios para el selector.
  *
- * Por omisión va sin polígonos: los 175 municipios de los tres estados con sus
- * contornos suman más de un megabyte y el selector sólo necesita nombre, centro
+ * Por omisión va sin polígonos: los 2 475 municipios de las 32 entidades con sus
+ * contornos suman decenas de megabytes y el selector sólo necesita nombre, centro
  * y zoom. El contorno del municipio activo se pide con `detalle()`.
  * Se ordena por estado y nombre: el frontend los agrupa por estado.
  */

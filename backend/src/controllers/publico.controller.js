@@ -1,5 +1,6 @@
 /** Controlador HTTP de los formularios públicos. */
 import { asyncHandler } from '../utils/AppError.js';
+import { ESTADOS_REPUBLICA } from '../config/constantes.js';
 import * as solicitudes from '../services/solicitudes.service.js';
 import * as contacto from '../services/contacto.service.js';
 import * as sugerencias from '../services/sugerencias.service.js';
@@ -48,7 +49,8 @@ export const consultarSugerencia = asyncHandler(async (req, res) => {
 export const municipios = asyncHandler(async (req, res) => {
   const lista = await req.repositorio.todosMunicipios();
   res.json({
-    municipios: lista.map((m) => ({ id: m.id, nombre: m.nombre, estado: m.estado }))
+    municipios: lista.map((m) => ({ id: m.id, nombre: m.nombre, estado: m.estado })),
+    estados: ESTADOS_REPUBLICA
   });
 });
 

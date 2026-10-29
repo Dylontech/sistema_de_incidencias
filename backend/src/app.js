@@ -12,6 +12,7 @@ import { config } from './config/index.js';
 import rutasApi from './routes/index.js';
 import { inyectarRepositorio } from './middlewares/repositorio.js';
 import { autenticar } from './middlewares/auth.js';
+import { auditar } from './middlewares/auditoria.js';
 import { manejarErrores, rutaNoEncontrada } from './middlewares/errors.js';
 import {
   cabecerasEvidencia,
@@ -47,6 +48,7 @@ export function crearApp() {
 
   app.use(inyectarRepositorio);
   app.use(autenticar);
+  app.use(auditar);
 
   app.use('/api', rutasApi);
   app.use('/api', rutaNoEncontrada);

@@ -70,7 +70,7 @@ export const config = {
   paths: {
     data: ruta(process.env.DATA_DIR, 'data'),
     uploads: ruta(process.env.UPLOAD_DIR, 'uploads'),
-    seedData: path.join(__dirname, 'seed-data'),
+    seedData: ruta(process.env.SEED_DATA_DIR, 'src/config/seed-data'),
     frontend: path.join(projectRoot, 'frontend'),
     legacy: path.join(projectRoot, 'legacy')
   },
