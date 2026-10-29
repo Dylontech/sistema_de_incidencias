@@ -1,8 +1,8 @@
 /**
  * Buscador de municipios con sugerencias (combobox).
  *
- * Un `<select>` con el catálogo completo del INEGI (175 municipios de tres
- * estados) obliga a desplazarse a ciegas. Este buscador deja escribir y muestra
+ * Un `<select>` con el catálogo completo del INEGI (2 475 municipios de las 32
+ * entidades) obliga a desplazarse a ciegas. Este buscador deja escribir y muestra
  * las coincidencias por nombre o por estado, sin distinguir mayúsculas ni
  * acentos (escribir «morelia» o «michoacan» encuentra lo mismo).
  *

@@ -15,7 +15,7 @@ import { abrirModal, cerrarModal, toast } from '../core/ui.js';
 import { sesion } from '../core/session.js';
 import { store } from '../core/store.js';
 import { esPersonal } from '../core/roles.js';
-import { crearSelectorTerritorial } from '../core/selector-territorial.js';
+import { crearSelectorTerritorialPorEstado, estadosDelCatalogo } from '../core/selector-territorial-bloques.js';
 import * as vista from '../views/tutorial.view.js';
 import * as loginView from '../views/login.view.js';
 import * as mapa from '../map/mapa.js';
@@ -222,13 +222,17 @@ function reiniciarDemoTicket() {
   document.getElementById('demoTicketEstado').classList.add('u-oculto');
 }
 
+function estadosDemoInforme() {
+  return estadosDelCatalogo(store.estado.municipios || []);
+}
+
 function inicializarDemoInforme() {
   const contenedor = document.getElementById('demoInformeTerritorio');
   if (!contenedor || demoInformeSelector) return;
-  demoInformeSelector = crearSelectorTerritorial({
+  demoInformeSelector = crearSelectorTerritorialPorEstado({
     contenedor: 'demoInformeTerritorio',
     municipios: store.estado.municipios || [],
-    modo: 'ambos'
+    catalogoEstados: store.estado.estados || []
   });
 }
 
@@ -249,13 +253,12 @@ async function simularPaso(paso) {
       reiniciarDemoInforme();
       abrirDemo('modalDemoInforme');
       inicializarDemoInforme();
-      if (simulacion.estadoFiltro) {
-        const filtro = document.querySelector('#demoInformeTerritorio .terr-filtro-estado');
-        const opcion = [...(filtro?.options || [])].find((o) => o.value);
-        if (opcion) fijarCampo('#demoInformeTerritorio .terr-filtro-estado', opcion.value);
-      }
-      if (simulacion.seleccionarEstado) {
-        document.querySelector('#demoInformeTerritorio .terr-grupo-todos')?.click();
+      if (simulacion.estadoFiltro || simulacion.seleccionarEstado) {
+        const estado = estadosDemoInforme()[0];
+        if (estado) demoInformeSelector?.agregarEstado(estado);
+        if (estado && simulacion.seleccionarEstado) {
+          demoInformeSelector?.marcarTodoElEstado(estado);
+        }
       }
       for (const campo of simulacion.campos || []) {
         fijarCampo(campo.selector, campo.valor, { evento: campo.evento || 'change' });

@@ -12,6 +12,7 @@ import * as detalleController from './incidencias.controller.js';
 import { cargar as cargarCampanas } from './campanas.controller.js';
 import { clavesService } from '../services/claves.service.js';
 import { sesionesService } from '../services/sesiones.service.js';
+import { auditoriaService } from '../services/auditoria.service.js';
 import { solicitudesAccesoService } from '../services/solicitudes-acceso.service.js';
 import { ticketsService } from '../services/tickets.service.js';
 import { notificacionesService } from '../services/notificaciones.service.js';
@@ -45,6 +46,7 @@ export const PERMISO_POR_TAB = {
   solicitudes: 'gestionar_usuarios',
   tickets: 'atender_tickets',
   sesiones: 'ver_monitoreo',
+  auditoria: 'ver_auditoria',
   notificaciones: 'configurar_notificaciones',
   moderacion: 'ver_moderacion',
   firmas: 'ver_firmas',
@@ -111,6 +113,9 @@ export async function abrirTab(nombre) {
       break;
     case 'sesiones':
       await cargarSesiones();
+      break;
+    case 'auditoria':
+      await cargarAuditoria();
       break;
     case 'notificaciones':
       await cargarConfigNotificaciones();
@@ -203,14 +208,16 @@ async function cargarSolicitudesPermisos() {
 
 /** Selector de estados y municipios del panel de estadísticas. */
 function prepararSelectorStats() {
-  if (selectorStats) return;
+  // Se recrea cada vez que se abre la pestaña: así toma el catálogo actual
+  // (las 32 entidades) y no se queda con el que hubiera al primer render.
   const activo = store.estado.municipioActivo?.id;
   selectorStats = crearSelectorTerritorial({
     contenedor: 'statsTerritorio',
     municipios: store.estado.municipios || [],
     seleccionados: filtrosStats?.municipios || (activo ? [activo] : []),
     estados: filtrosStats?.estados || [],
-    modo: 'ambos'
+    modo: 'ambos',
+    catalogoEstados: store.estado.estados || []
   });
   actualizarNotaStats();
 }
@@ -234,6 +241,17 @@ async function cargarResumenMunicipios() {
 async function cargarSesiones() {
   const { sesiones } = await sesionesService.listar();
   adminView.renderSesiones(sesiones);
+}
+
+async function cargarAuditoria() {
+  const filtros = {
+    username: document.getElementById('auditoriaUsuario')?.value.trim() || '',
+    accion: document.getElementById('auditoriaAccion')?.value.trim() || '',
+    desde: document.getElementById('auditoriaDesde')?.value || '',
+    hasta: document.getElementById('auditoriaHasta')?.value || ''
+  };
+  const { registros } = await auditoriaService.listar(filtros);
+  adminView.renderAuditoria(registros || []);
 }
 
 async function cargarSolicitudesAcceso() {
@@ -325,7 +343,10 @@ export function registrar() {
           return;
         }
         await cargarRolesEspeciales();
-        adminView.prepararModalUsuario({ municipios: store.estado.municipios || [] });
+        adminView.prepararModalUsuario({
+          municipios: store.estado.municipios || [],
+          estados: store.estado.estados || []
+        });
         adminView.limitarRolesAdmin(!sesion.esAdmin());
         abrirModal('modalUsuario', { nested: true });
       }),
@@ -341,7 +362,8 @@ export function registrar() {
         await cargarRolesEspeciales();
         adminView.prepararModalUsuario({
           usuario,
-          municipios: store.estado.municipios || []
+          municipios: store.estado.municipios || [],
+          estados: store.estado.estados || []
         });
         adminView.limitarRolesAdmin(!sesion.esAdmin());
         abrirModal('modalUsuario', { nested: true });
@@ -491,7 +513,10 @@ export function registrar() {
       intentar(() => aplicacion.cargarUsuarios(valor === 'ciudadanos' ? 'ciudadanos' : 'personal')),
 
     'claves:abrir': () => {
-      adminView.prepararModalClave(store.estado.municipios || []);
+      adminView.prepararModalClave(
+        store.estado.municipios || [],
+        store.estado.estados || []
+      );
       abrirModal('modalClave', { nested: true });
     },
 
@@ -562,7 +587,9 @@ export function registrar() {
       intentar(async () => {
         const datos = adminView.valoresClaveForm();
         if (!datos.nombre) return toast('Escribe un nombre para la clave', 'err');
-        if (!datos.municipios.length) return toast('Elige al menos un municipio', 'err');
+        if (!datos.municipios.length && !datos.estados.length) {
+          return toast('Elige al menos un estado o un municipio', 'err');
+        }
         await clavesService.crear(datos);
         cerrarModal('modalClave');
         await cargarClaves();
@@ -581,12 +608,36 @@ export function registrar() {
       }
     },
 
-    'claves:revocar': ({ id }) =>
+    'claves:eliminar': ({ id }) =>
       intentar(async () => {
-        if (!(await preguntar('¿Revocar esta clave? Quien la use ya no podrá entrar.'))) return;
-        await clavesService.revocar(id);
+        if (
+          !(await preguntar(
+            '¿Eliminar esta clave? Se cerrarán todas las sesiones abiertas con ella y no se podrá volver a usar.'
+          ))
+        ) {
+          return;
+        }
+        const resultado = await clavesService.eliminar(id);
         await cargarClaves();
-        toast('Clave revocada', 'ok');
+        await cargarSesiones().catch(() => {});
+        const cerradas = resultado.sesionesCerradas?.length || 0;
+        toast(
+          cerradas
+            ? `Clave eliminada · ${cerradas} sesión(es) cerrada(s)`
+            : 'Clave eliminada',
+          'ok'
+        );
+      }),
+
+    'auditoria:filtrar': () => intentar(() => cargarAuditoria()),
+    'auditoria:recargar': () => intentar(() => cargarAuditoria()),
+    'auditoria:limpiar': () =>
+      intentar(async () => {
+        for (const id of ['auditoriaUsuario', 'auditoriaAccion', 'auditoriaDesde', 'auditoriaHasta']) {
+          const campo = document.getElementById(id);
+          if (campo) campo.value = '';
+        }
+        await cargarAuditoria();
       }),
 
     'sesiones:revocar': ({ id }) =>

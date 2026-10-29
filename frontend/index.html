@@ -1102,6 +1102,7 @@
         <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes" data-permiso="gestionar_usuarios"><i class="bi bi-person-check-fill"></i> Solicitudes</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="tickets" data-permiso="atender_tickets"><i class="bi bi-life-preserver"></i> Tickets</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="sesiones" data-permiso="ver_monitoreo"><i class="bi bi-activity"></i> Conectados</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="auditoria" data-permiso="ver_auditoria"><i class="bi bi-journal-text"></i> Auditoría</button>
         <button class="admin-tab" id="tabNotificaciones" data-action="admin:tab" data-valor="notificaciones" data-permiso="configurar_notificaciones"><i class="bi bi-bell-fill"></i> Notificaciones</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="moderacion" data-permiso="ver_moderacion"><i class="bi bi-shield-fill-check"></i> Moderación</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="firmas" id="tabFirmas" data-permiso="ver_firmas"><i class="bi bi-pen-fill"></i> Firmas</button>
@@ -1216,7 +1217,7 @@
           </div>
           <p class="campo-nota u-m-0">
             La tabla se agrupa por estado. Usa el buscador o el desplegable para no recorrer
-            los 175 municipios. Las claves de acceso tienen su propia pestaña para llegar
+            los 2 475 municipios. Las claves de acceso tienen su propia pestaña para llegar
             más rápido.
           </p>
         </div>
@@ -1225,9 +1226,9 @@
 
       <div class="admin-panel" id="panel-claves">
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
-          Una clave cubre uno o varios municipios, puede tener vigencia y usos limitados, y se
-          revoca en cualquier momento. Entrégala al funcionario junto con su usuario y
-          contraseña. También puedes generar una al dar de alta a una persona del personal.
+          Una clave cubre uno o varios estados y municipios, puede tener vigencia y usos limitados,
+          y se elimina en cualquier momento. Al eliminarla se cierran sus sesiones abiertas.
+          Entrégala al funcionario junto con su usuario y contraseña.
         </p>
         <div class="u-fila-sep u-mb-10">
           <button class="btn btn-primary btn-sm" data-action="claves:abrir">
@@ -1236,7 +1237,7 @@
           <button class="btn btn-outline btn-sm" data-action="claves:recargar">
             <i class="bi bi-arrow-repeat"></i> Actualizar
           </button>
-          <input type="text" id="clavesBuscar" class="filter-input u-max-260" placeholder="Buscar por nombre o municipio" data-input="claves:filtrar">
+          <input type="text" id="clavesBuscar" class="filter-input u-max-260" placeholder="Buscar por nombre, estado, municipio o usuario" data-input="claves:filtrar">
         </div>
         <div id="clavesLista"></div>
       </div>
@@ -1377,10 +1378,48 @@
 
       <div class="admin-panel" id="panel-sesiones">
         <p class="u-fs-125px u-gris u-mb-12">
-          Sesiones con actividad reciente. La IP se guarda solo como huella SHA-256 y el detalle
-          sirve para detectar bots o uso indebido.
+          Sesiones con actividad reciente y la clave de acceso con la que entró cada una.
+          La IP se guarda solo como huella SHA-256. Puedes revocar una sesión concreta; al
+          eliminar una clave se cierran todas sus sesiones.
         </p>
         <div id="sesionesLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-auditoria">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Bitácora de cada acción que modifica datos: quién la hizo, con qué rol, permisos y
+          clave, qué ruta tocó y con qué resultado. Las contraseñas y los tokens nunca se guardan.
+        </p>
+        <div class="filter-row u-mb-8">
+          <div class="form-group">
+            <label for="auditoriaUsuario">Usuario</label>
+            <input type="text" id="auditoriaUsuario" class="filter-input" placeholder="Usuario o nombre">
+          </div>
+          <div class="form-group">
+            <label for="auditoriaAccion">Acción o ruta</label>
+            <input type="text" id="auditoriaAccion" class="filter-input" placeholder="Ej. POST /api/admin/claves">
+          </div>
+          <div class="form-group">
+            <label for="auditoriaDesde">Desde</label>
+            <input type="date" id="auditoriaDesde">
+          </div>
+          <div class="form-group">
+            <label for="auditoriaHasta">Hasta</label>
+            <input type="date" id="auditoriaHasta">
+          </div>
+        </div>
+        <div class="u-fila-sep u-mb-10">
+          <button class="btn btn-primary btn-sm" data-action="auditoria:filtrar">
+            <i class="bi bi-funnel-fill"></i> Filtrar
+          </button>
+          <button class="btn btn-outline btn-sm" data-action="auditoria:limpiar">
+            <i class="bi bi-eraser"></i> Limpiar
+          </button>
+          <button class="btn btn-outline btn-sm" data-action="auditoria:recargar">
+            <i class="bi bi-arrow-repeat"></i> Actualizar
+          </button>
+        </div>
+        <div id="auditoriaLista"></div>
       </div>
 
       <div class="admin-panel" id="panel-notificaciones">
@@ -2439,7 +2478,8 @@
           <label>Estados y municipios *</label>
           <div id="solInformeTerritorio"></div>
           <p class="campo-nota">
-            Puedes añadir varios estados completos y, además, municipios concretos. El informe incluye la unión de todo lo seleccionado.
+            Elige un estado y marca «Seleccionar todos los municipios» para incluirlo completo,
+            o elige municipios concretos. Puedes añadir más estados debajo.
           </p>
         </div>
 
@@ -2618,6 +2658,9 @@
       <div class="form-group">
         <label>Estados y municipios *</label>
         <div id="demoInformeTerritorio"></div>
+        <p class="campo-nota">
+          Elige un estado y marca «Seleccionar todos los municipios» o elige municipios concretos.
+        </p>
       </div>
       <div class="filter-row">
         <div class="form-group">
@@ -3614,9 +3657,12 @@
         </select>
       </div>
       <div class="form-group">
-        <label for="claveMunicipios">Municipios *</label>
-        <select id="claveMunicipios" class="select-multiple" multiple size="7"></select>
-        <p class="campo-nota">Ctrl (Windows) o Cmd (macOS) para elegir varios.</p>
+        <label>Estados y municipios *</label>
+        <div id="claveTerritorio"></div>
+        <p class="campo-nota">
+          Elige uno o varios estados y, dentro de ellos, los municipios. Puedes escribir para
+          buscar un estado o municipio y añadir más estados con el selector inferior.
+        </p>
       </div>
       <div class="filter-row">
         <div class="form-group">

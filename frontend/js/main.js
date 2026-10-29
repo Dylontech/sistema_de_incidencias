@@ -6,7 +6,7 @@
  * aplicación (o muestra el login).
  */
 import { conectarDelegacion } from './core/eventos.js';
-import { inicializarModales, loading, toast } from './core/ui.js';
+import { inicializarModales, loading, retirarArranque, toast } from './core/ui.js';
 import { sesion } from './core/session.js';
 import { consentimiento } from './core/consentimiento.js';
 import * as accesibilidad from './core/accesibilidad.js';
@@ -95,15 +95,6 @@ function registrarControladores() {
   registrarTutorial();
 }
 
-/**
- * Retira el splash de arranque. Se llama siempre, incluso si la sesión falla:
- * si no, la aplicación quedaría tapada por el splash.
- */
-function ocultarArranque() {
-  const boot = document.getElementById('bootScreen');
-  if (boot) boot.hidden = true;
-}
-
 /** Devuelve las coordenadas si el navegador y la persona lo permiten. */
 function ubicacionParaQr() {
   return new Promise((resolver) => {
@@ -161,7 +152,7 @@ async function resolverEntradaQr() {
 function pasoPrevio({ usuario, municipioActivo, municipioSugerido = null }) {
   // El paso previo puede esperar a que la persona elija municipio y acepte
   // términos: el splash no debe quedar encima bloqueando esa interacción.
-  ocultarArranque();
+  retirarArranque();
   return pedirConsentimiento({ usuario, municipioActivo, municipioSugerido });
 }
 
@@ -228,8 +219,8 @@ async function iniciarSesion() {
       toast(error.message || 'No se pudo restaurar la sesión', 'err');
     }
   } finally {
+    retirarArranque();
     loading(false);
-    ocultarArranque();
   }
 }
 

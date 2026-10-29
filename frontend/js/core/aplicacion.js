@@ -49,7 +49,8 @@ export async function arrancar({ usuario, municipioActivo }) {
     {
       catalogos: catalogos,
       tipos: tipos.tipos,
-      municipios: municipios.municipios
+      municipios: municipios.municipios,
+      estados: municipios.estados || []
     },
     'catalogos'
   );

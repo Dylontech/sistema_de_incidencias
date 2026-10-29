@@ -48,13 +48,16 @@ let contador = 0;
  * @param {Array}  opciones.seleccionados ids de municipios marcados.
  * @param {Array}  opciones.estados estados marcados (modo estatal).
  * @param {string} opciones.modo 'municipios' | 'estados' | 'ambos'.
+ * @param {Array}  opciones.catalogoEstados entidades que deben ofrecerse aunque
+ *                 todavía no tengan municipios importados.
  */
 export function crearSelectorTerritorial({
   contenedor,
   municipios = [],
   seleccionados = [],
   estados = [],
-  modo = 'municipios'
+  modo = 'municipios',
+  catalogoEstados = []
 } = {}) {
   const raiz = document.getElementById(contenedor);
   if (!raiz) return null;
@@ -65,9 +68,12 @@ export function crearSelectorTerritorial({
       String(a.estado).localeCompare(String(b.estado), 'es') ||
       String(a.nombre).localeCompare(String(b.nombre), 'es')
   );
-  const estadosCatalogo = [...new Set(catalogo.map((m) => m.estado))]
-    .filter(Boolean)
-    .sort((a, b) => String(a).localeCompare(String(b), 'es'));
+  const estadosCatalogo = [
+    ...new Set([
+      ...catalogo.map((m) => m.estado),
+      ...catalogoEstados
+    ].filter(Boolean))
+  ].sort((a, b) => String(a).localeCompare(String(b), 'es'));
 
   const seleccion = new Set(seleccionados.map(String));
   const estadosSeleccionados = new Set(estados.map(String));

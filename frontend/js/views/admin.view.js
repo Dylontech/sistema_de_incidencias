@@ -1,6 +1,7 @@
 /** Vista del panel de administración (6 pestañas). */
 import { $, esc, textoAntiguedad, etiquetaEstado, fmtFechaCorta, aplicarEstilosDinamicos } from '../core/utils.js';
 import { crearSelectorTerritorial } from '../core/selector-territorial.js';
+import { crearSelectorTerritorialPorEstado } from '../core/selector-territorial-bloques.js';
 import { renderListaTipos } from './tipos.view.js';
 
 export function activarTab(nombre) {
@@ -641,7 +642,7 @@ export function renderSelectRolEspecial(seleccionado = null) {
   if (!roles.some((r) => r.id === actual)) selector.value = '';
 }
 
-export function prepararModalUsuario({ usuario = null, municipios = [] } = {}) {
+export function prepararModalUsuario({ usuario = null, municipios = [], estados = [] } = {}) {
   const edicion = Boolean(usuario);
 
   $('modalUsuarioTitle').textContent = edicion ? 'Editar usuario' : 'Nuevo usuario';
@@ -660,8 +661,8 @@ export function prepararModalUsuario({ usuario = null, municipios = [] } = {}) {
         ? [usuario.municipioId]
         : []
     : [];
-  renderSelectMunicipiosUsuario(municipios, asignados);
-  renderSelectEstadosUsuario(municipios, usuario?.estados || []);
+  renderSelectMunicipiosUsuario(municipios, asignados, estados);
+  renderSelectEstadosUsuario(municipios, usuario?.estados || [], estados);
 
   $('usuarioCorreo').value = usuario?.correo || '';
   $('usuarioPassword').value = '';
@@ -690,6 +691,7 @@ export function prepararModalUsuario({ usuario = null, municipios = [] } = {}) {
 const moduleState = {
   selectorMunicipios: null,
   selectorEstados: null,
+  selectorClaveTerritorio: null,
   resumenMunicipios: null,
   rolesEspeciales: [],
   claves: [],
@@ -697,23 +699,25 @@ const moduleState = {
 };
 
 /** Rellena el selector de municipios del alta de usuarios. */
-export function renderSelectMunicipiosUsuario(municipios = [], asignados = []) {
+export function renderSelectMunicipiosUsuario(municipios = [], asignados = [], catalogoEstados = []) {
   moduleState.selectorMunicipios = crearSelectorTerritorial({
     contenedor: 'usuarioMunicipiosSelector',
     municipios,
     seleccionados: asignados,
-    modo: 'municipios'
+    modo: 'municipios',
+    catalogoEstados
   });
   return moduleState.selectorMunicipios;
 }
 
 /** Rellena el selector de estados del alta de usuarios. */
-export function renderSelectEstadosUsuario(municipios = [], asignados = []) {
+export function renderSelectEstadosUsuario(municipios = [], asignados = [], catalogoEstados = []) {
   moduleState.selectorEstados = crearSelectorTerritorial({
     contenedor: 'usuarioEstadosSelector',
     municipios,
     estados: asignados,
-    modo: 'estados'
+    modo: 'estados',
+    catalogoEstados
   });
   return moduleState.selectorEstados;
 }
@@ -771,6 +775,7 @@ export const PERMISOS_LISTA = [
   'gestionar_usuarios',
   'ver_usuarios',
   'gestionar_claves',
+  'ver_auditoria',
   'ver_incidencias_panel',
   'ver_tipos',
   'gestionar_tipos',
@@ -803,6 +808,7 @@ export const ETIQUETAS_PERMISO = {
   gestionar_usuarios: 'Gestionar usuarios',
   ver_usuarios: 'Ver usuarios',
   gestionar_claves: 'Gestionar claves',
+  ver_auditoria: 'Ver bitácora de auditoría',
   ver_incidencias_panel: 'Ver pestaña de incidencias',
   ver_tipos: 'Ver tipos',
   gestionar_tipos: 'Gestionar tipos',
@@ -936,8 +942,10 @@ export function renderClaves(claves = [], municipios = []) {
   const visibles = texto
     ? claves.filter((c) =>
         normalizarBusqueda(
-          `${c.nombre} ${c.codigo} ${(c.municipios || [])
+          `${c.nombre} ${c.codigo} ${(c.estados || []).join(' ')} ${(c.municipios || [])
             .map((id) => nombreMunicipio(municipios, id))
+            .join(' ')} ${(c.usuariosVinculados || [])
+            .map((u) => `${u.nombre || ''} ${u.username || ''}`)
             .join(' ')}`
         ).includes(texto)
       )
@@ -951,11 +959,38 @@ export function renderClaves(claves = [], municipios = []) {
   contenedor.innerHTML = `
     <div class="u-scroll-x">
       <table class="data-table">
-        <thead><tr><th>Código</th><th>Nombre</th><th>Municipios</th><th>Correo asignado</th><th>Usos</th><th>Vence</th><th>Estado</th><th></th></tr></thead>
+        <thead><tr><th>Código</th><th>Nombre</th><th>Territorio</th><th>Usuarios vinculados</th><th>Sesiones</th><th>Usos</th><th>Vence</th><th>Estado</th><th></th></tr></thead>
         <tbody>
           ${visibles
-            .map(
-              (c) => `
+            .map((c) => {
+              const vencida = c.expiraEn && new Date(c.expiraEn).getTime() <= Date.now();
+              const agotada =
+                c.usosMaximos !== null &&
+                c.usosMaximos !== undefined &&
+                Number(c.usos) >= Number(c.usosMaximos);
+              const estado = !c.activa
+                ? 'Revocada'
+                : vencida
+                  ? 'Vencida'
+                  : agotada
+                    ? 'Agotada'
+                    : 'Activa';
+              const badge = !c.activa || vencida || agotada ? 'rojo' : 'verde';
+              const nombresMunicipios = (c.municipios || []).map((id) =>
+                nombreMunicipio(municipios, id)
+              );
+              const territorio = (c.estados || []).length
+                ? `${c.estados.join(', ')}${
+                    nombresMunicipios.length
+                      ? ` · ${nombresMunicipios.length} municipio(s)`
+                      : ''
+                  }`
+                : nombresMunicipios.join(', ');
+              const usuarios = (c.usuariosVinculados || []).map(
+                (u) => u.nombre || u.username || '—'
+              );
+              const sesiones = Number(c.sesionesActivas) || 0;
+              return `
             <tr>
               <td>
                 <code class="u-fs-11px">${esc(c.codigo)}</code>
@@ -965,17 +1000,29 @@ export function renderClaves(claves = [], municipios = []) {
                   <i class="bi bi-clipboard"></i>
                 </button>
               </td>
-              <td>${esc(c.nombre)}</td>
-              <td class="u-fs-11px">${esc((c.municipios || []).map((id) => nombreMunicipio(municipios, id)).join(', '))}</td>
-              <td class="u-fs-11px">${c.correoContacto ? esc(c.correoContacto) : '<span class="u-suave">Sin correo</span>'}</td>
+              <td>
+                <strong>${esc(c.nombre)}</strong>
+                <div class="campo-nota">${esc(c.rolSugerido || 'Sin rol sugerido')}</div>
+              </td>
+              <td class="u-fs-11px">${esc(territorio || '—')}</td>
+              <td class="u-fs-11px">${
+                usuarios.length ? esc(usuarios.join(', ')) : '<span class="u-suave">Sin usos</span>'
+              }</td>
+              <td>${
+                sesiones
+                  ? `<span class="inc-badge badge-verde">${sesiones} activa(s)</span>`
+                  : '<span class="u-suave">Sin sesiones</span>'
+              }</td>
               <td>${c.usos}${c.usosMaximos ? ` / ${c.usosMaximos}` : ''}</td>
               <td>${c.expiraEn ? fmtFechaCorta(c.expiraEn) : '—'}</td>
-              <td><span class="inc-badge badge-${c.activa ? 'verde' : 'rojo'}">${c.activa ? 'Activa' : 'Revocada'}</span></td>
-              <td>
-                ${c.activa ? `<button class="btn btn-sm btn-outline" data-action="claves:revocar" data-id="${esc(c.id)}" title="Revocar">Revocar</button>` : ''}
+              <td><span class="inc-badge badge-${badge}">${estado}</span></td>
+              <td class="u-nowrap">
+                <button class="btn btn-sm btn-outline" data-action="claves:eliminar" data-id="${esc(c.id)}" title="Eliminar clave y cerrar sus sesiones">
+                  <i class="bi bi-trash"></i> Eliminar
+                </button>
               </td>
-            </tr>`
-            )
+            </tr>`;
+            })
             .join('')}
         </tbody>
       </table>
@@ -1004,25 +1051,30 @@ export function claveGeneradaTexto() {
   return $('claveGeneradaCodigo')?.textContent?.trim() || '';
 }
 
-export function prepararModalClave(municipios = []) {
+export function prepararModalClave(municipios = [], estados = []) {
   $('claveNombre').value = '';
   $('claveRol').value = 'funcionario';
   $('claveUsos').value = '';
   $('claveExpira').value = '';
-  const selector = $('claveMunicipios');
-  if (selector) {
-    selector.innerHTML = municipios
-      .map((m) => `<option value="${esc(m.id)}">${esc(m.nombre)}, ${esc(m.estado)}</option>`)
-      .join('');
+  if (!moduleState.selectorClaveTerritorio) {
+    moduleState.selectorClaveTerritorio = crearSelectorTerritorialPorEstado({
+      contenedor: 'claveTerritorio',
+      municipios,
+      catalogoEstados: estados
+    });
+  } else {
+    moduleState.selectorClaveTerritorio.limpiar();
   }
 }
 
 export function valoresClaveForm() {
-  const seleccion = [...($('claveMunicipios')?.selectedOptions || [])].map((o) => o.value);
+  const municipios = moduleState.selectorClaveTerritorio?.municipios() || [];
+  const estados = moduleState.selectorClaveTerritorio?.estados() || [];
   return {
     nombre: $('claveNombre').value.trim(),
     rolSugerido: $('claveRol').value,
-    municipios: seleccion,
+    municipios,
+    estados,
     usosMaximos: $('claveUsos').value ? Number($('claveUsos').value) : null,
     expiraEn: $('claveExpira').value || null
   };
@@ -1041,7 +1093,7 @@ export function renderSesiones(sesiones = []) {
   contenedor.innerHTML = `
     <div class="u-scroll-x">
       <table class="data-table">
-        <thead><tr><th>Cuenta</th><th>Rol</th><th>Municipio</th><th>Inicio</th><th>Última actividad</th><th>Huella IP</th><th></th></tr></thead>
+        <thead><tr><th>Cuenta</th><th>Rol</th><th>Clave de acceso</th><th>Municipio</th><th>Inicio</th><th>Última actividad</th><th>Huella IP</th><th></th></tr></thead>
         <tbody>
           ${sesiones
             .map(
@@ -1049,11 +1101,95 @@ export function renderSesiones(sesiones = []) {
             <tr>
               <td class="u-fs-12px">${esc(s.userKey || '—')}</td>
               <td><span class="inc-badge badge-${s.rol === 'admin' ? 'rojo' : 'amarillo'}">${esc(s.rol || '—')}</span></td>
+              <td class="u-fs-11px">${
+                s.claveCodigo
+                  ? `<code>${esc(s.claveCodigo)}</code>${
+                      s.claveNombre ? `<div class="campo-nota">${esc(s.claveNombre)}</div>` : ''
+                    }`
+                  : '<span class="u-suave">Sin clave</span>'
+              }</td>
               <td class="u-fs-11px">${esc(s.municipioId || '—')}</td>
               <td class="u-fs-11px">${fmtFechaCorta(s.inicio)}</td>
               <td class="u-fs-11px">${fmtFechaCorta(s.ultimaActividad)}</td>
               <td class="u-fs-11px">${esc((s.ipHash || '').slice(0, 12) || '—')}</td>
               <td><button class="btn btn-sm btn-outline" data-action="sesiones:revocar" data-id="${esc(s.id)}">Revocar</button></td>
+            </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/* ------------------------------ auditoría ------------------------------ */
+
+function fechaHora(valor) {
+  if (!valor) return '—';
+  const fecha = new Date(valor);
+  return Number.isNaN(fecha.getTime())
+    ? '—'
+    : fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+/** Resume el detalle de auditoría: permisos del actor y cuerpo saneado. */
+function detalleAuditoria(valor) {
+  if (!valor) return '';
+  try {
+    const datos = typeof valor === 'string' ? JSON.parse(valor) : valor;
+    const partes = [];
+    if (Array.isArray(datos?.permisos) && datos.permisos.length) {
+      partes.push(`Permisos: ${datos.permisos.join(', ')}`);
+    }
+    const cuerpo = datos?.body;
+    if (cuerpo && typeof cuerpo === 'object' && !Array.isArray(cuerpo)) {
+      const campos = Object.keys(cuerpo)
+        .filter((clave) => !['password', 'claveAcceso', 'token'].includes(clave))
+        .slice(0, 4);
+      if (campos.length) {
+        partes.push(
+          campos
+            .map((clave) => `${clave}=${String(cuerpo[clave] ?? '').slice(0, 40)}`)
+            .join(' · ')
+        );
+      }
+    }
+    return partes.join(' · ') || String(valor).slice(0, 120);
+  } catch {
+    return String(valor).slice(0, 120);
+  }
+}
+
+export function renderAuditoria(registros = []) {
+  const contenedor = $('auditoriaLista');
+  if (!contenedor) return;
+  if (!registros.length) {
+    contenedor.innerHTML =
+      '<p class="u-fs-12px u-suave">No hay acciones registradas con esos filtros.</p>';
+    return;
+  }
+
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Fecha</th><th>Actor</th><th>Acción</th><th>Entidad</th><th>Resultado</th><th>Clave</th><th>Huella IP</th></tr></thead>
+        <tbody>
+          ${registros
+            .map(
+              (r) => `
+            <tr>
+              <td class="u-fs-11px u-nowrap">${esc(fechaHora(r.creadoEn))}</td>
+              <td class="u-fs-11px">
+                <strong>${esc(r.username || r.userKey || '—')}</strong>
+                <div class="campo-nota">${esc(r.rol || 'sin rol')}</div>
+              </td>
+              <td class="u-fs-11px">
+                <code>${esc(r.accion || r.ruta || '—')}</code>
+                ${r.detalle ? `<div class="campo-nota">${esc(detalleAuditoria(r.detalle).slice(0, 160))}</div>` : ''}
+              </td>
+              <td class="u-fs-11px">${esc(r.entidad || '—')}${r.entidadId ? ` · ${esc(r.entidadId)}` : ''}</td>
+              <td><span class="inc-badge badge-${r.estadoHttp && r.estadoHttp < 400 ? 'verde' : 'rojo'}">${esc(r.estadoHttp || '—')}</span></td>
+              <td class="u-fs-11px">${esc(r.claveCodigo || r.claveId || '—')}${r.claveNombre ? `<div class="campo-nota">${esc(r.claveNombre)}</div>` : ''}</td>
+              <td class="u-fs-11px">${esc((r.ipHash || '').slice(0, 12) || '—')}</td>
             </tr>`
             )
             .join('')}

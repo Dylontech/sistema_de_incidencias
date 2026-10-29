@@ -14,7 +14,7 @@ import { consentimiento } from '../core/consentimiento.js';
 import { abrirModal, cerrarModal, loading, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
 import { configuracionService } from '../services/configuracion.service.js';
-import { crearSelectorTerritorial } from '../core/selector-territorial.js';
+import { crearSelectorTerritorialPorEstado } from '../core/selector-territorial-bloques.js';
 
 let selectorTerritorio = null;
 
@@ -40,10 +40,10 @@ function mostrarEstado(id, texto, tipo = 'info') {
 
 function prepararTerritorio() {
   if (!selectorTerritorio) {
-    selectorTerritorio = crearSelectorTerritorial({
+    selectorTerritorio = crearSelectorTerritorialPorEstado({
       contenedor: 'solInformeTerritorio',
       municipios: store.estado.municipios || [],
-      modo: 'ambos'
+      catalogoEstados: store.estado.estados || []
     });
   } else {
     selectorTerritorio.limpiar();

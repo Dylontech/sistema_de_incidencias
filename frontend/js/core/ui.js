@@ -19,15 +19,54 @@ export function toast(mensaje, tipo = 'ok') {
   }, 4000);
 }
 
+/** Texto de la carga que quedó pendiente mientras el splash estaba visible. */
+let cargaPendiente = null;
+
+/**
+ * Muestra u oculta el overlay de carga.
+ *
+ * Mientras el splash de arranque siga visible, NO se abre el overlay: ambos
+ * tienen su propio spinner y superponerlos hacía que se vieran dos espirales.
+ * En ese caso solo se actualiza el texto del splash; cuando el splash se retira,
+ * `retirarArranque()` pasa la carga pendiente al overlay.
+ */
 export function loading(mostrar, texto = 'Procesando…') {
   const overlay = $('loading');
   if (!overlay) return;
+  const boot = $('bootScreen');
+  const enArranque = Boolean(boot && !boot.hidden);
+
   if (mostrar) {
+    if (enArranque) {
+      cargaPendiente = texto;
+      const textoBoot = boot.querySelector('.boot-card p');
+      if (textoBoot) textoBoot.textContent = texto;
+      return;
+    }
+    cargaPendiente = null;
     $('loadingText').textContent = texto;
     overlay.classList.add('show');
-  } else {
+  } else if (!enArranque) {
+    cargaPendiente = null;
     overlay.classList.remove('show');
   }
+}
+
+/**
+ * Retira el splash de arranque. Si había una carga en curso (por ejemplo,
+ * «Restaurando sesión…»), la traspasa al overlay para no dejar la interfaz
+ * sin indicador ni mostrar dos spinners a la vez.
+ */
+export function retirarArranque() {
+  const boot = $('bootScreen');
+  if (boot) boot.hidden = true;
+  if (!cargaPendiente) return;
+  const texto = cargaPendiente;
+  cargaPendiente = null;
+  const overlay = $('loading');
+  if (!overlay) return;
+  $('loadingText').textContent = texto;
+  overlay.classList.add('show');
 }
 
 /** Elemento que tenía el foco antes de abrir el primer modal. */

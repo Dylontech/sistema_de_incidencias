@@ -152,8 +152,8 @@ export const GUIA_TUTORIALES = [
       paso('#demoInformeNombre', 'Abre el formulario', 'La demo abre el formulario de solicitud dentro de esta misma pantalla; no navega a otra vista.', 'auto', { tipo: 'demoInforme' }),
       paso('#demoInformeNombre', 'Paso 1: tus datos', 'Escribe tu nombre y tu correo. En el formulario real son los datos de contacto del informe.', 'auto', { tipo: 'demoInforme', campos: [{ selector: '#demoInformeNombre', valor: 'Vecina Ejemplo' }] }),
       paso('#demoInformeCorreo', 'Paso 2: el correo', 'El informe se envía al correo que confirmes; aquí solo lo simulamos.', 'auto', { tipo: 'demoInforme', campos: [{ selector: '#demoInformeCorreo', valor: 'demo@ejemplo.mx' }] }),
-      paso('#demoInformeTerritorio', 'Paso 3: estado', 'Elige un estado en «Ver municipios de…» y la lista se filtra al instante.', 'auto', { tipo: 'demoInforme', estadoFiltro: true }),
-      paso('#demoInformeTerritorio', 'Paso 4: municipios', 'Marca «Seleccionar todos» para incluir todo un estado, o elige municipios concretos.', 'auto', { tipo: 'demoInforme', seleccionarEstado: true }),
+      paso('#demoInformeTerritorio', 'Paso 3: estado', 'Escribe o elige un estado; se abre su bloque con la lista de municipios.', 'auto', { tipo: 'demoInforme', estadoFiltro: true }),
+      paso('#demoInformeTerritorio', 'Paso 4: municipios', 'Escribe para filtrar y marca municipios concretos, o «Seleccionar todos los municipios» para incluir todo el estado. Debajo puedes añadir otro estado.', 'auto', { tipo: 'demoInforme', seleccionarEstado: true }),
       paso('#demoInformeDesde', 'Paso 5: fechas', 'Define el periodo. La página real no permite fechas futuras ni superar el máximo configurado.', 'auto', { tipo: 'demoInforme', campos: [{ selector: '#demoInformeDesde', valor: '2026-01-01' }, { selector: '#demoInformeHasta', valor: '2026-10-26' }] }),
       paso('#demoInformeTipos', 'Paso 6: tipos y formato', 'Elige los tipos de incidencia y si quieres PDF o CSV.', 'auto', { tipo: 'demoInforme', campos: [{ selector: '#demoInformeTipos', valor: 'bache' }, { selector: '#demoInformeFormato', valor: 'pdf' }] }),
       paso('#demoInformeTerminos', 'Paso 7: aviso de privacidad', 'En la aplicación real ya aceptaste los términos al entrar y el aviso se consulta en un modal. Esta casilla de la demo representa esa aceptación global.', 'auto', { tipo: 'demoInforme', check: { selector: '#demoInformeTerminos', valor: true } }),
@@ -389,7 +389,7 @@ export const GUIA_TUTORIALES = [
     vista: 'panel',
     tab: 'municipios',
     pasos: [
-      paso('#municipiosBuscar', 'Busca y filtra', 'Escribe el nombre o elige un estado. La tabla se agrupa por entidad para no mezclar municipios de Michoacán, Guanajuato y Estado de México.', 'abajo'),
+      paso('#municipiosBuscar', 'Busca y filtra', 'Escribe el nombre o elige un estado. La tabla se agrupa por entidad para no mezclar municipios de distintas entidades.', 'abajo'),
       paso('#municipiosLista', 'Revisa la carga', 'Cada fila muestra incidencias abiertas, tickets, sugerencias y personal asignado.', 'auto'),
       paso('#modalFichaMunicipio', 'Ficha municipal', 'La demo abre la ficha del municipio activo. El funcionario puede proponer la información; el administrador la aprueba o la rechaza.', 'auto', { tipo: 'demoFicha' })
     ]

@@ -17,6 +17,9 @@ const estado = {
   tipos: [],
   zonas: [],
   municipio: null,
+  /** Catálogo visible de municipios y las 32 entidades federativas. */
+  municipios: [],
+  estados: [],
   catalogos: { iconos: [], ejemplos: {}, diasLimites: { amarillo: 15, naranja: 30 }, limites: {} },
   notificaciones: [],
   /** Cuentas del personal cargadas en el panel de administración */

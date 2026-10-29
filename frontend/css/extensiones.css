@@ -2512,6 +2512,90 @@ body.pagina-publica { overflow: auto; }
 .terr-estados { display: grid; gap: 4px; margin-top: 8px; }
 .terr-estado { max-width: 240px; font-size: 12px; }
 
+/* Selector de informes: un bloque por estado agregado. */
+.terr-bloques { display: grid; gap: 8px; }
+
+.terr-bloque {
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.terr-bloque-vacio { background: #fff; border-style: dashed; }
+
+.terr-bloque-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.terr-estado-combo { flex: 1 1 auto; min-width: 0; }
+.terr-estado-input { width: 100%; }
+
+.terr-bloque-quitar {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #b91c1c;
+  font-size: 17px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.terr-bloque-quitar:hover { background: #fee2e2; }
+
+.terr-bloque-resumen {
+  margin: 4px 0 6px;
+  font-size: 11px;
+  color: #718096;
+}
+
+.terr-bloque-completo .terr-bloque-resumen {
+  color: var(--primario);
+  font-weight: 600;
+}
+
+.terr-agregar-nota { margin: 0 0 4px; }
+.terr-municipio-input { width: 100%; }
+.terr-todos-linea { margin: 7px 0 5px; font-size: 12px; }
+
+.terr-lista {
+  max-height: 190px;
+  overflow: auto;
+  border-top: 1px solid var(--borde);
+  padding-top: 4px;
+}
+
+.terr-lista[aria-disabled='true'] { opacity: 0.55; }
+
+.terr-lista .terr-opcion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.terr-lista .terr-opcion input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--primario);
+  cursor: pointer;
+}
+
+.terr-lista .terr-opcion input[type='checkbox']:disabled { cursor: not-allowed; }
+
+/* El bloque vacío queda al final del modal: sus sugerencias abren hacia arriba. */
+.terr-bloque-vacio .combo-lista {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
 
 
 /* --- Municipios: grupos por estado --------------------------------------- */
