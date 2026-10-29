@@ -294,8 +294,8 @@ contrario que `/personal`, **sí** se anuncia a los buscadores (`index, follow`)
 
 > **Al cambiarla hay que reconstruir la imagen** (`docker compose up -d --wait --build`): el
 > contenedor sirve su propia copia de `frontend/`, no la del repositorio. Los números del catálogo
-> que cita la página (175 municipios y más de 6 300 comunidades de Michoacán, Guanajuato y Ciudad
-> de México) hay que revisarlos si se importan más estados con `npm run importar-inegi`.
+> que cita la página (2 475 municipios y 50 763 comunidades de las 32 entidades) hay que revisarlos
+> si se vuelve a ejecutar `npm run importar-inegi`.
 
 ### Entrada: municipio y términos de uso
 
@@ -312,7 +312,7 @@ espera antes de pintar nada:
    marca la casilla, no se entra: el aviso no es un `.modal-overlay`, así que `Escape` no lo
    cierra, y no tiene «×».
 
-El mismo buscador sustituye al `<select>` de la barra superior (los 175 municipios del
+El mismo buscador sustituye al `<select>` de la barra superior (los 2 475 municipios del
 catálogo no se pueden recorrer a ciegas). En los dos sitios sigue habiendo un `<select>`
 **oculto con el valor elegido**, que es el que consulta el resto de la aplicación.
 
@@ -473,7 +473,8 @@ Dentro de `backend/`:
 | Comando | Qué hace |
 |---|---|
 | `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/` (ya no la geografía). |
-| `npm run importar-inegi` | Genera el catálogo de municipios y comunidades con los polígonos del INEGI. |
+| `npm run importar-inegi` | Genera el catálogo nacional de municipios y comunidades con los polígonos del INEGI (las 32 entidades por omisión). |
+| `npm run sincronizar-catalogo` | Inserta o actualiza ese catálogo en MySQL sin borrar usuarios ni incidencias (`-- --seco` para previsualizar). |
 | `npm run vendorizar-frontend` | Descarga Leaflet y Bootstrap Icons a `frontend/vendor/` y actualiza el lock (`-- --actualizar` para subir de versión). |
 | `npm run migrar-catalogo` | Pasa los datos existentes a las claves geoestadísticas (ver más abajo). |
 | `npm run datos-demo` | Crea incidencias de ejemplo repartidas por tipo, estado, antigüedad y comunidad. |
@@ -642,10 +643,11 @@ Geoestadístico del INEGI**.
 | Municipios del estado | `AGEM_<estado>.geojson` | `seed-data/municipios.json` (límite, centro, zoom, población) |
 | Localidades | `AGLOC_<cvegeo>.geojson` | `seed-data/zonas.json` (una comunidad por localidad) |
 
-Por omisión se importan **Michoacán (`16`), Guanajuato (`11`) y Ciudad de México
-(`09`)**: 175 municipios y 6 314 comunidades.
+Por omisión se importan **las 32 entidades federativas**: 2 475 municipios y 50 763
+comunidades. Para limitar la importación se pasan las claves de dos dígitos, por ejemplo
+`--estado=16,11,09`.
 
-| Estado | Clave | Municipios | Comunidades |
+| Ejemplo | Clave | Municipios | Comunidades |
 |---|---|---|---|
 | Michoacán | `16` | 113 | 2 708 |
 | Guanajuato | `11` | 46 | 3 512 |
@@ -656,16 +658,16 @@ En la Ciudad de México el INEGI codifica las **alcaldías como municipios**
 completa es la comunidad.
 
 ```bash
-npm run importar-inegi                                # los tres estados
+npm run importar-inegi                                # las 32 entidades
 npm run importar-inegi -- --estado=16                 # sólo Michoacán
-npm run importar-inegi -- --estado=16,11,09,15        # añadir otro estado
+npm run importar-inegi -- --estado=16,11,09,15        # cuatro entidades
 npm run importar-inegi -- --municipios=16050,11007    # sólo Maravatío y Celaya
 npm run importar-inegi -- --min-poblacion=50          # sólo comunidades habitadas
 ```
 
 | Opción | Por defecto | Para qué |
 |---|---|---|
-| `--estado=<clave>` | `16,11,09` | Entidades federativas (claves de dos dígitos del INEGI, separadas por comas). |
+| `--estado=<clave>` | las 32 | Entidades federativas (claves de dos dígitos del INEGI, separadas por comas). |
 | `--municipios=todos` | `todos` | Lista de claves (`16050,11007`) o todos los de los estados elegidos. |
 | `--tolerancia-municipio` | `0.0002` | Simplificación del municipio (~22 m). |
 | `--tolerancia-zona` | `0.0001` | Máximo de simplificación de una comunidad (~11 m); se escala a 1.5 % de su extensión con un mínimo de 5 m. |
@@ -680,13 +682,13 @@ Detalles de la conversión:
   `[lat, lng]` (formato de Leaflet y de la geocerca), simplificadas con
   Douglas-Peucker y redondeadas a 5 decimales.
 - Los **multipolígonos se conservan completos** (exclaves, islas y localidades
-  partidas): 317 de las 6 314 comunidades tienen más de un anillo.
+  partidas): 3 438 de las 50 763 comunidades tienen más de un anillo.
 - Identificadores: `municipio.id` es la clave geoestadística (`16050`), que también
   sirve de `clave` para el login de funcionarios; `zona.id` es `loc_<cvegeo>`.
-- Tamaño resultante: `municipios.json` ≈ 1.7 MB y `zonas.json` ≈ 6.2 MB. El driver
+- Tamaño resultante: `municipios.json` ≈ 19.7 MB y `zonas.json` ≈ 45.6 MB. El driver
   JSON mantiene el catálogo en memoria (`RepositorioJson.catalogo`) para no releer
-  esos megabytes en cada petición, y la semilla de MySQL inserta las comunidades
-  por lotes para no depender de `max_allowed_packet`.
+  esos megabytes en cada petición, y `npm run sincronizar-catalogo` inserta las
+  comunidades en MySQL por lotes para no depender de `max_allowed_packet`.
 
 ### Regla de ubicación de los reportes
 
@@ -695,8 +697,8 @@ Detalles de la conversión:
 - La **comunidad es opcional**: las localidades del INEGI cubren las áreas
   pobladas, no todo el término municipal, así que un reporte puede quedarse sin
   comunidad (`zonaId: null`) y sigue siendo válido.
-- Algunas comunidades del INEGI **cruzan el límite municipal** (4 de las 6 314):
-  manda el contorno del municipio para aceptar y la localidad sólo se registra.
+- Algunas comunidades del INEGI **cruzan el límite municipal**: manda el contorno
+  del municipio para aceptar y la localidad sólo se registra.
 - Un municipio sin localidades usa su propio polígono como única zona.
 
 La validación del formulario replica esa regla en el navegador
@@ -708,12 +710,12 @@ en el estado, la geocerca del cliente no puede comprobar nada y rechaza cualquie
 ### Cambiar de municipio
 
 El selector de la barra superior es público y **agrupa los municipios por estado** (`optgroup`):
-cualquier ciudadano puede elegir entre los 175 municipios y la elección **persiste** en su
+cualquier ciudadano puede elegir entre los 2 475 municipios y la elección **persiste** en su
 sesión. Un funcionario sigue atado al municipio que tiene asignado (el servidor ignora
 cualquier otro: su alcance no se decide en el navegador).
 
-`GET /api/municipios` devuelve el catálogo **sin polígonos** (los 175 contornos suman más de
-un megabyte), ordenado por estado y nombre; el del municipio activo se pide con
+`GET /api/municipios` devuelve el catálogo **sin polígonos** (los 2 475 contornos no se envían),
+ordenado por estado y nombre; el del municipio activo se pide con
 `GET /api/municipios/:id` y con él se dibujan el límite y la máscara del mapa.
 
 ### Municipios colindantes
@@ -1016,9 +1018,9 @@ defectos del monolito:
 8. **Código muerto eliminado**: `tipoIdTemp`, `esImagen`, `esPDF`, `existente`,
    `capaActual`, `incLat`/`incLng` y el `esc()` ausente en los `onclick` interpolados.
 9. **Catálogo geográfico oficial**: los municipios y sus comunidades ya no son polígonos
-   dibujados a mano (un municipio y 12 zonas de cuadrícula), sino los 175 municipios de
-   Michoacán, Guanajuato y Ciudad de México y sus 6 314 localidades tomados del Marco
-   Geoestadístico del INEGI (ver [Catálogo geográfico](#catálogo-geográfico-inegi)).
+   dibujados a mano (un municipio y 12 zonas de cuadrícula), sino los 2 475 municipios de
+   las 32 entidades y sus 50 763 localidades tomados del Marco Geoestadístico del INEGI
+   (ver [Catálogo geográfico](#catálogo-geográfico-inegi)).
 10. **Ubicación de los reportes**: el punto debe caer dentro del municipio activo (lo que la
     máscara del mapa deja elegir) y la comunidad se registra cuando cae en una localidad,
     en lugar de exigir una zona de la cuadrícula antigua.

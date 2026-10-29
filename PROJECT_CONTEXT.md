@@ -2,7 +2,7 @@
 
 > Documento vivo. **Cada cambio en esquema, rutas, servicios, roles, permisos, configuración, eventos o flujos de interfaz debe actualizar este archivo antes de considerarse terminado.**
 >
-> Última actualización: 2026-10-27 · Versión del documento: 2.9.1 · Estado: V2.9.1 implementada y verificada; suite JSON 319/319.
+> Última actualización: 2026-10-29 · Versión del documento: 2.9.4 · Estado: V2.9.4 implementada y verificada; suite JSON 325/325.
 
 ## 1. Qué es este sistema
 
@@ -127,6 +127,12 @@ UI V2.8: el panel oculta las pestañas sin `data-permiso`; la bandeja incorpora 
 
 UI V2.8.1/V2.9 (acceso): la tarjeta de acceso muestra los avisos del servidor en `#loginMensaje` (`publico-msg`, `role="status"`), con botón de acción; `.toast` (14000) y `.loading-overlay` (13900) quedan por encima del acceso (10000), del paso previo (11000), del aviso legal (12000) y de la confirmación (13000), de modo que ningún error del alta o del login se pinta detrás de la tarjeta. El ciudadano entra con **nombre o pseudónimo + contraseña** (`#ciud-nombre`); el correo es el canal de avisos y **no puede repetirse** (índice único en la base). Los formularios de acceso y alta validan con `required`/`minlength`, el botón de envío se bloquea mientras dura la petición y un nombre ocupado (409) muestra «Ese nombre ya tiene una cuenta» con la acción «Entrar con este nombre» (`auth:usarNombre` → `prepararLogin`, que precarga el nombre); un correo ocupado (409) avisa y ofrece pasar al acceso (`auth:modoAnon` → `login`). Al terminar el alta se muestra la credencial («Tu cuenta quedó como …»). `alternarPseudonimo()` oculta el bloque del nombre con `hidden`/`u-oculto` y ajusta su `required`, sin estilos inline. El armazón offline pasa a `incidencias-shell-v2.9.0`.
 
+V2.9.2 (selector de informes): `modalSolicitudInforme` usa `crearSelectorTerritorialPorEstado` (`frontend/js/core/selector-territorial-bloques.js`). El estado se elige con un combobox de escritura; cada estado agregado crea un bloque con buscador de municipios, casilla «Seleccionar todos los municipios» (estado completo → `estados`) y lista con casillas. Los municipios concretos se envían en `municipios`; no hay chips ni buscador único. La demo `modalDemoInforme` y los pasos 3–4 de la guía usan el mismo componente. El armazón offline pasa a `incidencias-shell-v2.9.2`.
+
+V2.9.3 (cobertura nacional y carga única): `/api/municipios` y `/api/publico/municipios` devuelven `estados` con las 32 entidades federativas; `store.estado.estados` alimenta los selectores del informe, la demo, estadísticas y cuentas del personal. Los estados que aún no tienen municipios importados se pueden incluir completos (`estados`) y muestran un aviso. `crearSelectorTerritorial` y `crearSelectorTerritorialPorEstado` aceptan `catalogoEstados`, y la validación de alcance de las cuentas acepta cualquier entidad. El splash de arranque es el único spinner mientras está visible: `loading()` actualiza su texto y `retirarArranque()` traspasa la carga pendiente al overlay. El armazón offline pasa a `incidencias-shell-v2.9.3`.
+
+V2.9.4 (claves por estado, sesiones y auditoría): el modal de claves usa el mismo selector territorial por bloques que los informes: se elige un estado con escritura, se buscan sus municipios y «Incluir el estado completo» envía el estado en `estados`. El servidor expande los estados a sus municipios, guarda `clave_acceso_estados` y valida que la entidad tenga catálogo. La lista de claves muestra código, territorio, usuarios vinculados, sesiones activas, usos, vencimiento y estado, y permite eliminar la clave; al eliminarla se cierran sus sesiones (`sesiones_usuario.clave_id`) y el middleware rechaza los tokens en la siguiente petición. El monitoreo de sesiones indica la clave de cada sesión. La pestaña «Auditoría» (`ver_auditoria`) lista cada petición que modifica datos con fecha, actor, rol, permisos, acción, entidad, resultado, clave e IP hash; el cuerpo se sanea y nunca guarda contraseñas, tokens ni claves. La pestaña de estadísticas recrea su selector al abrirse para tomar el catálogo actual (las 32 entidades) y no quedarse con el de la primera carga. El catálogo nacional del INEGI quedó importado con 2 475 municipios y 50 763 comunidades de las 32 entidades; `scripts/sincronizar-catalogo.mjs` los lleva a MySQL sin borrar usuarios ni incidencias. El armazón offline pasa a `incidencias-shell-v2.9.4`.
+
 ## 4. Roles y permisos
 
 Roles: `anonimo`, `ciudadano`, `funcionario`, `auditor`, `enlace_estatal`, `enlace_federal`, `soporte`, `admin_municipal`, `admin_estatal`, `admin`.
@@ -141,11 +147,13 @@ Grupos:
 
 Permisos base:
 
-`reportar`, `editar_propios`, `cambiar_estado`, `resolver`, `moderar`, `exportar`, `gestionar_usuarios`, `gestionar_claves`, `ver_monitoreo`, `responder_tickets`, `atender_tickets`, `configurar_notificaciones`, `ver_metricas`.
+`reportar`, `editar_propios`, `cambiar_estado`, `resolver`, `moderar`, `exportar`, `gestionar_usuarios`, `gestionar_claves`, `ver_monitoreo`, `responder_tickets`, `atender_tickets`, `configurar_notificaciones`, `ver_metricas`, `ver_auditoria`.
 
-Permisos por sección del panel (V2.8): `ver_moderacion`, `ver_usuarios`, `ver_incidencias_panel`, `ver_tipos`, `gestionar_tipos`, `ver_municipios_panel`, `ver_zonas`, `gestionar_zonas`, `ver_firmas`, `gestionar_solicitudes_informe`, `gestionar_legal`, `gestionar_configuracion`, `gestionar_respaldos`, `usar_simulador`, `gestionar_publicidad` y `gestionar_correos`. La pestaña `admin:tab` lleva `data-permiso`, `PERMISO_POR_TAB` bloquea la apertura y el router correspondiente repite la comprobación en el servidor.
+Permisos por sección del panel (V2.8): `ver_moderacion`, `ver_usuarios`, `ver_incidencias_panel`, `ver_tipos`, `gestionar_tipos`, `ver_municipios_panel`, `ver_zonas`, `gestionar_zonas`, `ver_firmas`, `gestionar_solicitudes_informe`, `gestionar_legal`, `gestionar_configuracion`, `gestionar_respaldos`, `usar_simulador`, `gestionar_publicidad`, `gestionar_correos` y `ver_auditoria` (V2.9.4). La pestaña `admin:tab` lleva `data-permiso`, `PERMISO_POR_TAB` bloquea la apertura y el router correspondiente repite la comprobación en el servidor.
 
 `atender_tickets` es el permiso que abre el panel de soporte; `responder_tickets` se conserva para responder sin abrir la cola completa. Por defecto solo `soporte` y los tres roles admin tienen `atender_tickets`; un funcionario puede recibirlo como excepción.
+
+`ver_auditoria` (V2.9.4) abre la bitácora de acciones; por defecto solo lo tiene `admin`. Los administradores territoriales y el resto del personal pueden recibirlo como excepción, y la ruta vuelve a comprobarlo en el servidor.
 
 Reglas clave:
 
@@ -170,7 +178,7 @@ Roles especiales (V2.3):
 
 ## 5. Modelo de datos
 
-Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracion.js`, `20261025_configuracion_actor.js`, `20261026_simulacion_contexto.js`, `20261027_mejoras_v23.js`, `20261028_aceptaciones_legales.js`, `20261030_publicidad_avanzada.js`, `20261031_adjuntos.js`, `20261101_acceso_por_nombre.js` y `20261102_correo_unico.js`.
+Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracion.js`, `20261025_configuracion_actor.js`, `20261026_simulacion_contexto.js`, `20261027_mejoras_v23.js`, `20261028_aceptaciones_legales.js`, `20261028_claves_estados_sesiones_auditoria.js`, `20261030_publicidad_avanzada.js`, `20261031_adjuntos.js`, `20261101_acceso_por_nombre.js` y `20261102_correo_unico.js`.
 
 ### Catálogos
 - `municipios` (id INEGI, nombre, estado, polígono, centro, zoom).
@@ -180,8 +188,9 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 ### Cuentas y alcance
 - `usuarios` (rol, correo, pseudónimo, permisos, suspensión, `rol_personalizado_id` V2.3). En V2.9 el `nombre` del ciudadano es su credencial de acceso (único, sin distinguir mayúsculas ni acentos). El `correo` es el canal de avisos y vuelve a ser único en V2.9.1 (`20261102_correo_unico.js`).
 - `usuario_municipios`, `usuario_estados` (alcance N:M).
-- `claves_acceso` (V2.3: `correo_contacto`, `correo_institucional_id`), `clave_acceso_municipios`, `clave_acceso_usos`.
-- `sesiones_usuario`, `solicitudes_acceso`.
+- `claves_acceso` (V2.3: `correo_contacto`, `correo_institucional_id`), `clave_acceso_municipios`, `clave_acceso_estados` (V2.9.4: estados completos), `clave_acceso_usos`.
+- `sesiones_usuario` (V2.9.4: `clave_id` identifica la clave con la que se abrió la sesión; `cerrada_en` y `motivo_cierre` permiten revocarla), `solicitudes_acceso`.
+- `auditoria` (V2.9.4: actor, `user_key`, rol, `clave_id`, método, ruta, estado HTTP, acción, entidad, detalle JSON saneado, IP hash, user agent y fecha).
 - `roles_personalizados` y `solicitudes_permisos` (V2.3).
 - `municipios_informacion` (ficha municipal con estado `borrador|pendiente|aprobado|rechazado`, autor de la propuesta y aprobador).
 
@@ -229,7 +238,7 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 - `POST /api/auth/anonimo`, `/api/auth/registro`, `/api/auth/ciudadano`, `/api/auth/funcionario`, `/api/auth/admin`. El alta (`/registro`) rechaza nombres y correos repetidos (409, el correo porque es el canal de avisos); `/auth/ciudadano` entra con `nombre` (o pseudónimo) y contraseña, y acepta `correo` como respaldo para cuentas antiguas (V2.9/V2.9.1).
 - `GET /api/terminos` · `GET /api/legal/:clave` (V2.2).
 - `GET /api/legal/aceptacion` (requiere sesión, incluida la anónima) y `POST /api/legal/aceptar` devuelven/registran las versiones vigentes de términos y privacidad (V2.7).
-- `GET /api/publico/municipios`, `/api/publico/tipos`.
+- `GET /api/publico/municipios` (incluye `estados` con las 32 entidades federativas), `/api/publico/tipos`.
 - `POST /api/publico/contacto`, `/api/publico/sugerencias`, `/api/publico/solicitudes-acceso`.
 - `POST /api/publico/solicitudes-informe` y verificación/consulta por folio.
 - `GET /api/publico/qr/:codigo` (ficha) y `POST /api/publico/qr/:codigo/escaneo` (registro) y `GET /r/:codigo` (redirección a `/?qr=`).
@@ -249,7 +258,7 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 ### Personal
 - Panel, estadísticas, exportación, informes.
 - `GET /api/stats/panel` y `/api/stats/informes` aceptan `municipios` y `estados` (listas separadas por coma); devuelven `comparativo`, `comparativoEstados` y `tiempos` (promedio, mediana, mín/máx y detalle por incidencia).
-- `GET /api/municipios/ubicacion?lat=&lng=` detecta el municipio de la geolocalización.
+- `GET /api/municipios` devuelve el catálogo visible y `estados` con las 32 entidades federativas; `GET /api/municipios/ubicacion?lat=&lng=` detecta el municipio de la geolocalización.
 - `GET /api/municipios/:id/ficha` y `PUT /api/municipios/:id/ficha` (funcionario propone, admin guarda aprobado); `POST /api/municipios/:id/ficha/aprobar|rechazar` (solo administración).
 - `GET/POST /api/permisos/solicitudes`, `GET /api/permisos/solicitudes/mias`, `POST /api/permisos/solicitudes/:id/aprobar|rechazar`; `GET /api/roles-especiales`, `POST/PATCH/DELETE /api/roles-especiales` (solo admin maestro).
 - `POST/PATCH /api/usuarios` exigen `gestionar_usuarios`; un funcionario con ese permiso aprobado solo gestiona cuentas no administrativas de su ámbito.
@@ -261,6 +270,9 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 
 ### Admin maestro
 - Usuarios, claves, sesiones, municipios, zonas, tipos.
+- Claves V2.9.4: `GET/POST /api/admin/claves` (el alta acepta `municipios`, `estados`, `rolSugerido`, `usosMaximos` y `expiraEn`), `POST /api/admin/claves/:id/revocar`, `DELETE /api/admin/claves/:id`. La lista incluye `usuariosVinculados`, `sesionesActivas` y `sesiones`; al revocar o eliminar se cierran las sesiones de la clave y se corta su SSE.
+- Sesiones V2.9.4: `GET /api/admin/sesiones` devuelve `claveId`, `claveCodigo` y `claveNombre`; `DELETE /api/admin/sesiones/:id` sigue revocando por `jti`.
+- Auditoría V2.9.4: `GET /api/admin/auditoria?username=&accion=&desde=&hasta=&limite=` exige `ver_auditoria` y devuelve las acciones que modifican datos (POST/PUT/PATCH/DELETE) saneadas.
 - Configuración global de notificaciones y campañas.
 - Solicitudes de informe: listar, previsualizar, generar, enviar, rechazar, reintentar (V2.2); `GET /api/admin/solicitudes-informe/:id/archivo` sirve el archivo guardado en `data/informes` para el visor modal (V2.4).
 - `GET /api/informes/estilo.css` publica los márgenes, logo y pie efectivos; `POST /api/admin/informes/logo` sube el logo (solo admin). `POST /api/publico/solicitudes-informe` exige cuenta registrada (V2.5). La UI de solicitud vive en `modalSolicitudInforme`; no hay página `/informes` (V2.6). La solicitud acepta `municipios` y `estados` simultáneos; el informe consulta su unión (V2.7).
@@ -337,7 +349,7 @@ Variables V2.7:
 - Runner: `node:test` + `node:assert/strict` + `supertest`.
 - Driver por defecto: JSON temporal (`test/helpers/entorno.js`).
 - MySQL: `STORAGE_DRIVER_TEST=mysql` con `compose.test.yaml` (puerto 3399) o MariaDB local.
-- Ejecutar un archivo MySQL a la vez por el coste de la semilla de 6,314 zonas.
+- Ejecutar un archivo MySQL a la vez por el coste de la semilla de pruebas (175 municipios y 6,314 zonas del catálogo ligero).
 - Comandos:
   - `cd backend && npm test`
   - `cd backend && npm run test:mysql`
@@ -354,6 +366,9 @@ Variables V2.7:
 - Pruebas V2.8: `adjuntos.test.js` cubre subida privada, token de imagen, bloqueo entre cuentas, comentario solo con imagen, rechazo de PDF en comentarios, adjuntos en contacto directo y en mensajería interna; `permisos-panel.test.js` valida el `data-permiso` de todas las pestañas y `sintaxis-frontend.test.js` evita errores de sintaxis en los módulos del navegador. Suite JSON: 308/308. La prueba MySQL dirigida de publicidad/adjuntos no se pudo ejecutar en este entorno porque Docker no está disponible; debe repetirse con `npm run test:mysql`.
 - Pruebas V2.8.1: `registro-cuenta.test.js` fija el orden de capas (aviso y carga por encima del acceso y del paso previo), el aviso `#loginMensaje`, la validación nativa del alta y las respuestas de `POST /api/auth/registro` (201 con nombre y con pseudónimo, 409 para correo repetido y 400 con el detalle del campo). Suite JSON: 316/316.
 - Pruebas V2.9: `registro-cuenta.test.js` cubre el acceso por nombre (mayúsculas/acentos y contraseña mala), los pseudónimos únicos, el nombre repetido y el correo repetido; `cuentas.test.js` valida la entrada por nombre y el respaldo por correo. Suite JSON: 319/319; MySQL dirigido de `registro-cuenta` (10/10) y `cuentas` (17/17).
+- Pruebas V2.9.2: `v2-ui.test.js` cubre los helpers `estadosDelCatalogo`/`construirBloques` del selector de informes, el contrato del modal y su demo, y la precarga del módulo en `sw.js`; `sin-estilos-inline.test.js` y `sintaxis-frontend.test.js` cubren el archivo nuevo. Suite JSON: 320/320.
+- Pruebas V2.9.3: `auth.test.js` valida las 32 entidades en `/api/municipios`; `v2-ui.test.js` cubre `catalogoEstados`/`construirBloques` y el contrato de un solo spinner (splash → overlay). Suite JSON: 321/321.
+- Pruebas V2.9.4: `v294-claves-auditoria.test.js` crea una clave con `estados`, comprueba que se expande a municipios, que la sesión queda vinculada a la clave, que eliminarla cierra la sesión y que la auditoría registra actor, resultado, entidad y permisos. Suite JSON: 325/325.
 
 ## 11. Migraciones y datos
 
@@ -365,6 +380,8 @@ Variables V2.7:
 - V2.8 añade `20261030_publicidad_avanzada.js` (columnas de diseño en `publicaciones_redes`, `codigos_qr`, `qr_escaneos`) y `20261031_adjuntos.js` (`adjuntos`). Ejecutar `npm run migrate` con respaldo previo.
 - V2.9 añade `20261101_acceso_por_nombre.js`: quita la unicidad de `usuarios.correo` (pasa a ser dato de contacto) e indexa `usuarios.nombre`, que ahora se consulta en cada entrada ciudadana. Ejecutar `npm run migrate` con respaldo previo.
 - V2.9.1 añade `20261102_correo_unico.js`: restaura el índice único de `usuarios.correo` (el correo es el canal de avisos). Si hay correos repetidos, la migración se detiene y los lista para corregirlos a mano; no modifica datos.
+- V2.9.4 añade `20261028_claves_estados_sesiones_auditoria.js`: tabla `clave_acceso_estados`, columna `sesiones_usuario.clave_id` con índice y tabla `auditoria` con índices por fecha, usuario y clave. No borra datos; ejecutar `npm run migrate` con respaldo previo.
+- Catálogo nacional V2.9.4: `npm run importar-inegi` genera `src/config/seed-data/municipios.json` (2 475 municipios) y `zonas.json` (50 763 comunidades); `npm run sincronizar-catalogo` los inserta o actualiza en MySQL sin borrar usuarios, incidencias, claves ni sesiones. `-- --seco` muestra el conteo sin escribir. `npm run seed` sigue siendo destructivo y no debe usarse sobre datos reales.
 - `npm run seed` es **destructivo**; solo en base demo.
 - `npm run datos-nuevos` carga datos V2.2 de demostración (firmas, legal, correos, publicaciones y respaldo).
 - `npm run verificar-funciones` ejecuta 25 flujos reales contra la base configurada (incluye geolocalización, fichas, estadísticas, roles, permisos, simulación y reversión).
@@ -388,6 +405,32 @@ Al cambiar cualquiera de estos elementos, actualizar la sección correspondiente
 Un cambio no se considera terminado si este archivo no refleja el estado real.
 
 ## 13. Changelog
+
+### 2026-10-29 — V2.9.4 (claves por estado, sesiones y auditoría)
+
+- El modal de claves usa el selector por estados y municipios con escritura, búsqueda, «Incluir el estado completo» y bloques repetibles. El alta envía `estados` y el servidor los expande a municipios (`clave_acceso_estados`), valida que existan en el catálogo y respeta el alcance del administrador.
+- La lista de claves muestra código, nombre, territorio, usuarios vinculados, sesiones activas, usos, vencimiento, estado y eliminación. Al revocar o eliminar se cierran las sesiones de la clave y se corta su canal SSE.
+- Las sesiones guardan la clave con la que se abrieron (`sesiones_usuario.clave_id`) y el monitoreo muestra su código y nombre.
+- La pestaña de estadísticas recrea su selector territorial al abrirse: así ofrece las 32 entidades y los municipios del catálogo nacional, sin quedarse con el catálogo de la primera carga.
+- Nueva pestaña «Auditoría» con permiso `ver_auditoria` y `GET /api/admin/auditoria`. El middleware `auditoria.js` registra toda escritura con actor, rol, permisos, clave, ruta, resultado, entidad, detalle saneado e IP hash; no guarda contraseñas, tokens ni claves.
+- La importación del INEGI dejó 2 475 municipios y 50 763 comunidades de las 32 entidades; `scripts/sincronizar-catalogo.mjs` los carga en MySQL de forma no destructiva (`--seco` para previsualizar). El catálogo de pruebas sigue aislado en `backend/test/fixtures/seed-data`.
+- Pruebas: `v294-claves-auditoria.test.js` (4/4) y suite JSON 325/325.
+
+### 2026-10-28 — V2.9.3 (32 entidades y carga única)
+
+- El catálogo ligero (`/api/municipios` y `/api/publico/municipios`) publica `estados` con las 32 entidades federativas. El selector territorial del informe, la demo, estadísticas y cuentas del personal las ofrecen aunque solo tres tengan municipios importados; los estados sin datos muestran «Incluir el estado completo» y se envían en `estados`.
+- La validación de alcance de las cuentas acepta cualquier entidad de la república, no solo las que tienen municipios en el catálogo.
+- El splash de arranque y el overlay de carga ya no muestran dos espirales a la vez: mientras el splash está visible, `loading()` actualiza su texto y `retirarArranque()` transfiere la carga pendiente al overlay.
+- `frontend/sw.js` pasa a `incidencias-shell-v2.9.3`.
+- Pruebas: `auth.test.js` verifica las 32 entidades en `/api/municipios`; `v2-ui.test.js` cubre los estados adicionales y el contrato del splash. Suite JSON 321/321.
+
+### 2026-10-28 — V2.9.2 (selector de informes por estado)
+
+- `modalSolicitudInforme` sustituye el buscador único «Escribe un municipio o estado…» y los chips por un selector de estado con escritura. Cada estado agregado crea un bloque con buscador de municipios, casilla «Seleccionar todos los municipios» y lista de selección rápida; el bloque vacío final permite añadir otro estado.
+- «Seleccionar todos los municipios» envía el estado completo (`estados`); los municipios concretos se envían como IDs en `municipios`. Los estados completos no se duplican como IDs.
+- La demo `modalDemoInforme` y los pasos 3–4 de la guía usan el mismo componente y explican el nuevo flujo.
+- `frontend/sw.js` precarga `selector-territorial-bloques.js` y el armazón pasa a `incidencias-shell-v2.9.2`.
+- Pruebas: `v2-ui.test.js` (helpers de bloques y contrato del modal/demo), `sin-estilos-inline.test.js` y `sintaxis-frontend.test.js`; suite JSON 320/320.
 
 ### 2026-10-27 — V2.9.1 (correo único)
 

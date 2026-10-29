@@ -3,6 +3,14 @@ SISTEMA DE INCIDENCIAS MUNICIPALES — CAMBIOS, INSTALACIÓN Y OPERACIÓN
 Versión 2.3 · 2026-10-27
 ==============================================================================
 
+ACTUALIZACIÓN V2.9.4: claves que cubren estados completos, sesiones vinculadas
+a su clave, eliminación de claves con cierre de sesiones y bitácora de
+auditoría. Requiere `npm --prefix backend run migrate`
+(20261028_claves_estados_sesiones_auditoria.js). Para cargar el catálogo
+nacional del INEGI sin borrar datos: `npm --prefix backend run importar-inegi`
+y después `npm --prefix backend run sincronizar-catalogo` (usar `-- --seco`
+para revisar el conteo). No usar `npm run seed` sobre datos reales.
+
 ACTUALIZACIÓN V2.3: ver la sección 17 al final de este documento. Incluye
 mapa depurado, geolocalización con cambio de municipio, informes
 multiterritoriales, estadísticas comparativas, fichas municipales, roles
