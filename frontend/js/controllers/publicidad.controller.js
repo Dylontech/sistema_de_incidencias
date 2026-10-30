@@ -507,6 +507,16 @@ export function registrar() {
 
     'publicidad:ir': ({ valor: seccion }) => irA(seccion),
 
+    'publicidad:secciones': ({ valor }) => {
+      const abrir = valor === 'expandir';
+      document
+        .querySelectorAll('#panel-publicidad .pe-seccion details.pe-detalle, #modalCampana details.pe-detalle')
+        .forEach((detalle) => {
+          detalle.open = abrir;
+        });
+      toast(abrir ? 'Secciones expandidas' : 'Secciones contraídas', 'ok');
+    },
+
     'publicidad:vivo': () => {
       guardarPrefs();
       pintarLienzoPronto();

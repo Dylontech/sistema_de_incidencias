@@ -1085,10 +1085,20 @@
      MODAL: ADMIN PANEL
      ============================================================ -->
 <div class="modal-overlay" id="modalAdmin">
-  <div class="modal-box lg u-max-1000">
+  <div class="modal-box lg u-max-1000 admin-panel-normal" id="modalAdminBox">
     <div class="modal-head">
       <h3><i class="bi bi-speedometer2"></i> Panel de control</h3>
-      <button class="modal-close" data-action="admin:cerrar">&times;</button>
+      <div class="admin-head-tools">
+        <span class="campo-nota admin-head-tools-label">Texto</span>
+        <button type="button" class="boton-texto" data-action="accesibilidad:textoMenos" title="Reducir el texto del panel" aria-label="Reducir el texto del panel">A−</button>
+        <button type="button" class="boton-texto" data-action="accesibilidad:textoRestablecer" title="Tamaño de texto normal" aria-label="Tamaño de texto normal">A</button>
+        <button type="button" class="boton-texto" data-action="accesibilidad:textoMas" title="Aumentar el texto del panel" aria-label="Aumentar el texto del panel">A+</button>
+        <span class="admin-head-tools-sep" aria-hidden="true"></span>
+        <button type="button" class="btn btn-outline btn-sm" data-action="admin:tamanoPanel" data-valor="menos" title="Hacer más pequeño el panel" aria-label="Hacer más pequeño el panel"><i class="bi bi-arrows-angle-contract"></i></button>
+        <button type="button" class="btn btn-outline btn-sm" data-action="admin:tamanoPanel" data-valor="mas" title="Hacer más grande el panel" aria-label="Hacer más grande el panel"><i class="bi bi-arrows-angle-expand"></i></button>
+        <button type="button" class="btn btn-outline btn-sm" data-action="admin:tamanoPanel" data-valor="restablecer" title="Tamaño normal del panel" aria-label="Tamaño normal del panel"><i class="bi bi-arrow-counterclockwise"></i></button>
+        <button class="modal-close" data-action="admin:cerrar">&times;</button>
+      </div>
     </div>
     <div class="modal-body">
       <div class="admin-tabs">
@@ -1096,10 +1106,11 @@
         <button class="admin-tab" data-action="admin:tab" data-valor="incidencias" data-permiso="ver_incidencias_panel"><i class="bi bi-list-ul"></i> Incidencias</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="tipos" data-permiso="ver_tipos"><i class="bi bi-tags-fill"></i> Tipos</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="municipios" data-permiso="ver_municipios_panel"><i class="bi bi-geo-fill"></i> Municipios</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="claves" id="tabClaves" data-permiso="gestionar_claves"><i class="bi bi-key-fill"></i> Claves de acceso</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="claves" id="tabClaves" data-permiso="ver_claves"><i class="bi bi-key-fill"></i> Claves de acceso</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="avisos-clave" id="tabAvisosClave" data-permiso="ver_avisos_clave"><i class="bi bi-bell-fill"></i> Avisos por clave</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="zonas" data-permiso="ver_zonas"><i class="bi bi-bounding-box-circles"></i> Zonas</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="usuarios" data-permiso="ver_usuarios"><i class="bi bi-people-fill"></i> Usuarios</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes" data-permiso="gestionar_usuarios"><i class="bi bi-person-check-fill"></i> Solicitudes</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes" data-permiso="ver_solicitudes_acceso"><i class="bi bi-person-check-fill"></i> Solicitudes</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="tickets" data-permiso="atender_tickets"><i class="bi bi-life-preserver"></i> Tickets</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="sesiones" data-permiso="ver_monitoreo"><i class="bi bi-activity"></i> Conectados</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="auditoria" data-permiso="ver_auditoria"><i class="bi bi-journal-text"></i> Auditoría</button>
@@ -1121,9 +1132,9 @@
             <i class="bi bi-funnel-fill"></i> Territorio de las estadísticas
           </h4>
           <p class="campo-nota u-mb-8">
-            Busca y elige varios municipios, o estados completos. Solo aparecen los
-            territorios de tu alcance: un funcionario ve sus municipios y un enlace
-            estatal, los de su estado.
+            El selector solo ofrece los municipios de tu ámbito. Si tu cuenta es de
+            alcance estatal también podrás elegir estados completos; el servidor
+            rechaza cualquier territorio ajeno.
           </p>
           <div id="statsTerritorio"></div>
           <div class="u-fila-sep u-mt-8">
@@ -1188,7 +1199,7 @@
       </div>
 
       <div class="admin-panel" id="panel-municipios">
-        <div class="panel-blanco u-mb-12">
+        <div class="panel-blanco u-mb-12" id="municipioActivoBox">
           <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-pin-map-fill"></i> Municipio activo
           </h4>
@@ -1202,7 +1213,7 @@
             <i class="bi bi-arrow-repeat"></i> Cambiar municipio
           </button>
         </div>
-        <div class="panel-blanco u-mb-10">
+        <div class="panel-blanco u-mb-10" id="municipiosFiltroBox">
           <div class="filter-row">
             <div class="form-group">
               <label for="municipiosBuscar">Buscar municipio</label>
@@ -1242,6 +1253,21 @@
         <div id="clavesLista"></div>
       </div>
 
+      <div class="admin-panel" id="panel-avisos-clave">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Elige de qué municipios puede recibir avisos cada clave. El permiso se puede revocar
+          sin invalidar la clave: la persona sigue entrando, pero deja de recibir notificaciones.
+          Si no eliges municipios, se usan todos los de la clave.
+        </p>
+        <div class="u-fila-sep u-mb-10">
+          <input type="text" id="avisosClaveBuscar" class="filter-input u-max-300" placeholder="Buscar clave o territorio" data-input="avisosClave:filtrar">
+          <button class="btn btn-outline btn-sm" data-action="avisosClave:recargar">
+            <i class="bi bi-arrow-repeat"></i> Actualizar
+          </button>
+        </div>
+        <div id="avisosClaveLista"></div>
+      </div>
+
       <div class="admin-panel" id="panel-zonas">
         <p class="u-fs-125px u-gris u-mb-12">
           Comunidades (localidades del INEGI) del municipio activo, con sus reportes. Los reportes
@@ -1265,20 +1291,55 @@
           <button class="btn btn-primary btn-sm" data-action="admin:usuarioNuevo" id="btnNuevoUsuario">
             <i class="bi bi-person-plus-fill"></i> Nuevo usuario
           </button>
+          <button class="btn btn-outline btn-sm u-oculto" data-action="alta:solicitar" id="btnSolicitarAlta">
+            <i class="bi bi-person-plus"></i> Solicitar alta de usuario
+          </button>
           <button class="btn btn-outline btn-sm" data-action="roles:abrir" id="btnRolesEspeciales">
             <i class="bi bi-shield-lock-fill"></i> Roles especiales
           </button>
         </div>
         <div id="usuariosLista"></div>
-        <div class="panel-blanco u-mt-12">
+        <div class="panel-blanco u-mt-12" id="solicitudesAltaBox">
+          <h4 class="titulo-seccion u-mb-8">
+            <i class="bi bi-person-plus-fill"></i> Solicitudes de alta
+          </h4>
+          <p class="campo-nota u-mb-8">
+            El personal pide crear cuentas para sus compañeros. Al aprobarlas se crea la
+            cuenta como funcionario en los municipios del solicitante y la contraseña
+            temporal se le entrega por la campana de avisos.
+          </p>
+          <div id="solicitudesAltaLista"></div>
+        </div>
+        <div class="panel-blanco u-mt-12" id="solicitudesPermisosBox" data-permiso="ver_solicitudes_permisos">
           <h4 class="titulo-seccion u-mb-8">
             <i class="bi bi-inbox-fill"></i> Solicitudes de permisos
           </h4>
           <p class="campo-nota u-mb-8">
             El personal puede pedir permisos extra desde su cuenta. Apruébalos o recházalos
-            aquí; al aprobarlos, el permiso se suma a los de su rol.
+            aquí; al aprobarlos, el permiso se suma a los de su rol. Solo aparece para quien
+            tiene el permiso «Ver solicitudes de permisos».
           </p>
           <div id="solicitudesPermisosLista"></div>
+        </div>
+        <div class="panel-blanco u-mt-12" id="solicitudesPasswordBox" data-permiso="revelar_password_usuarios">
+          <h4 class="titulo-seccion u-mb-8">
+            <i class="bi bi-key-fill"></i> Solicitudes de contraseña
+          </h4>
+          <p class="campo-nota u-mb-8">
+            El personal pide el cambio desde «Mi cuenta». Al aprobarlo se genera una
+            contraseña temporal que debes entregar en mano; la consulta queda en auditoría.
+          </p>
+          <div id="solicitudesPasswordLista"></div>
+        </div>
+        <div class="panel-blanco u-mt-12" id="solicitudesBajaBox">
+          <h4 class="titulo-seccion u-mb-8">
+            <i class="bi bi-person-dash-fill"></i> Solicitudes de baja
+          </h4>
+          <p class="campo-nota u-mb-8">
+            Un funcionario puede pedir la baja de otro funcionario de su ámbito, pero la
+            desactivación la aplica la administración desde aquí.
+          </p>
+          <div id="solicitudesBajaLista"></div>
         </div>
       </div>
 
@@ -1652,8 +1713,16 @@
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Estudio de publicidad del sistema: elige una plantilla, ajusta el texto y los colores,
           descarga la imagen lista para publicar o llévala a Canva. Más abajo están las
-          publicaciones guardadas y las campañas de correo.
+          publicaciones guardadas y las campañas de correo. Arrastra la esquina inferior derecha
+          de cada sección para ampliarla o reducirla, o usa los botones de plegado.
         </p>
+        <div class="u-fila-sep u-mb-8">
+          <span class="campo-nota">Secciones redimensionables: arrastra su esquina inferior derecha.</span>
+          <span class="u-fila-env">
+            <button type="button" class="btn btn-outline btn-sm" data-action="publicidad:secciones" data-valor="expandir"><i class="bi bi-arrows-angle-expand"></i> Expandir secciones</button>
+            <button type="button" class="btn btn-outline btn-sm" data-action="publicidad:secciones" data-valor="contraer"><i class="bi bi-arrows-angle-contract"></i> Contraer secciones</button>
+          </span>
+        </div>
         <nav class="pe-nav" aria-label="Secciones de publicidad">
           <button type="button" class="pe-nav-btn" data-action="publicidad:ir" data-valor="biblioteca"><i class="bi bi-grid-3x3-gap-fill"></i> Plantillas</button>
           <button type="button" class="pe-nav-btn" data-action="publicidad:ir" data-valor="estudio"><i class="bi bi-brush-fill"></i> Diseñar</button>
@@ -1763,25 +1832,26 @@
                       <label class="u-fila-sep"><input type="checkbox" id="publicidadMostrarQr" checked data-change="publicidad:vivo"> Mostrar en la imagen</label>
                     </div>
                   </div>
-                  <div class="filter-row u-mb-8">
-                    <div class="form-group">
-                      <label for="publicidadQrContenido">Enlace o texto del QR (vacío = enlace del sistema)</label>
+                  <div class="pe-grid-qr u-mb-8">
+                    <div class="form-group pe-campo-ancho">
+                      <label for="publicidadQrContenido">Enlace o texto del QR</label>
                       <input type="text" id="publicidadQrContenido" maxlength="1500" data-input="publicidad:vivo">
+                      <p class="pe-campo-nota">Si lo dejas vacío se usa el enlace del sistema.</p>
                     </div>
                     <div class="form-group">
-                      <label for="publicidadQrTamano">Tamaño QR (px)</label>
+                      <label for="publicidadQrTamano">Tamaño (px)</label>
                       <input type="number" id="publicidadQrTamano" min="60" max="600" value="180" data-input="publicidad:vivo">
                     </div>
                     <div class="form-group">
-                      <label for="publicidadQrNivel">Corrección QR</label>
+                      <label for="publicidadQrNivel">Corrección</label>
                       <select id="publicidadQrNivel" data-change="publicidad:vivo"><option value="M" selected>M</option><option value="L">L</option><option value="Q">Q</option><option value="H">H</option></select>
                     </div>
                     <div class="form-group">
-                      <label for="publicidadQrColor">Color QR</label>
+                      <label for="publicidadQrColor">Color</label>
                       <input type="color" id="publicidadQrColor" value="#0b1020" data-input="publicidad:vivo">
                     </div>
                     <div class="form-group">
-                      <label for="publicidadQrEtiqueta">Etiqueta del QR</label>
+                      <label for="publicidadQrEtiqueta">Etiqueta</label>
                       <input type="text" id="publicidadQrEtiqueta" maxlength="60" value="Escanea y participa" data-input="publicidad:vivo">
                     </div>
                   </div>
@@ -2752,6 +2822,50 @@
 </div>
 
 <!-- ============================================================
+     MODAL: AVISOS POR CLAVE
+     ============================================================ -->
+<div class="modal-overlay" id="modalAvisosClave">
+  <div class="modal-box lg u-max-820">
+    <div class="modal-head">
+      <h3><i class="bi bi-bell-fill"></i> <span id="avisosClaveTitulo">Avisos de la clave</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalAvisosClave">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="avisosClaveId">
+      <p class="campo-nota" id="avisosClaveNota"></p>
+      <div class="form-group">
+        <label class="u-fila-sep"><input type="checkbox" id="avisosClaveActivo"> Recibir avisos con esta clave</label>
+      </div>
+      <div class="form-group">
+        <label>Municipios con aviso</label>
+        <div id="avisosClaveTerritorio"></div>
+        <p class="campo-nota">Si no eliges ninguno, se usan todos los municipios de la clave. Revocar los avisos no invalida la clave para iniciar sesión.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalAvisosClave">Cancelar</button>
+      <button class="btn btn-primary" data-action="avisosClave:guardar"><i class="bi bi-save"></i> Guardar avisos</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DETALLE DE UNA SOLICITUD DE INFORME
+     ============================================================ -->
+<div class="modal-overlay" id="modalSolicitudInformeDetalle">
+  <div class="modal-box lg u-max-900">
+    <div class="modal-head">
+      <h3><i class="bi bi-layout-text-window-reverse"></i> Resumen de la solicitud</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalSolicitudInformeDetalle">&times;</button>
+    </div>
+    <div class="modal-body" id="solicitudInformeDetalleCuerpo"></div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalSolicitudInformeDetalle">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      MODAL: VISOR DE INFORMES GENERADOS
      ============================================================ -->
 <div class="modal-overlay" id="modalVisorInforme">
@@ -2952,24 +3066,35 @@
 <div class="modal-overlay" id="modalRolesEspeciales">
   <div class="modal-box lg u-max-820">
     <div class="modal-head">
-      <h3><i class="bi bi-shield-lock-fill"></i> Roles especiales</h3>
+      <h3><i class="bi bi-shield-lock-fill"></i> Roles y permisos</h3>
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalRolesEspeciales">&times;</button>
     </div>
     <div class="modal-body">
       <p class="campo-nota u-mb-10">
-        Un rol especial suma permisos a una cuenta sin convertirla en administrador global.
-        El alcance territorial sigue saliendo de sus municipios o estados asignados.
+        Los <strong>roles del sistema</strong> definen la matriz base de cada cuenta y se pueden ajustar.
+        Un <strong>rol propio</strong> hereda el comportamiento de una plantilla y añade su propia matriz.
+        Un <strong>rol especial</strong> suma permisos a una cuenta sin cambiar su rol base.
       </p>
+
+      <h4 class="titulo-seccion u-mb-8">Roles del sistema</h4>
+      <div id="rolesIntegradosLista" class="u-mb-14"></div>
+
+      <h4 class="titulo-seccion u-mb-8">Roles propios</h4>
+      <div id="rolesPropiosLista" class="u-mb-14"></div>
+
+      <h4 class="titulo-seccion u-mb-8">Roles especiales</h4>
       <div id="rolesEspecialesLista" class="u-mb-12"></div>
+
       <h4 class="titulo-seccion u-mb-8" id="rolEspecialFormTitulo">Nuevo rol</h4>
       <input type="hidden" id="rolEspecialId">
+      <input type="hidden" id="rolEspecialTipo" value="especial">
       <div class="filter-row">
         <div class="form-group">
           <label for="rolEspecialNombre">Nombre *</label>
           <input type="text" id="rolEspecialNombre" maxlength="120" placeholder="Ej. Gestor de usuarios del municipio">
         </div>
-        <div class="form-group">
-          <label for="rolEspecialBase">Rol base compatible *</label>
+        <div class="form-group" id="rolEspecialBaseBox">
+          <label for="rolEspecialBase">Plantilla (rol base) *</label>
           <select id="rolEspecialBase">
             <option value="funcionario">Funcionario</option>
             <option value="auditor">Auditor</option>
@@ -2978,6 +3103,15 @@
             <option value="soporte">Soporte</option>
             <option value="admin_municipal">Administrador municipal</option>
             <option value="admin_estatal">Administrador estatal</option>
+          </select>
+          <p class="campo-nota u-mt-4" id="rolEspecialBaseNota"></p>
+        </div>
+        <div class="form-group u-oculto" id="rolEspecialTerritorioBox">
+          <label for="rolEspecialTerritorio">Territorio que exige</label>
+          <select id="rolEspecialTerritorio">
+            <option value="municipios">Municipios (obligatorio)</option>
+            <option value="ambos">Municipios o estados</option>
+            <option value="estados">Estados (obligatorio)</option>
           </select>
         </div>
       </div>
@@ -2988,8 +3122,12 @@
       <div class="form-group">
         <label>Permisos del rol</label>
         <div class="permisos-grid" id="rolEspecialPermisos"></div>
+        <p class="campo-nota">
+          Cada permiso tiene un botón «?» con su explicación y un ejemplo. El administrador maestro
+          puede restablecer un rol del sistema a sus valores de fábrica.
+        </p>
       </div>
-      <label class="check-line">
+      <label class="check-line" id="rolEspecialActivoBox">
         <input type="checkbox" id="rolEspecialActivo" checked>
         <span>Rol activo (se puede asignar a cuentas)</span>
       </label>
@@ -2997,6 +3135,9 @@
     <div class="modal-foot">
       <button class="btn btn-outline" data-action="roles:nuevo"><i class="bi bi-plus-circle"></i> Limpiar</button>
       <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalRolesEspeciales">Cerrar</button>
+      <button class="btn btn-success u-oculto" id="rolEspecialAplicar" data-action="roles:usarEnUsuario">
+        <i class="bi bi-check2-circle"></i> Aplicar a esta cuenta
+      </button>
       <button class="btn btn-primary" data-action="roles:guardar"><i class="bi bi-save"></i> Guardar rol</button>
     </div>
   </div>
@@ -3026,6 +3167,25 @@
       <button class="btn btn-primary btn-sm" data-action="perfil:solicitar">
         <i class="bi bi-send-fill"></i> Enviar solicitud
       </button>
+      <div id="perfilPasswordBox">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Cambiar mi contraseña</h4>
+        <p class="campo-nota u-mb-8">
+          Por seguridad, el cambio lo aplica un administrador de tu territorio. Cuéntale por
+          qué lo necesitas y te entregará la nueva contraseña.
+        </p>
+        <div class="form-group">
+          <label for="perfilMotivoPassword">Motivo del cambio *</label>
+          <textarea id="perfilMotivoPassword" rows="2" maxlength="600" placeholder="Ej. Olvidé mi contraseña o creo que alguien más la conoce"></textarea>
+        </div>
+        <button class="btn btn-outline btn-sm" data-action="perfil:solicitarPassword">
+          <i class="bi bi-key-fill"></i> Solicitar cambio de contraseña
+        </button>
+        <div id="perfilSolicitudesPassword" class="u-mt-8"></div>
+      </div>
+      <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes de baja</h4>
+      <div id="perfilSolicitudesBaja"></div>
+      <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes de alta</h4>
+      <div id="perfilSolicitudesAlta"></div>
       <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes</h4>
       <div id="perfilSolicitudes"></div>
     </div>
@@ -3108,6 +3268,26 @@
           <input type="text" id="usuarioUsername" maxlength="60" placeholder="ej. jlopez" autocomplete="off">
           <p class="campo-nota">Así entra en la pestaña «Personal» (junto a la clave del municipio).</p>
         </div>
+        <div class="form-group" id="usuarioClaveAccesoBox">
+          <label for="usuarioClaveAcceso">Clave de acceso (opcional)</label>
+          <select id="usuarioClaveAcceso" data-change="admin:usuarioClave"></select>
+          <p class="campo-nota">
+            Si eliges una clave, el rol, el territorio y los permisos de la cuenta se toman de ella.
+            La clave también limita cada permiso a esos municipios o estados al iniciar sesión.
+          </p>
+          <details class="ayuda-clave">
+            <summary>Ver un ejemplo práctico</summary>
+            <p>
+              El administrador crea la clave <strong>«Maravatío · funcionario»</strong> con los permisos
+              «Ver usuarios», «Ver incidencias» y «Exportar informes», y se la entrega al funcionario.
+              Al entrar con esa clave, la cuenta solo ve Maravatío y solo puede hacer esas tres cosas:
+              el resto de municipios y de acciones queda bloqueado, aunque su rol base tenga más permisos.
+            </p>
+          </details>
+          <p class="campo-nota" id="usuarioClavePreview">
+            Sin clave: la cuenta se configura a mano con el rol, el territorio y la matriz de permisos.
+          </p>
+        </div>
         <div class="form-group">
           <label for="usuarioNombre">Nombre completo *</label>
           <input type="text" id="usuarioNombre" maxlength="80" placeholder="Ej. Juan López">
@@ -3127,25 +3307,26 @@
         </div>
         <div class="form-group">
           <label for="usuarioRolEspecial">Rol especial (opcional)</label>
-          <select id="usuarioRolEspecial">
-            <option value="">— Sin rol especial —</option>
-          </select>
+          <div class="fila-acciones">
+            <select id="usuarioRolEspecial">
+              <option value="">— Sin rol especial —</option>
+            </select>
+            <button type="button" class="btn btn-outline btn-sm" data-action="roles:desdeUsuario" id="btnCrearRolEspecial">
+              <i class="bi bi-plus-circle"></i> Crear rol
+            </button>
+          </div>
           <p class="campo-nota">
             Suma permisos a la cuenta sin cambiar su rol base. Solo aparecen los roles
-            compatibles con el rol elegido.
+            compatibles con el rol elegido. Si creas uno desde aquí, al guardarlo podrás
+            aplicarlo y volverás a este formulario con los datos intactos.
           </p>
         </div>
-        <div class="form-group" id="usuarioMunicipiosBox">
-          <label>Municipios asignados</label>
-          <div id="usuarioMunicipiosSelector"></div>
+        <div class="form-group" id="usuarioTerritorioBox">
+          <label for="usuarioTerritorioSelector">Municipios y estados asignados</label>
+          <div id="usuarioTerritorioSelector"></div>
           <p class="campo-nota" id="usuarioMunicipiosNota">
-            Busca por nombre o estado y usa los chips para quitar una selección.
+            Elige un estado, busca el municipio y añade otro estado si lo necesitas.
           </p>
-        </div>
-        <div class="form-group" id="usuarioEstadosBox">
-          <label>Estados asignados</label>
-          <div id="usuarioEstadosSelector"></div>
-          <p class="campo-nota">Para enlaces y administradores estatales: todos los municipios de estos estados.</p>
         </div>
         <div class="form-group" id="usuarioPuedeEscribirBox">
           <label class="check-line">
@@ -3159,6 +3340,7 @@
           <div class="permisos-grid" id="usuarioPermisos"></div>
           <p class="campo-nota">
             El rol define los permisos base; aquí puedes conceder o quitar excepciones.
+            Usa el botón «?» de cada permiso para ver qué permite y un ejemplo.
           </p>
         </div>
         <div class="form-group" id="usuarioClaveBox">
@@ -3184,7 +3366,7 @@
           <label for="usuarioCorreo">Correo de contacto (opcional)</label>
           <input type="email" id="usuarioCorreo" maxlength="160" placeholder="no se usa para entrar">
         </div>
-        <div class="form-group">
+        <div class="form-group" id="usuarioPasswordBox">
           <label for="usuarioPassword">Contraseña *</label>
           <input type="password" id="usuarioPassword" placeholder="Al menos 8 caracteres" autocomplete="new-password">
           <p class="campo-nota" id="usuarioPasswordNota">Mínimo 8 caracteres.</p>
@@ -3649,9 +3831,10 @@
       </div>
       <div class="form-group">
         <label for="claveRol">Rol sugerido</label>
-        <select id="claveRol">
+        <select id="claveRol" data-change="claves:rol">
           <option value="funcionario">Funcionario municipal</option>
           <option value="auditor">Auditor</option>
+          <option value="soporte">Soporte técnico</option>
           <option value="enlace_estatal">Enlace estatal</option>
           <option value="enlace_federal">Enlace federal</option>
         </select>
@@ -3662,6 +3845,14 @@
         <p class="campo-nota">
           Elige uno o varios estados y, dentro de ellos, los municipios. Puedes escribir para
           buscar un estado o municipio y añadir más estados con el selector inferior.
+        </p>
+      </div>
+      <div class="form-group">
+        <label>Permisos que concede la clave</label>
+        <div class="permisos-grid" id="clavePermisos"></div>
+        <p class="campo-nota">
+          La clave solo permitirá estas acciones, y siempre dentro de su territorio. Al crear una
+          cuenta con la clave, su rol y sus permisos se preseleccionan con esta matriz.
         </p>
       </div>
       <div class="filter-row">
@@ -3705,6 +3896,161 @@
     </div>
     <div class="modal-foot">
       <button class="btn btn-primary" data-action="modal:cerrar" data-valor="modalClaveGenerada">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalPasswordUsuario">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-shield-lock-fill"></i> Contraseña de la cuenta</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalPasswordUsuario">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="u-lh-15">
+        Consulta de <strong id="passwordUsuarioNombre">la cuenta</strong>. Esta acción
+        <strong>queda registrada en auditoría</strong> con tu usuario y la fecha.
+      </p>
+      <div class="clave-codigo">
+        <code id="passwordUsuarioTexto" class="password-oculta" data-action="password:alternar">••••••••</code>
+        <button class="btn btn-sm btn-outline" type="button" data-action="password:alternar">
+          <i class="bi bi-eye"></i> <span id="passwordUsuarioVerTexto">Mostrar</span>
+        </button>
+      </div>
+      <p class="campo-nota" id="passwordUsuarioNota"></p>
+      <div class="filter-row u-mt-10">
+        <button class="btn btn-outline" type="button" data-action="password:copiar">
+          <i class="bi bi-clipboard-check"></i> Copiar
+        </button>
+        <button class="btn btn-orange" type="button" data-action="password:restablecer">
+          <i class="bi bi-arrow-repeat"></i> Restablecer contraseña
+        </button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" data-action="modal:cerrar" data-valor="modalPasswordUsuario">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalAyudaPermiso">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-question-circle-fill"></i> <span id="ayudaPermisoTitulo">Permiso</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalAyudaPermiso">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="ayudaPermisoContenido"></div>
+      <p class="campo-nota u-mt-10">
+        Las guías simuladas de cada módulo están en la enciclopedia de tutoriales.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="tutorial:enciclopedia">
+        <i class="bi bi-journal-text"></i> Abrir enciclopedia
+      </button>
+      <button class="btn btn-primary" data-action="modal:cerrar" data-valor="modalAyudaPermiso">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalBajaUsuario">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-person-dash-fill"></i> Solicitar baja de cuenta</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalBajaUsuario">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="u-lh-15">
+        Vas a pedir la baja de <strong id="bajaUsuarioNombre">la cuenta</strong>. La
+        administración de tu ámbito revisará la solicitud; la cuenta no se desactiva
+        hasta que la apruebe.
+      </p>
+      <input type="hidden" id="bajaUsuarioId">
+      <div class="form-group">
+        <label for="bajaUsuarioMotivo">Motivo de la baja *</label>
+        <textarea id="bajaUsuarioMotivo" rows="3" maxlength="600" placeholder="Ej. La persona ya no trabaja en el municipio"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalBajaUsuario">Cancelar</button>
+      <button class="btn btn-danger" data-action="baja:enviar">
+        <i class="bi bi-send-fill"></i> Enviar solicitud
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalSolicitudPassword">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-shield-lock-fill"></i> Solicitar cambio de contraseña</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalSolicitudPassword">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="u-lh-15">
+        Vas a pedir a la administración que restablezca la contraseña de
+        <strong id="solicitudPasswordUsuarioNombre">esta cuenta</strong>. La nueva
+        contraseña llegará a tu campana de avisos para que la entregues a la persona.
+      </p>
+      <input type="hidden" id="solicitudPasswordUsuarioId">
+      <div class="form-group">
+        <label for="solicitudPasswordMotivo">Motivo de la solicitud *</label>
+        <textarea id="solicitudPasswordMotivo" rows="3" maxlength="600" placeholder="Ej. La persona olvidó su contraseña y no puede entrar"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalSolicitudPassword">Cancelar</button>
+      <button class="btn btn-primary" data-action="password:enviarSolicitudCuenta">
+        <i class="bi bi-send-fill"></i> Enviar solicitud
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalSolicitudAlta">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-person-plus-fill"></i> Solicitar alta de usuario</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalSolicitudAlta">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="u-lh-15">
+        Rellena los datos de la persona. La cuenta se creará como <strong>funcionario</strong>
+        en tus municipios; el rol, los permisos y la contraseña los define la administración
+        al aprobar la solicitud.
+      </p>
+      <div class="filter-row">
+        <div class="form-group">
+          <label for="altaUsuarioNombre">Nombre completo *</label>
+          <input type="text" id="altaUsuarioNombre" maxlength="160" placeholder="Ej. Juana López Martínez">
+        </div>
+        <div class="form-group">
+          <label for="altaUsuarioUsername">Usuario de acceso *</label>
+          <input type="text" id="altaUsuarioUsername" maxlength="60" placeholder="ej. jlopez" autocomplete="off">
+          <p class="campo-nota u-mt-4">Con este nombre entrará en la pestaña «Personal». No se puede cambiar después.</p>
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="form-group">
+          <label for="altaUsuarioCorreo">Correo de contacto</label>
+          <input type="email" id="altaUsuarioCorreo" maxlength="160" placeholder="correo@ejemplo.mx">
+        </div>
+        <div class="form-group">
+          <label for="altaUsuarioTelefono">Teléfono</label>
+          <input type="tel" id="altaUsuarioTelefono" maxlength="40" placeholder="Ej. 555 123 4567">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="altaUsuarioNotas">Datos básicos o notas</label>
+        <textarea id="altaUsuarioNotas" rows="3" maxlength="600" placeholder="Área, cargo o cualquier dato que ayude a la administración a revisar el alta"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalSolicitudAlta">Cancelar</button>
+      <button class="btn btn-primary" data-action="alta:enviar">
+        <i class="bi bi-send-fill"></i> Enviar solicitud
+      </button>
     </div>
   </div>
 </div>

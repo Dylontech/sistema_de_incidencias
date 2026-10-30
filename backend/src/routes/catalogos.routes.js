@@ -51,13 +51,34 @@ router.get(
 );
 
 router.get('/tipos', requiereSesion, tipos.listar);
-router.post('/tipos', requiereEmpleado, requierePermiso('gestionar_tipos'), tipos.crear);
-router.delete('/tipos/:id', requiereEmpleado, requierePermiso('gestionar_tipos'), tipos.eliminar);
+router.post('/tipos', requiereEmpleado, requierePermiso('crear_tipos'), tipos.crear);
+router.delete('/tipos/:id', requiereEmpleado, requierePermiso('eliminar_tipos'), tipos.eliminar);
 
 router.get('/usuarios', requiereEmpleado, requierePermiso('ver_usuarios'), usuarios.listar);
 // Las cuentas del personal las abre y mantiene un administrador. El servicio
-// comprueba que un administrador territorial solo toque su ámbito.
-router.post('/usuarios', requierePermiso('gestionar_usuarios'), usuarios.crear);
-router.patch('/usuarios/:id', requierePermiso('gestionar_usuarios'), usuarios.actualizar);
+// comprueba que un administrador territorial solo toque su ámbito. Los
+// permisos CRUD permiten separar consulta, alta, edición y baja.
+router.post('/usuarios', requierePermiso('crear_usuarios'), usuarios.crear);
+router.patch('/usuarios/:id', requierePermiso('editar_usuarios'), usuarios.actualizar);
+router.delete('/usuarios/:id', requierePermiso('eliminar_usuarios'), usuarios.eliminar);
+// Reactivar una cuenta dada de baja conserva su historial y su territorio.
+router.post(
+  '/usuarios/:id/reactivar',
+  requierePermiso('editar_usuarios'),
+  usuarios.reactivar
+);
+// Contraseña consultable: solo la administración y con registro en auditoría.
+router.get(
+  '/usuarios/:id/password',
+  requiereEmpleado,
+  requierePermiso('revelar_password_usuarios'),
+  usuarios.revelarPassword
+);
+router.post(
+  '/usuarios/:id/password/restablecer',
+  requiereEmpleado,
+  requierePermiso('revelar_password_usuarios'),
+  usuarios.restablecerPassword
+);
 
 export default router;

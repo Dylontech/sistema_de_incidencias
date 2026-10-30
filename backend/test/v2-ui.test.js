@@ -194,6 +194,124 @@ describe('V2.3: pantallas nuevas', () => {
     assert.match(texto, /id: 'panel-publicidad'/);
     assert.match(texto, /id: 'panel-usuarios'/);
   });
+
+  test('V2.11: ayuda de permisos, roles propios, contraseñas y bajas', () => {
+    const html = leer('index.html');
+    for (const id of [
+      'modalPasswordUsuario',
+      'modalAyudaPermiso',
+      'modalBajaUsuario',
+      'modalSolicitudPassword',
+      'rolesIntegradosLista',
+      'rolesPropiosLista',
+      'usuarioTerritorioSelector',
+      'usuarioClavePreview',
+      'solicitudesPasswordBox',
+      'solicitudesBajaBox',
+      'perfilSolicitudesPassword',
+      'perfilSolicitudesBaja'
+    ]) {
+      assert.match(html, new RegExp(`id="${id}"`));
+    }
+    // El tema claro/oscuro se retiró: no debe quedar ningún control ni hoja.
+    assert.doesNotMatch(html, /data-action="tema:/);
+    assert.doesNotMatch(html, /tema-oscuro\.css/);
+
+    const ayuda = leer('js/data/permisos-ayuda.js');
+    assert.match(ayuda, /revelar_password_usuarios/);
+    assert.match(ayuda, /ver_solicitudes_permisos/);
+
+    const tutoriales = leer('js/data/tutoriales.js');
+    for (const guia of ['permisos-usuarios', 'permisos-claves', 'panel-roles', 'panel-password']) {
+      assert.match(tutoriales, new RegExp(`id: '${guia}'`));
+    }
+    assert.match(tutoriales, /categoria: 'Permisos'/);
+  });
+
+  test('V2.11.2: el aviso de baja y contraseña abre la cuenta y su acción', () => {
+    const html = leer('index.html');
+    assert.match(html, /data-action="password:enviarSolicitudCuenta"/);
+    assert.match(html, /id="solicitudPasswordUsuarioId"/);
+
+    const vista = leer('js/views/admin.view.js');
+    // Filas identificables para enfocar la cuenta y la solicitud del aviso.
+    assert.match(vista, /<tr data-usuario=/);
+    assert.match(vista, /data-solicitud=/);
+    assert.match(vista, /data-action="password:solicitarCuenta"/);
+    assert.match(vista, /prepararModalSolicitudPassword/);
+
+    const controlador = leer('js/controllers/admin.controller.js');
+    assert.match(controlador, /export async function enfocarSolicitud/);
+    assert.match(controlador, /fila-destacada/);
+    assert.match(controlador, /password:solicitarCuenta/);
+
+    const notificaciones = leer('js/controllers/notificaciones.controller.js');
+    assert.match(notificaciones, /panelUsuarios/);
+    assert.match(notificaciones, /searchParams\.get\('panel'\) === 'usuarios'/);
+    assert.match(notificaciones, /enfocarSolicitud/);
+    assert.match(notificaciones, /perfil:abrir/);
+    const perfil = leer('js/controllers/perfil.controller.js');
+    assert.match(perfil, /pintarSolicitudesBaja/);
+    assert.match(perfil, /bajaService\.mias\(\)/);
+
+    const css = leer('css/extensiones.css');
+    assert.match(css, /tr\.fila-destacada/);
+  });
+
+  test('V2.11.3: reactivar cuentas, solicitud de alta y permisos de rol', () => {
+    const html = leer('index.html');
+    for (const id of [
+      'modalSolicitudAlta',
+      'solicitudesAltaBox',
+      'solicitudesAltaLista',
+      'btnSolicitarAlta',
+      'altaUsuarioNombre',
+      'altaUsuarioUsername',
+      'altaUsuarioCorreo',
+      'altaUsuarioTelefono',
+      'perfilSolicitudesAlta',
+      'municipioActivoBox',
+      'municipiosFiltroBox',
+      'rolEspecialBaseNota'
+    ]) {
+      assert.match(html, new RegExp(`id="${id}"`));
+    }
+    assert.match(html, /data-action="alta:enviar"/);
+    assert.match(html, /data-action="alta:solicitar"/);
+
+    const vista = leer('js/views/admin.view.js');
+    // Los roles del sistema y propios tienen id numérico: se compara como texto.
+    assert.match(
+      vista,
+      /rolesIntegrados \|\| \[\]\)\.find\(\(r\) => String\(r\.id\) === String\(id\)\)/
+    );
+    assert.match(vista, /data-action="admin:usuarioReactivar"/);
+    assert.match(vista, /renderSolicitudesAlta/);
+    assert.match(vista, /prepararModalAlta/);
+    assert.match(vista, /municipal/);
+
+    const controlador = leer('js/controllers/admin.controller.js');
+    assert.match(controlador, /cargarSolicitudesAlta/);
+    assert.match(controlador, /alta:aprobar/);
+    assert.match(controlador, /admin:usuarioReactivar/);
+    assert.match(controlador, /municipioActivoBox/);
+    assert.match(controlador, /municipiosFiltroBox/);
+
+    const servicio = leer('js/services/alta.service.js');
+    assert.match(servicio, /alta\/solicitudes/);
+
+    const perfil = leer('js/controllers/perfil.controller.js');
+    assert.match(perfil, /pintarSolicitudesAlta/);
+
+    // Texto más grande en la base, las tablas y las notas.
+    const base = leer('css/base.css');
+    assert.match(base, /font-size: 16px;/);
+    assert.match(base, /font-size: 15px; outline: none/);
+    const adminCss = leer('css/admin.css');
+    assert.match(adminCss, /\.data-table \{\s*width: 100%; border-collapse: collapse; font-size: 14px/);
+    const extensiones = leer('css/extensiones.css');
+    assert.match(extensiones, /\.campo-nota \{\s*margin-top: 6px;\s*font-size: 13px/);
+  });
 });
 
 describe('Tutorial por rol y enciclopedia', () => {
@@ -452,5 +570,73 @@ describe('V2.4/V2.5: accesos, informes, tickets y accesibilidad', () => {
     assert.match(vendor, /adoptedStyleSheets/);
     assert.doesNotMatch(vendor, /createElement\("style"\)/);
     assert.match(leer('vendor/vendor.lock.json'), /pagedjs/);
+  });
+});
+
+describe('V2.9.5: avisos por clave y resumen de solicitudes', () => {
+  test('la notificaci�n de una solicitud abre su resumen detallado', () => {
+    const html = leer('index.html');
+    assert.match(html, /id="modalSolicitudInformeDetalle"/);
+    assert.match(html, /solicitudInformeDetalleCuerpo/);
+    const vista = leer('js/views/solicitudesInforme.view.js');
+    assert.match(vista, /renderizarDetalle/);
+    assert.match(vista, /solicitudesInforme:detalle/);
+    const notificaciones = leer('js/controllers/notificaciones.controller.js');
+    assert.match(notificaciones, /solicitud_informe/);
+    assert.match(notificaciones, /abrirDetalle/);
+    assert.match(notificaciones, /solicitudId/);
+  });
+
+  test('el panel ofrece avisos por clave y controles de tama�o', () => {
+    const html = leer('index.html');
+    assert.match(html, /data-valor="avisos-clave"/);
+    assert.match(html, /data-permiso="ver_avisos_clave"/);
+    assert.match(html, /id="modalAvisosClave"/);
+    assert.match(html, /data-action="accesibilidad:textoMas"/);
+    assert.match(html, /data-action="admin:tamanoPanel"/);
+    const controlador = leer('js/controllers/admin.controller.js');
+    assert.match(controlador, /'avisos-clave': 'ver_avisos_clave'/);
+    assert.match(controlador, /creandoClave/);
+    assert.match(controlador, /aplicarTamanoPanel/);
+    const vista = leer('js/views/admin.view.js');
+    assert.match(vista, /renderAvisosClave/);
+    assert.match(vista, /prepararModalAvisosClave/);
+    assert.match(vista, /agregarClaveLista/);
+  });
+
+  test('publicidad permite redimensionar secciones y el QR tiene etiqueta corta', () => {
+    const html = leer('index.html');
+    assert.match(html, /publicidad:secciones/);
+    assert.match(html, /Enlace o texto del QR<\/label>/);
+    assert.match(html, /pe-grid-qr/);
+    assert.match(html, /pe-campo-ancho/);
+    const css = leer('css/publicidad-estudio.css');
+    assert.match(css, /resize:\s*vertical/);
+    assert.match(css, /@media \(min-width: 1600px\)/);
+    assert.match(css, /@media \(max-width: 640px\)/);
+  });
+});
+
+describe('V2.11.1: móvil compacto y sin tema', () => {
+  test('en móvil los campos de publicidad y campañas miden su contenido', () => {
+    const css = leer('css/publicidad-estudio.css');
+    const bloque = css.slice(css.indexOf('@media (max-width: 640px)'));
+    assert.match(bloque, /\.admin-panel \.filter-row\s*\{\s*flex-direction:\s*column/);
+    // El `flex-basis` de 180px actuaba como altura al apilarse.
+    assert.match(bloque, /\.admin-panel \.filter-row > \* \{[^}]*flex:\s*0 0 auto/);
+    assert.match(bloque, /\.pe-form \.form-group,[\s\S]{0,80}margin-bottom:\s*10px/);
+  });
+
+  test('no quedan restos del tema claro/oscuro', () => {
+    const html = leer('index.html');
+    const sw = leer('sw.js');
+    assert.doesNotMatch(html, /tema-oscuro\.css/);
+    assert.doesNotMatch(html, /data-action="tema:/);
+    assert.doesNotMatch(html, /data-theme=/);
+    assert.doesNotMatch(sw, /tema-oscuro\.css/);
+    assert.doesNotMatch(sw, /tema-publico\.js/);
+    for (const ruta of ['js/core/tema.js', 'js/core/tema-publico.js', 'css/tema-oscuro.css']) {
+      assert.equal(fs.existsSync(path.join(frontend, ruta)), false, ruta);
+    }
   });
 });

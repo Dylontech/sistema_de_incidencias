@@ -7,9 +7,9 @@
  */
 import { AppError } from '../utils/AppError.js';
 import { nuevoId } from '../utils/ids.js';
-import { PERMISOS, ROLES_ADMIN } from '../config/constantes.js';
-import { alcanceDe, esAlgunaAdmin, esAdminMaestro } from './alcance.service.js';
-import { permisosDe } from './permisos.service.js';
+import { PERMISOS } from '../config/constantes.js';
+import { alcanceDe, esAdminMaestro } from './alcance.service.js';
+import { permisosDe, permisosFueraDeAlcance, tienePermiso } from './permisos.service.js';
 import { emitir } from './notificaciones.service.js';
 
 function normalizarLista(valor) {
@@ -28,11 +28,11 @@ async function destino(usuario) {
   return { municipioId: usuario.municipioId || null, estados: [] };
 }
 
-/** ¿El administrador puede resolver solicitudes de esta cuenta? */
+/** ¿El actor puede resolver solicitudes de esta cuenta? */
 async function puedeResolver(repositorio, actor, cuenta) {
-  if (!esAlgunaAdmin(actor)) return false;
   if (esAdminMaestro(actor)) return true;
   const propio = alcanceDe(actor);
+  if (propio.todos) return true;
   const objetivo = await repositorio.alcanceDeUsuario(cuenta.id);
   const municipiosObjetivo = objetivo.municipios.length
     ? objetivo.municipios
@@ -46,8 +46,14 @@ async function puedeResolver(repositorio, actor, cuenta) {
     );
   }
   if (propio.estados) {
-    if (!objetivo.estados.length) return false;
-    return objetivo.estados.every((e) => propio.estados.has(String(e)));
+    // El alcance estatal de la cuenta también puede venir de sus municipios.
+    if (objetivo.estados.length && objetivo.estados.every((e) => propio.estados.has(String(e)))) {
+      return true;
+    }
+    if (!municipiosObjetivo.length) return false;
+    const catalogo = await repositorio.municipiosLigeros();
+    const porId = new Map(catalogo.map((m) => [String(m.id), m.estado]));
+    return municipiosObjetivo.every((id) => propio.estados.has(porId.get(String(id))));
   }
   return false;
 }
@@ -85,6 +91,7 @@ export async function crear(repositorio, usuario, datos = {}) {
     username: usuario.username,
     nombre: usuario.nombre || usuario.username,
     municipioId: lugar.municipioId,
+    estados: lugar.estados,
     permisos: pedidos,
     motivo,
     estado: 'pendiente',
@@ -112,8 +119,8 @@ export async function misSolicitudes(repositorio, usuario) {
 }
 
 export async function listar(repositorio, actor, filtros = {}) {
-  if (!esAlgunaAdmin(actor)) {
-    throw AppError.prohibido('Solo administración puede revisar solicitudes de permisos');
+  if (!tienePermiso(actor, 'ver_solicitudes_permisos')) {
+    throw AppError.prohibido('No tienes permiso para revisar solicitudes de permisos');
   }
   const estado = ['pendiente', 'aprobada', 'rechazada'].includes(filtros.estado)
     ? filtros.estado
@@ -122,16 +129,30 @@ export async function listar(repositorio, actor, filtros = {}) {
   if (esAdminMaestro(actor)) return solicitudes;
 
   const alcance = alcanceDe(actor);
+  if (alcance.todos) return solicitudes;
+  const catalogo = await repositorio.municipiosLigeros();
+  const estadoDeMunicipio = new Map(catalogo.map((m) => [String(m.id), m.estado]));
   return solicitudes.filter((s) => {
-    if (!s.municipioId) return false;
-    if (alcance.municipios) return alcance.municipios.has(String(s.municipioId));
+    if (alcance.municipios) {
+      return Boolean(s.municipioId) && alcance.municipios.has(String(s.municipioId));
+    }
+    if (alcance.estados) {
+      // 1) La solicitud puede declarar estados. 2) Si solo trae municipio, se
+      // resuelve su entidad para no ocultarla a un administrador estatal.
+      if (Array.isArray(s.estados) && s.estados.length) {
+        return s.estados.some((estado) => alcance.estados.has(String(estado)));
+      }
+      const entidad = s.municipioId ? estadoDeMunicipio.get(String(s.municipioId)) : null;
+      return Boolean(entidad) && alcance.estados.has(entidad);
+    }
     return false;
   });
 }
 
 export async function resolver(repositorio, actor, id, { aprobar = true, respuesta = '' } = {}) {
-  if (!esAlgunaAdmin(actor)) {
-    throw AppError.prohibido('Solo administración puede resolver solicitudes de permisos');
+  const permiso = aprobar ? 'aprobar_solicitudes_permisos' : 'rechazar_solicitudes_permisos';
+  if (!tienePermiso(actor, permiso)) {
+    throw AppError.prohibido('No tienes permiso para resolver solicitudes de permisos');
   }
   const solicitud = await repositorio.solicitudPermisoPorId(id);
   if (!solicitud) throw AppError.noEncontrado('Solicitud no encontrada');
@@ -142,6 +163,15 @@ export async function resolver(repositorio, actor, id, { aprobar = true, respues
   if (!cuenta) throw AppError.noEncontrado('La cuenta solicitante ya no existe');
   if (!(await puedeResolver(repositorio, actor, cuenta))) {
     throw AppError.prohibido('Esa cuenta está fuera de tu ámbito');
+  }
+  if (aprobar) {
+    // Nadie aprueba lo que no tiene: evita usar una solicitud para escalar.
+    const fuera = permisosFueraDeAlcance(actor, solicitud.permisos);
+    if (fuera.length) {
+      throw AppError.prohibido(
+        `No puedes aprobar permisos que tú no tienes: ${fuera.join(', ')}`
+      );
+    }
   }
 
   const ahora = new Date().toISOString();
@@ -174,5 +204,5 @@ export async function resolver(repositorio, actor, id, { aprobar = true, respues
 
 /** ¿El actor puede revisar solicitudes de permisos? */
 export function puedeRevisar(usuario) {
-  return Boolean(usuario && ROLES_ADMIN.includes(usuario.rol));
+  return tienePermiso(usuario, 'ver_solicitudes_permisos');
 }

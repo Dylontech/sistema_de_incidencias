@@ -226,8 +226,7 @@ function canalEfectivo({ evento, canalBase, preferenciasEvento = {}, porCorreo =
 }
 
 /** Envía el aviso por correo sin bloquear el flujo que lo originó. */
-function enviarPorCorreo(repositorio, cuenta, { evento, titulo, mensaje, url }) {
-  if (!cuenta?.correo) return;
+function enviarPorCorreo(repositorio, cuenta, { evento, titulo, mensaje, url }) {  if (!cuenta?.correo) return;
   const enlace = url ? `<p><a href="${url}">Abrir en el sistema</a></p>` : '';
   const html = plantilla({
     titulo,
@@ -259,6 +258,70 @@ function plantilla({ titulo, contenido, pie = '' }) {
       ${contenido}
       ${pie ? `<p style="color:#64748b;font-size:12px">${escaparTexto(pie)}</p>` : ''}
     </div></body></html>`;
+}
+
+/**
+ * Estado de la entidad de un aviso. Se usa para aplicar el alcance de avisos
+ * de la clave cuando el evento no trae un municipio concreto.
+ */
+async function estadoDelAviso(repositorio, datos) {
+  if (datos.estadoEntidad) return datos.estadoEntidad;
+  if (!datos.municipioId) return null;
+  const municipio = await repositorio.municipioPorId(datos.municipioId);
+  return municipio?.estado || null;
+}
+
+/**
+ * Carga, por usuario, la clave de su sesión abierta más reciente y el permiso
+ * de avisos de esa clave. Los usuarios sin clave (por ejemplo, el admin que
+ * entra con usuario y contraseña) conservan el comportamiento anterior.
+ */
+async function cargarAvisosPorClave(repositorio, cuentas = []) {
+  const clavesPorUsuario = await repositorio.clavesDeSesionesActivas(
+    cuentas.map((cuenta) => cuenta.id)
+  );
+  const claves = [...new Set(Object.values(clavesPorUsuario).filter(Boolean))];
+  const notificaciones = claves.length
+    ? await repositorio.notificacionesDeClaves(claves)
+    : {};
+  return { clavesPorUsuario, notificaciones };
+}
+
+/**
+ * ¿La clave con la que entró la cuenta permite este aviso?
+ *
+ * - Sin clave: no se restringe (administradores y cuentas antiguas).
+ * - Con avisos revocados: no se entrega.
+ * - Sin municipios configurados: se usa todo el territorio de la clave.
+ * - Con municipios: el evento debe caer en uno de ellos o en su estado.
+ */
+async function avisoPermitidoPorClave(
+  repositorio,
+  cuenta,
+  datos,
+  estadoEntidad,
+  mapa,
+  cache
+) {
+  const claveId = mapa.clavesPorUsuario[String(cuenta.id)];
+  if (!claveId) return true;
+  const config = mapa.notificaciones[claveId] || { activo: true, municipios: [] };
+  if (config.activo === false) return false;
+  const municipios = config.municipios || [];
+  if (!municipios.length) return true;
+  if (datos.municipioId) {
+    return municipios.includes(String(datos.municipioId));
+  }
+  if (estadoEntidad) {
+    if (!cache.porId) {
+      const catalogo = await repositorio.todosMunicipios();
+      cache.porId = new Map(catalogo.map((municipio) => [String(municipio.id), municipio]));
+    }
+    return municipios.some(
+      (municipioId) => cache.porId.get(String(municipioId))?.estado === estadoEntidad
+    );
+  }
+  return true;
 }
 
 /**
@@ -368,8 +431,23 @@ export async function emitir(repositorio, datos = {}) {
   if (Array.isArray(datos.paraUsuarios) && datos.paraUsuarios.length) {
     const cuentas = await repositorio.usuariosPorKeys(datos.paraUsuarios);
     let avisos = 0;
+    const estadoEntidad = await estadoDelAviso(repositorio, datos);
+    const mapaClaves = await cargarAvisosPorClave(repositorio, cuentas);
+    const cache = { porId: null };
     for (const cuenta of cuentas) {
       if (cuenta.activo === false || excluir.has(cuenta.username)) continue;
+      if (
+        !(await avisoPermitidoPorClave(
+          repositorio,
+          cuenta,
+          datos,
+          estadoEntidad,
+          mapaClaves,
+          cache
+        ))
+      ) {
+        continue;
+      }
       if (await entregar(repositorio, cuenta, base)) avisos++;
     }
     return avisos;
@@ -390,19 +468,17 @@ export async function emitir(repositorio, datos = {}) {
   const municipiosRegla = new Set(config.municipios || []);
   const estadosRegla = new Set(config.estados || []);
 
-  let estadoEntidad = datos.estadoEntidad || null;
-  if (!estadoEntidad && datos.municipioId) {
-    const municipio = await repositorio.municipioPorId(datos.municipioId);
-    estadoEntidad = municipio?.estado || null;
-  }
+  const estadoEntidad = await estadoDelAviso(repositorio, datos);
 
   const ids = candidatos.map((u) => u.id);
-  const [alcances, legado] = await Promise.all([
+  const [alcances, legado, mapaClaves] = await Promise.all([
     alcanceRegla === 'asignados'
       ? repositorio.alcancesDeUsuarios(ids)
       : Promise.resolve({}),
-    repositorio.preferenciasDeVarios(ids)
+    repositorio.preferenciasDeVarios(ids),
+    cargarAvisosPorClave(repositorio, candidatos)
   ]);
+  const cache = { porId: null };
 
   let avisos = 0;
   for (const cuenta of candidatos) {
@@ -439,6 +515,18 @@ export async function emitir(repositorio, datos = {}) {
     })();
     if (!entra) continue;
     if (legado[cuenta.id]?.modo === 'ninguno') continue;
+    if (
+      !(await avisoPermitidoPorClave(
+        repositorio,
+        cuenta,
+        datos,
+        estadoEntidad,
+        mapaClaves,
+        cache
+      ))
+    ) {
+      continue;
+    }
 
     if (await entregar(repositorio, cuenta, base)) avisos++;
   }

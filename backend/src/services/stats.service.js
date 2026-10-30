@@ -3,7 +3,7 @@
  * Las agregaciones se calculan en el servidor (antes se hacían en el navegador
  * recorriendo todo el localStorage, y sin filtrar por municipio).
  */
-import { alcanceDe, esEmpleado } from './alcance.service.js';
+import { alcanceDe, esEmpleado, validarSeleccionTerritorial } from './alcance.service.js';
 import { AppError } from '../utils/AppError.js';
 import { listar } from './incidencias.service.js';
 import { contarPorEstado, contarPeligrosas } from './estado.service.js';
@@ -41,12 +41,21 @@ async function base(repositorio, usuario, filtrosEntrada = null, opciones = {}) 
   }
   const filtros = normalizarFiltros(filtrosEntrada);
   const incluirOcultas = opciones.incluirOcultas ?? filtros.incluirOcultas;
-  // Se consulta todo el ámbito permitido y luego se filtra por la selección:
-  // así un administrador puede comparar varios municipios o estados sin
-  // saltarse el recorte territorial que aplica `listar`.
-  const todas = await listar(repositorio, usuario, {});
   const catalogoMunicipios = await repositorio.todosMunicipios();
   const estadoDeMunicipio = new Map(catalogoMunicipios.map((m) => [String(m.id), m.estado]));
+  // V2.11: la selección del cliente se valida contra el alcance. Antes se
+  // intersectaba en silencio y un funcionario podía pedir otro estado y recibir
+  // 200 con ceros, como si no existiera.
+  validarSeleccionTerritorial(usuario, filtros, { estadoDeMunicipio });
+  // Se consulta todo el ámbito permitido y luego se filtra por la selección:
+  // así un administrador puede comparar varios municipios o estados sin
+  // saltarse el recorte territorial que aplica `listar`. Al administrador
+  // maestro no se le impone el municipio activo del mapa: sus estadísticas son
+  // de todo el país salvo que él elija un territorio.
+  const usuarioConsulta = alcanceDe(usuario).todos
+    ? { ...usuario, municipioId: null }
+    : usuario;
+  const todas = await listar(repositorio, usuarioConsulta, {});
   const estadoEntidadDe = (incidencia) =>
     incidencia.estadoEntidad || estadoDeMunicipio.get(String(incidencia.municipioId)) || '';
   const seleccion = new Set(filtros.municipios);
@@ -228,10 +237,30 @@ export async function exportacion(repositorio, usuario, municipioId = null) {
     return false;
   });
   const idsVisibles = new Set(municipiosVisibles.map((m) => m.id));
-  const personalVisible = usuarios.filter((u) => {
-    if (u.rol === 'ciudadano' || u.rol === 'anonimo') return false;
+  const estadoDeMunicipio = new Map(municipios.map((m) => [String(m.id), m.estado]));
+  // V2.11: antes el respaldo incluía a todos los administradores del país
+  // cuando el solicitante no era global. Ahora se usa el territorio real de
+  // cada cuenta (`usuario_municipios`/`usuario_estados`).
+  const personal = usuarios.filter((u) => u.rol !== 'ciudadano' && u.rol !== 'anonimo');
+  const alcances = await repositorio.alcancesDeUsuarios(personal.map((u) => u.id));
+  const personalVisible = personal.filter((u) => {
     if (alcance.todos) return true;
-    return u.municipioId ? idsVisibles.has(u.municipioId) : u.rol === 'admin';
+    const asignado = alcances[u.id] || { municipios: [], estados: [] };
+    const municipiosCuenta = asignado.municipios.length
+      ? asignado.municipios
+      : u.municipioId
+        ? [u.municipioId]
+        : [];
+    if (alcance.municipios) {
+      return municipiosCuenta.some((id) => alcance.municipios.has(String(id)));
+    }
+    if (alcance.estados) {
+      if (asignado.estados.some((estado) => alcance.estados.has(estado))) return true;
+      return municipiosCuenta.some((id) =>
+        alcance.estados.has(estadoDeMunicipio.get(String(id)))
+      );
+    }
+    return false;
   });
 
   return {
@@ -239,7 +268,7 @@ export async function exportacion(repositorio, usuario, municipioId = null) {
     incidencias,
     tipos,
     municipios: municipiosVisibles.map(({ clave, ...resto }) => resto),
-    usuarios: personalVisible.map(({ passwordHash, ...resto }) => resto),
+    usuarios: personalVisible.map(({ passwordHash, passwordCifrada, ...resto }) => resto),
     zonas: zonas.filter((z) => idsVisibles.has(z.municipioId)),
     informePlantilla: await plantillaInforme(repositorio)
   };

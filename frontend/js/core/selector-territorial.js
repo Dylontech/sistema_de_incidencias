@@ -68,12 +68,19 @@ export function crearSelectorTerritorial({
       String(a.estado).localeCompare(String(b.estado), 'es') ||
       String(a.nombre).localeCompare(String(b.nombre), 'es')
   );
-  const estadosCatalogo = [
+  const estadosCatalogoCompleto = [
     ...new Set([
       ...catalogo.map((m) => m.estado),
       ...catalogoEstados
     ].filter(Boolean))
   ].sort((a, b) => String(a).localeCompare(String(b), 'es'));
+  // En modo municipios el filtro por estado solo ofrece las entidades donde el
+  // usuario tiene municipios: si no, un funcionario veía las 32 entidades y
+  // podía pedir datos de otro estado.
+  const estadosCatalogo = modo === 'municipios'
+    ? [...new Set(catalogo.map((m) => m.estado).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'es'))
+    : estadosCatalogoCompleto;
 
   const seleccion = new Set(seleccionados.map(String));
   const estadosSeleccionados = new Set(estados.map(String));

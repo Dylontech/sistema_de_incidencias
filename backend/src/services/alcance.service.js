@@ -193,6 +193,102 @@ export function puedeVerEstado(usuario, estado) {
   return true; // alcance municipal: se valida con el municipio
 }
 
+/**
+ * Entidades federativas que el usuario puede elegir en un selector.
+ *
+ * Devuelve solo el territorio permitido: un funcionario de Maravatío ve
+ * Michoacán y ningún otro estado. El administrador maestro y los ciudadanos
+ * reciben el catálogo completo.
+ */
+export function estadosPermitidosPara(usuario, { estadoDeMunicipio = new Map() } = {}) {
+  const alcance = alcanceDe(usuario);
+  if (alcance.todos) return null; // sin recorte: el llamador usa el catálogo
+  if (alcance.estados) return [...alcance.estados];
+  if (alcance.municipios) {
+    const estados = new Set();
+    for (const id of alcance.municipios) {
+      const estado = estadoDeMunicipio.get(String(id));
+      if (estado) estados.add(estado);
+    }
+    return [...estados];
+  }
+  return [];
+}
+
+/**
+ * Tipo de alcance resuelto: `todos`, `estados` o `municipios`.
+ *
+ * El cliente lo usa para decidir si muestra el selector de estados: un
+ * funcionario municipal no debe ver «Añadir un estado» ni «Todos los
+ * estados», aunque su municipio pertenezca a un estado del catálogo.
+ */
+export function modoDeAlcance(usuario) {
+  const alcance = alcanceDe(usuario);
+  if (alcance.todos) return 'todos';
+  if (alcance.estados) return 'estados';
+  return 'municipios';
+}
+
+/**
+ * Comprueba que la selección territorial pedida esté dentro del alcance.
+ *
+ * Las estadísticas y los informes reciben `municipios`/`estados` del cliente:
+ * si alguno está fuera del ámbito se responde 403 en lugar de devolver ceros,
+ * que era lo que ocultaba el error.
+ */
+export function validarSeleccionTerritorial(
+  usuario,
+  { municipios = [], estados = [] } = {},
+  { estadoDeMunicipio = new Map() } = {}
+) {
+  if (!usuario) throw AppError.noAutenticado();
+  const alcance = alcanceDe(usuario);
+  if (alcance.todos) return;
+
+  const municipiosPedidos = listaUnica(municipios);
+  const estadosPedidos = listaUnica(estados);
+
+  if (alcance.municipios) {
+    for (const id of municipiosPedidos) {
+      if (!alcance.municipios.has(id)) {
+        throw AppError.prohibido('No tienes acceso a ese municipio');
+      }
+    }
+    if (estadosPedidos.length) {
+      const permitidos = new Set(
+        [...alcance.municipios]
+          .map((id) => estadoDeMunicipio.get(String(id)))
+          .filter(Boolean)
+      );
+      for (const estado of estadosPedidos) {
+        if (!permitidos.has(estado)) {
+          throw AppError.prohibido('No tienes acceso a ese estado');
+        }
+      }
+    }
+    return;
+  }
+
+  if (alcance.estados) {
+    for (const estado of estadosPedidos) {
+      if (!alcance.estados.has(estado)) {
+        throw AppError.prohibido('No tienes acceso a ese estado');
+      }
+    }
+    for (const id of municipiosPedidos) {
+      const estado = estadoDeMunicipio.get(String(id));
+      if (!estado || !alcance.estados.has(estado)) {
+        throw AppError.prohibido('No tienes acceso a ese municipio');
+      }
+    }
+    return;
+  }
+
+  if (municipiosPedidos.length || estadosPedidos.length) {
+    throw AppError.prohibido('Tu cuenta no tiene territorio asignado');
+  }
+}
+
 /** ¿Puede ver esta incidencia según su territorio? */
 export function puedeVerIncidencia(incidencia, usuario) {
   if (!esEmpleado(usuario)) return true;

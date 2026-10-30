@@ -232,7 +232,7 @@
 /* Nota corta bajo un campo del formulario. */
 .campo-nota {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: 13px;
   color: #718096;
   line-height: 1.45;
 }
@@ -1473,14 +1473,14 @@ a.link-terminos {
 .u-verde-exito { color: #155724; }
 
 /* --- Tamaño de letra ------------------------------------------------------ */
-.u-fs-10px { font-size: 10px; }
-.u-fs-105px { font-size: 10.5px; }
-.u-fs-11px { font-size: 11px; }
-.u-fs-115px { font-size: 11.5px; }
-.u-fs-12px { font-size: 12px; }
-.u-fs-125px { font-size: 12.5px; }
-.u-fs-13px { font-size: 13px; }
-.u-fs-15px { font-size: 15px; }
+.u-fs-10px { font-size: 11px; }
+.u-fs-105px { font-size: 11.5px; }
+.u-fs-11px { font-size: 12px; }
+.u-fs-115px { font-size: 12.5px; }
+.u-fs-12px { font-size: 13px; }
+.u-fs-125px { font-size: 13.5px; }
+.u-fs-13px { font-size: 14px; }
+.u-fs-15px { font-size: 16px; }
 .u-fs-1rem { font-size: 1rem; }
 .u-fs-115rem { font-size: 1.15rem; }
 .u-fs-13rem { font-size: 1.3rem; }
@@ -1566,7 +1566,7 @@ a.link-terminos {
 
 /* Título de un bloque dentro de un panel. */
 .titulo-seccion {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--primario);
 }
 
@@ -2188,6 +2188,37 @@ body.pagina-publica { overflow: auto; }
 .permisos-grid .check-line {
   font-size: 12px;
   padding: 3px 0;
+}
+
+/* Cada módulo de permisos: Usuarios, Claves, Tipos… con sus acciones CRUD. */
+.permisos-grupo {
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.permisos-grupo legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--oscuro);
+}
+
+.permisos-grupo .campo-nota {
+  margin: 2px 0 5px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.permisos-filas {
+  display: flex;
+  flex-direction: column;
+}
+
+.permisos-filas .check-line {
+  padding: 2px 0;
 }
 
 /* Código de la clave de acceso recién generada (se muestra una sola vez). */
@@ -2972,3 +3003,118 @@ html[data-texto='muy-grande'] .colindantes-lista { max-height: 180px; }
 
 /* Defensa: un enlace con la clase de los botones no debe ganar a u-oculto. */
 a.link-terminos.u-oculto { display: none; }
+
+/* ------------------------------------------------------------------
+   Paneles y modales en móvil, laptop, monitores grandes y TV.
+   ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal-box {
+    max-width: 100%;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 14px 14px 0 0;
+  }
+  .modal-head {
+    padding: 12px 14px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .modal-body {
+    padding: 14px;
+  }
+  .modal-foot {
+    padding: 10px 14px;
+  }
+  #modalAdmin .admin-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  #modalAdmin .admin-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .admin-head-tools-label,
+  .admin-head-tools-sep {
+    display: none;
+  }
+  .detalle-solicitud-cabecera {
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 1600px) {
+  .modal-box.lg.u-max-900 {
+    max-width: min(1280px, 94vw);
+  }
+  .modal-box.lg.u-max-820 {
+    max-width: min(1180px, 94vw);
+  }
+  .modal-box.camp-ancha {
+    width: min(1500px, 96vw);
+    max-width: 1500px;
+  }
+}
+
+@media (min-width: 2200px) {
+  .modal-box.lg.u-max-900 {
+    max-width: min(1600px, 96vw);
+  }
+  .modal-box.lg.u-max-820 {
+    max-width: min(1500px, 96vw);
+  }
+  .modal-box.camp-ancha {
+    width: min(1850px, 97vw);
+    max-width: 1850px;
+  }
+  #modalAdmin .admin-panel-normal {
+    max-width: min(1850px, 96vw);
+  }
+}
+
+@media (min-width: 3000px) {
+  .modal-box.camp-ancha {
+    width: min(2200px, 96vw);
+    max-width: 2200px;
+  }
+  #modalAdmin .admin-panel-tv {
+    max-width: min(2400px, 98vw);
+  }
+}
+
+/* ============================================================
+   V2.11 - COMPONENTES DEL PANEL (ayuda de permisos y contrasenas)
+   ============================================================ */
+.permiso-fila { display: flex; align-items: center; gap: 6px; }
+.permiso-fila .check-line { flex: 1 1 auto; }
+.ayuda-permiso {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--borde); background: var(--superficie-2);
+  color: var(--primario); font-size: 12px; font-weight: 700; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.ayuda-permiso:hover,
+.ayuda-permiso:focus-visible {
+  background: var(--primario); color: #fff; border-color: var(--primario);
+}
+.fila-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fila-acciones select { flex: 1 1 220px; }
+.ayuda-clave {
+  margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--borde);
+  border-radius: 8px; background: var(--superficie-2); font-size: 13px; color: var(--texto-suave);
+}
+.ayuda-clave summary { cursor: pointer; font-weight: 600; color: var(--primario); }
+.ayuda-clave p { margin-top: 6px; line-height: 1.45; }
+.password-oculta { filter: blur(6px); user-select: none; letter-spacing: 2px; }
+.clave-codigo .password-oculta { cursor: pointer; }
+
+/* Aviso de baja o contrase�a: la fila destino se resalta al llegar desde la campana. */
+tr.fila-destacada { animation: fila-destacada 2.4s ease-out 3; outline: 2px solid var(--primario); outline-offset: -2px; }
+@keyframes fila-destacada {
+  0%, 100% { background: transparent; }
+  20%, 70% { background: #e6f7f2; }
+}

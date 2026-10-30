@@ -269,12 +269,31 @@ export const PERMISOS = [
   'moderar',
   'ver_moderacion',
   'exportar',
-  'gestionar_usuarios',
+  // Usuarios: CRUD completo. `gestionar_usuarios` se conserva como permiso
+  // paraguas para no romper cuentas y roles creados antes de V2.10.
   'ver_usuarios',
+  'crear_usuarios',
+  'editar_usuarios',
+  'eliminar_usuarios',
+  'gestionar_usuarios',
+  // Claves de acceso: CRUD completo.
+  'ver_claves',
+  'crear_claves',
+  'editar_claves',
+  'eliminar_claves',
   'gestionar_claves',
+  // Avisos por clave: consulta y edición.
+  'ver_avisos_clave',
+  'editar_avisos_clave',
+  'gestionar_avisos_clave',
   'ver_auditoria',
   'ver_incidencias_panel',
+  // Tipos de incidencia: ver, crear y eliminar (el catálogo no edita tipos;
+  // `editar_tipos` se conserva reservado para no romper permisos existentes).
   'ver_tipos',
+  'crear_tipos',
+  'editar_tipos',
+  'eliminar_tipos',
   'gestionar_tipos',
   'ver_municipios_panel',
   'ver_zonas',
@@ -285,6 +304,17 @@ export const PERMISOS = [
   'atender_tickets',
   'configurar_notificaciones',
   'ver_metricas',
+  // Solicitudes de acceso al personal: consulta, aprobación y rechazo.
+  'ver_solicitudes_acceso',
+  'aprobar_solicitudes_acceso',
+  'rechazar_solicitudes_acceso',
+  // Solicitudes de permisos extra del personal (las resuelve el administrador).
+  'ver_solicitudes_permisos',
+  'aprobar_solicitudes_permisos',
+  'rechazar_solicitudes_permisos',
+  'gestionar_solicitudes_permisos',
+  // Consulta auditada de la contraseña de una cuenta.
+  'revelar_password_usuarios',
   'gestionar_solicitudes_informe',
   'gestionar_legal',
   'gestionar_configuracion',
@@ -292,6 +322,106 @@ export const PERMISOS = [
   'usar_simulador',
   'gestionar_publicidad',
   'gestionar_correos'
+];
+
+/**
+ * Permisos paraguas que se expanden a permisos CRUD concretos.
+ *
+ * Así una cuenta con `gestionar_usuarios` conserva exactamente las mismas
+ * capacidades que antes, pero el panel y las claves pueden conceder solo
+ * «ver», «crear», «editar» o «eliminar» por separado.
+ */
+export const PERMISOS_UMBRELLA = {
+  gestionar_usuarios: [
+    'ver_usuarios',
+    'crear_usuarios',
+    'editar_usuarios',
+    'eliminar_usuarios',
+    'ver_solicitudes_acceso',
+    'aprobar_solicitudes_acceso',
+    'rechazar_solicitudes_acceso'
+  ],
+  gestionar_claves: ['ver_claves', 'crear_claves', 'editar_claves', 'eliminar_claves'],
+  gestionar_avisos_clave: ['ver_avisos_clave', 'editar_avisos_clave'],
+  gestionar_tipos: ['ver_tipos', 'crear_tipos', 'editar_tipos', 'eliminar_tipos'],
+  gestionar_solicitudes_permisos: [
+    'ver_solicitudes_permisos',
+    'aprobar_solicitudes_permisos',
+    'rechazar_solicitudes_permisos'
+  ]
+};
+
+/**
+ * Módulos con operaciones CRUD propias. El frontend pinta una fila por módulo
+ * con las acciones disponibles; el servidor vuelve a comprobar cada permiso.
+ */
+export const PERMISOS_CRUD = [
+  {
+    clave: 'usuarios',
+    etiqueta: 'Usuarios',
+    permisos: {
+      ver: 'ver_usuarios',
+      crear: 'crear_usuarios',
+      editar: 'editar_usuarios',
+      eliminar: 'eliminar_usuarios'
+    }
+  },
+  {
+    clave: 'claves',
+    etiqueta: 'Claves de acceso',
+    etiquetas: { ver: 'Ver', crear: 'Crear', editar: 'Revocar', eliminar: 'Eliminar' },
+    permisos: {
+      ver: 'ver_claves',
+      crear: 'crear_claves',
+      editar: 'editar_claves',
+      eliminar: 'eliminar_claves'
+    }
+  },
+  {
+    clave: 'tipos',
+    etiqueta: 'Tipos de incidencia',
+    // El catálogo solo permite crear y eliminar conceptos personalizados.
+    etiquetas: { ver: 'Ver', crear: 'Crear', eliminar: 'Eliminar' },
+    permisos: {
+      ver: 'ver_tipos',
+      crear: 'crear_tipos',
+      editar: null,
+      eliminar: 'eliminar_tipos'
+    }
+  },
+  {
+    clave: 'solicitudes_acceso',
+    etiqueta: 'Solicitudes de acceso',
+    etiquetas: { ver: 'Ver', editar: 'Aprobar', eliminar: 'Rechazar' },
+    permisos: {
+      ver: 'ver_solicitudes_acceso',
+      crear: null,
+      editar: 'aprobar_solicitudes_acceso',
+      eliminar: 'rechazar_solicitudes_acceso'
+    }
+  },
+  {
+    clave: 'avisos_clave',
+    etiqueta: 'Avisos por clave',
+    etiquetas: { ver: 'Ver', editar: 'Configurar' },
+    permisos: {
+      ver: 'ver_avisos_clave',
+      crear: null,
+      editar: 'editar_avisos_clave',
+      eliminar: null
+    }
+  },
+  {
+    clave: 'solicitudes_permisos',
+    etiqueta: 'Solicitudes de permisos',
+    etiquetas: { ver: 'Ver', editar: 'Aprobar', eliminar: 'Rechazar' },
+    permisos: {
+      ver: 'ver_solicitudes_permisos',
+      crear: null,
+      editar: 'aprobar_solicitudes_permisos',
+      eliminar: 'rechazar_solicitudes_permisos'
+    }
+  }
 ];
 
 /** Permisos que trae cada rol antes de aplicar excepciones por cuenta. */
@@ -308,6 +438,7 @@ export const PERMISOS_POR_ROL = {
     'gestionar_usuarios',
     'ver_usuarios',
     'gestionar_claves',
+    'gestionar_avisos_clave',
     'ver_incidencias_panel',
     'ver_tipos',
     'gestionar_tipos',
@@ -319,7 +450,9 @@ export const PERMISOS_POR_ROL = {
     'responder_tickets',
     'atender_tickets',
     'configurar_notificaciones',
-    'ver_metricas'
+    'ver_metricas',
+    'gestionar_solicitudes_permisos',
+    'revelar_password_usuarios'
   ],
   admin_municipal: [
     'reportar',
@@ -332,6 +465,7 @@ export const PERMISOS_POR_ROL = {
     'gestionar_usuarios',
     'ver_usuarios',
     'gestionar_claves',
+    'gestionar_avisos_clave',
     'ver_incidencias_panel',
     'ver_tipos',
     'gestionar_tipos',
@@ -342,7 +476,9 @@ export const PERMISOS_POR_ROL = {
     'responder_tickets',
     'atender_tickets',
     'configurar_notificaciones',
-    'ver_metricas'
+    'ver_metricas',
+    'gestionar_solicitudes_permisos',
+    'revelar_password_usuarios'
   ],
   funcionario: [
     'reportar',

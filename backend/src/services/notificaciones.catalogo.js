@@ -171,6 +171,60 @@ export const EVENTOS_NOTIFICACION = {
     alcance: 'asignados',
     entidadTipo: 'permiso'
   },
+  solicitud_password_creada: {
+    etiqueta: 'Solicitud de cambio de contraseña',
+    descripcion: 'Avisa a la administración cuando el personal pide cambiar su contraseña.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal'],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'municipios',
+    entidadTipo: 'password'
+  },
+  solicitud_password_resuelta: {
+    etiqueta: 'Solicitud de contraseña resuelta',
+    descripcion: 'Avisa al solicitante cuando su contraseña ya fue restablecida.',
+    roles: [],
+    severidad: 'exito',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'password'
+  },
+  baja_solicitada: {
+    etiqueta: 'Solicitud de baja de una cuenta',
+    descripcion: 'Avisa a la administración cuando el personal pide dar de baja a un funcionario.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal'],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'municipios',
+    entidadTipo: 'baja'
+  },
+  baja_resuelta: {
+    etiqueta: 'Solicitud de baja resuelta',
+    descripcion: 'Avisa a quien la pidió si la baja se aplicó o se rechazó.',
+    roles: [],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'baja'
+  },
+  alta_solicitada: {
+    etiqueta: 'Solicitud de alta de una cuenta',
+    descripcion: 'Avisa a la administración cuando un funcionario pide crear una cuenta.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal'],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'municipios',
+    entidadTipo: 'alta'
+  },
+  alta_resuelta: {
+    etiqueta: 'Solicitud de alta resuelta',
+    descripcion: 'Avisa al solicitante con la cuenta creada y su contraseña temporal.',
+    roles: [],
+    severidad: 'exito',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'alta'
+  },
   solicitud_informe_creada: {
     etiqueta: 'Nueva solicitud de informe público',
     descripcion: 'Avisa a los administradores cuando se pide un informe público.',

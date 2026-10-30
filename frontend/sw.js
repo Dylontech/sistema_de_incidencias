@@ -5,7 +5,7 @@
  * formulario abra sin red. La API y las evidencias nunca se cachean: los
  * reportes se guardan en la cola de IndexedDB (js/core/offline.js).
  */
-const CACHE = 'incidencias-shell-v2.9.4';
+const CACHE = 'incidencias-shell-v2.11.3';
 const SHELL = [
   '/',
   '/index.html',
@@ -21,6 +21,8 @@ const SHELL = [
   '/vendor/leaflet/leaflet.js',
   '/js/main.js',
   '/js/core/selector-territorial-bloques.js',
+  '/js/data/permisos.js',
+  '/js/data/permisos-ayuda.js',
   '/js/data/plantillas-publicidad.js',
   '/js/views/diseno-publicidad.js',
   '/js/views/publicidad.view.js',

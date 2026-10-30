@@ -27,10 +27,17 @@ export async function verificarPassword(usuario, password) {
   return bcrypt.compare(String(password), usuario.passwordHash);
 }
 
-/** Representación segura para la API (sin hash de contraseña). */
+/** Representación segura para la API (sin hash ni contraseña cifrada). */
 export function publico(usuario) {
   if (!usuario) return null;
-  const { passwordHash, password, passwordInicial, ...resto } = usuario;
+  const {
+    passwordHash,
+    password,
+    passwordInicial,
+    passwordCifrada,
+    rolConfig,
+    ...resto
+  } = usuario;
   return resto;
 }
 
@@ -79,6 +86,9 @@ export function validarEntrada(datos = {}, { parcial = false } = {}) {
   if (datos.correo !== undefined) {
     salida.correo = datos.correo ? normalizarCorreo(datos.correo) || null : null;
   }
+  if (datos.telefono !== undefined) {
+    salida.telefono = v.texto(datos.telefono, 'telefono', { max: 40 }) || null;
+  }
   if (datos.pseudonimo !== undefined) salida.pseudonimo = datos.pseudonimo === true;
   if (datos.municipioId !== undefined) {
     salida.municipioId = datos.municipioId ? String(datos.municipioId) : null;
@@ -89,6 +99,9 @@ export function validarEntrada(datos = {}, { parcial = false } = {}) {
     salida.rolPersonalizadoId = datos.rolPersonalizadoId
       ? String(datos.rolPersonalizadoId)
       : null;
+  }
+  if (datos.rolPropioId !== undefined) {
+    salida.rolPropioId = datos.rolPropioId ? String(datos.rolPropioId) : null;
   }
 
   v.terminar();
@@ -127,11 +140,14 @@ export function construirUsuario({
   username,
   nombre,
   correo = null,
+  telefono = null,
   rol,
   municipioId = null,
   passwordHash,
+  passwordCifrada = null,
   pseudonimo = false,
   rolPersonalizadoId = null,
+  rolPropioId = null,
   puedeEscribir = ['funcionario', 'admin', 'admin_estatal', 'admin_municipal'].includes(rol)
 }) {
   return {
@@ -139,12 +155,15 @@ export function construirUsuario({
     username,
     nombre,
     correo,
+    telefono,
     rol,
     municipioId,
     rolPersonalizadoId,
+    rolPropioId,
     activo: true,
     pseudonimo: pseudonimo === true,
     passwordHash,
+    passwordCifrada,
     // Solo los roles operativos pueden mutar; auditor/enlaces quedan en lectura.
     puedeEscribir: puedeEscribir === true,
     // Excepciones a la matriz de permisos del rol: { permiso: true|false }.

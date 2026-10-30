@@ -32,3 +32,17 @@ export const eliminar = asyncHandler(async (req, res) => {
   cerrarCanales(resultado.sesionesCerradas);
   res.json(resultado);
 });
+
+export const configurarNotificaciones = asyncHandler(async (req, res) => {
+  res.json(
+    await claves.configurarNotificaciones(req.repositorio, req.usuario, req.params.id, req.body || {})
+  );
+});
+
+export const revocarNotificaciones = asyncHandler(async (req, res) => {
+  res.json(await claves.revocarNotificaciones(req.repositorio, req.usuario, req.params.id));
+});
+
+export const reactivarNotificaciones = asyncHandler(async (req, res) => {
+  res.json(await claves.reactivarNotificaciones(req.repositorio, req.usuario, req.params.id));
+});

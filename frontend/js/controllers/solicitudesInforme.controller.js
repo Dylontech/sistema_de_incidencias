@@ -24,6 +24,21 @@ function pintar() {
   });
 }
 
+/**
+ * Abre el resumen completo de una solicitud. Es el destino de la notificación
+ * `solicitud_informe_*` y de la acción «Detalle» de la tabla.
+ */
+export async function abrirDetalle(id) {
+  if (!id) return;
+  try {
+    const { solicitud } = await api.get(`/admin/solicitudes-informe/${id}`);
+    vista.renderizarDetalle(solicitud);
+    abrirModal('modalSolicitudInformeDetalle', { nested: true });
+  } catch (error) {
+    toast(error?.message || 'No se pudo abrir la solicitud', 'err');
+  }
+}
+
 function limpiarVisor() {
   if (visor.url) URL.revokeObjectURL(visor.url);
   visor = { url: null, blob: null, nombre: '', tipo: '' };
@@ -131,6 +146,7 @@ export function registrar() {
   registrarAcciones({
     'solicitudesInforme:recargar': () => intentar(() => cargar()),
     'solicitudesInforme:buscar': () => intentar(() => cargar()),
+    'solicitudesInforme:detalle': ({ id }) => abrirDetalle(id),
     'solicitudesInforme:vista': ({ id, valor }) =>
       intentar(() => pedirArchivo(id, { formato: valor })),
     'solicitudesInforme:archivo': ({ id }) => intentar(() => pedirArchivo(id)),

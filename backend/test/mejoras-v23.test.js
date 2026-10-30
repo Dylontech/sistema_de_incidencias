@@ -113,7 +113,15 @@ describe('Mejoras V2.3', () => {
       rol: 'funcionario',
       municipios: [MUNICIPIO_MARAVATIO]
     });
-    assert.equal(alta.status, 201, JSON.stringify(alta.body));
+    // V2.11.3: el alta directa es de la administración; el permiso sirve para
+    // solicitar la creación de la cuenta.
+    assert.equal(alta.status, 403, JSON.stringify(alta.body));
+
+    const solicitudAlta = await funcionario.post('/api/alta/solicitudes', {
+      nombre: 'Cuenta solicitada por gestor municipal',
+      username: `gestor_${Date.now().toString(36)}`
+    });
+    assert.equal(solicitudAlta.status, 201, JSON.stringify(solicitudAlta.body));
 
     const intentoAdmin = await funcionario.post('/api/usuarios', {
       username: `gestor_admin_${Date.now().toString(36)}`,

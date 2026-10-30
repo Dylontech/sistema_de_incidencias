@@ -5,9 +5,14 @@ import { nuevoId } from '../utils/ids.js';
 import { nuevoCodigoClave } from '../utils/claves.js';
 import { config } from '../config/index.js';
 import { ESTADOS_REPUBLICA } from '../config/constantes.js';
-import { alcanceDe, esAdminMaestro } from './alcance.service.js';
+import { alcanceDe, esAdminMaestro, esAlgunaAdmin } from './alcance.service.js';
+import {
+  normalizarListaPermisos,
+  permisosBaseDeRol,
+  permisosDe
+} from './permisos.service.js';
 
-const ROLES_CLAVE = ['funcionario', 'auditor', 'enlace_estatal', 'enlace_federal'];
+const ROLES_CLAVE = ['funcionario', 'auditor', 'enlace_estatal', 'enlace_federal', 'soporte'];
 
 function hashIp(ip) {
   if (!ip) return null;
@@ -22,6 +27,51 @@ function agotada(clave) {
   return clave.usosMaximos !== null && clave.usosMaximos !== undefined && clave.usos >= clave.usosMaximos;
 }
 
+/** ¿La clave puede seguir abriendo sesiones? (no mira el límite de usos) */
+export function claveVigente(clave) {
+  return Boolean(clave) && clave.activa !== false && !codigoExpirado(clave);
+}
+
+/**
+ * Territorio efectivo de una clave.
+ *
+ * Si cubre estados completos se usa el estado (así incluye municipios
+ * importados después); si solo cubre municipios, se usa la lista concreta.
+ */
+export function territorioDeClave(clave = {}) {
+  const estados = [...new Set((clave.estados || []).filter(Boolean).map(String))];
+  if (estados.length) return { municipios: [], estados };
+  const municipios = [...new Set((clave.municipios || []).filter(Boolean).map(String))];
+  return { municipios, estados: [] };
+}
+
+/**
+ * Recorta un contexto de usuario a lo que autoriza la clave.
+ *
+ * - El territorio de la clave manda sobre el de la cuenta.
+ * - Los permisos efectivos se cruzan con los de la clave (si la clave no
+ *   declara permisos, se conservan los de la cuenta por compatibilidad).
+ */
+export function aplicarClaveAUsuario(usuario = {}, clave = {}) {
+  const permisosCuenta = Array.isArray(usuario.permisos)
+    ? usuario.permisos
+    : permisosDe(usuario);
+  const territorio = territorioDeClave(clave);
+  // La clave es la autorización: si declara permisos, esa lista manda (puede
+  // conceder una excepción como «crear usuarios» a un funcionario). Si no los
+  // declara, se conservan los de la cuenta por compatibilidad.
+  const permisos = Array.isArray(clave.permisos)
+    ? normalizarListaPermisos(clave.permisos)
+    : permisosCuenta;
+  return {
+    ...usuario,
+    claveId: clave.id || usuario.claveId || null,
+    municipios: territorio.municipios,
+    estados: territorio.estados,
+    permisos
+  };
+}
+
 export async function listar(repositorio, actor = null) {
   const claves = await repositorio.todasLasClaves();
   let visibles = claves;
@@ -32,7 +82,7 @@ export async function listar(repositorio, actor = null) {
     } else if (alcance.municipios) {
       visibles = claves.filter((c) => (c.municipios || []).some((id) => alcance.municipios.has(id)));
     } else if (alcance.estados) {
-      const catalogo = await repositorio.todosMunicipios();
+      const catalogo = await repositorio.municipiosLigeros();
       const porId = new Map(catalogo.map((m) => [m.id, m.estado]));
       visibles = claves.filter((c) =>
         (c.municipios || []).some((id) => alcance.estados.has(porId.get(id)))
@@ -44,9 +94,10 @@ export async function listar(repositorio, actor = null) {
 
   if (!visibles.length) return [];
   const ids = visibles.map((c) => c.id);
-  const [usuarios, sesiones] = await Promise.all([
+  const [usuarios, sesiones, notificaciones] = await Promise.all([
     repositorio.usuariosDeClaves(ids),
-    repositorio.listarSesiones({ limite: 500 })
+    repositorio.listarSesiones({ limite: 500 }),
+    repositorio.notificacionesDeClaves(ids)
   ]);
   return visibles.map((clave) => {
     const propias = sesiones.filter((sesion) => sesion.claveId === clave.id);
@@ -54,12 +105,19 @@ export async function listar(repositorio, actor = null) {
       ...clave,
       usuariosVinculados: usuarios[clave.id] || [],
       sesionesActivas: propias.length,
-      sesiones: propias
+      sesiones: propias,
+      notificaciones: notificaciones[clave.id] || { activo: true, municipios: [] }
     };
   });
 }
 
 export async function crear(repositorio, actor, datos = {}) {
+  // V2.11: una clave autoriza territorio y permisos, así que solo la crea una
+  // cuenta de administración. Un funcionario puede usar la suya, nunca generar
+  // otra (ni para sí mismo ni para nadie).
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido('Solo los administradores pueden generar claves de acceso');
+  }
   const nombre = String(datos.nombre || '').trim();
   const municipios = [...new Set((datos.municipios || []).filter(Boolean).map(String))];
   const estados = [...new Set((datos.estados || []).filter(Boolean).map(String))];
@@ -68,7 +126,7 @@ export async function crear(repositorio, actor, datos = {}) {
     throw AppError.solicitudInvalida('Elige al menos un municipio o un estado');
   }
 
-  const catalogo = await repositorio.todosMunicipios();
+  const catalogo = await repositorio.municipiosLigeros();
   const existentes = new Set(catalogo.map((m) => String(m.id)));
   if (municipios.some((id) => !existentes.has(id))) {
     throw AppError.solicitudInvalida('Alguno de los municipios no existe');
@@ -93,6 +151,15 @@ export async function crear(repositorio, actor, datos = {}) {
     .map((m) => String(m.id));
   const todosMunicipios = [...new Set([...municipios, ...deEstados])];
 
+  // Coherencia entre el rol sugerido y el territorio: un enlace estatal o
+  // federal entra por estado, no por municipios sueltos.
+  if (
+    (datos.rolSugerido === 'enlace_estatal' || datos.rolSugerido === 'enlace_federal') &&
+    !estados.length
+  ) {
+    throw AppError.solicitudInvalida('Elige al menos un estado para el enlace');
+  }
+
   // Un administrador territorial solo genera claves de su ámbito.
   if (actor && !esAdminMaestro(actor)) {
     const alcance = alcanceDe(actor);
@@ -114,6 +181,15 @@ export async function crear(repositorio, actor, datos = {}) {
   }
 
   const rolSugerido = ROLES_CLAVE.includes(datos.rolSugerido) ? datos.rolSugerido : null;
+  const permisosPedidos = normalizarListaPermisos(datos.permisos);
+  // Si no se envían permisos, la clave hereda la matriz del rol sugerido. Si
+  // tampoco hay rol, queda sin recorte (compatibilidad con claves antiguas).
+  const permisos =
+    permisosPedidos === undefined
+      ? rolSugerido
+        ? permisosBaseDeRol(rolSugerido)
+        : null
+      : permisosPedidos;
   const usosMaximos =
     datos.usosMaximos === null || datos.usosMaximos === undefined || datos.usosMaximos === ''
       ? null
@@ -146,6 +222,8 @@ export async function crear(repositorio, actor, datos = {}) {
       creadoPor: actor?.username || null,
       creadoEn: new Date().toISOString(),
       revocadaEn: null,
+      notificacionesActivas: true,
+      permisos,
       municipios: todosMunicipios,
       estados
     };
@@ -169,15 +247,36 @@ export async function crearParaCuenta(repositorio, actor, cuenta, { usosMaximos,
     : cuenta.municipioId
       ? [cuenta.municipioId]
       : [];
-  if (!municipios.length) return null;
+  const estados = Array.isArray(cuenta.estados) ? cuenta.estados : [];
+  if (!municipios.length && !estados.length) return null;
 
   return crear(repositorio, actor, {
     nombre: `Acceso de ${cuenta.nombre || cuenta.username}`,
     rolSugerido: ROLES_CLAVE.includes(cuenta.rol) ? cuenta.rol : null,
+    // La clave documenta exactamente los permisos que tendrá la cuenta y los
+    // vuelve a aplicar (recortados al territorio de la clave) al iniciar sesión.
+    permisos: Array.isArray(cuenta.permisosEfectivos)
+      ? cuenta.permisosEfectivos
+      : permisosBaseDeRol(cuenta.rol),
     municipios,
+    estados,
     usosMaximos: usosMaximos ?? null,
     expiraEn: expiraEn ?? null
   });
+}
+
+/**
+ * Busca una clave vigente por id y comprueba que esté dentro del ámbito del
+ * actor. La usa el alta de cuentas «desde una clave».
+ */
+export async function validarParaCuenta(repositorio, actor, id) {
+  const clave = await repositorio.claveAccesoPorId(String(id || ''));
+  if (!clave) throw AppError.noEncontrado('Clave de acceso no encontrada');
+  if (!claveVigente(clave) || agotada(clave)) {
+    throw AppError.conflicto('La clave de acceso no está vigente');
+  }
+  await exigirAlcanceClave(repositorio, actor, clave);
+  return clave;
 }
 
 /**
@@ -228,7 +327,7 @@ async function exigirAlcanceClave(repositorio, actor, clave) {
     return;
   }
   if (alcance.estados) {
-    const catalogo = await repositorio.todosMunicipios();
+    const catalogo = await repositorio.municipiosLigeros();
     const porId = new Map(catalogo.map((m) => [String(m.id), m.estado]));
     if (!(clave.municipios || []).every((id) => alcance.estados.has(porId.get(String(id))))) {
       throw AppError.prohibido('Esa clave está fuera de tu ámbito');
@@ -239,6 +338,9 @@ async function exigirAlcanceClave(repositorio, actor, clave) {
 }
 
 export async function revocar(repositorio, actor, id) {
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido('Solo los administradores pueden revocar claves de acceso');
+  }
   const todas = await repositorio.todasLasClaves();
   const clave = todas.find((c) => c.id === id);
   if (!clave) throw AppError.noEncontrado('Clave no encontrada');
@@ -256,6 +358,9 @@ export async function revocar(repositorio, actor, id) {
  * canal SSE se cierra desde el controlador.
  */
 export async function eliminar(repositorio, actor, id) {
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido('Solo los administradores pueden eliminar claves de acceso');
+  }
   const todas = await repositorio.todasLasClaves();
   const clave = todas.find((c) => c.id === id);
   if (!clave) throw AppError.noEncontrado('Clave no encontrada');
@@ -267,6 +372,63 @@ export async function eliminar(repositorio, actor, id) {
   return { clave: eliminada, sesionesCerradas };
 }
 
+/**
+ * Permiso de avisos de una clave. El alcance es un subconjunto de los
+ * municipios de la clave; si queda vacío, se entiende todo su territorio.
+ * Revocar los avisos NO invalida la clave para iniciar sesión.
+ */
+export async function configurarNotificaciones(repositorio, actor, id, datos = {}) {
+  const todas = await repositorio.todasLasClaves();
+  const clave = todas.find((c) => c.id === id);
+  if (!clave) throw AppError.noEncontrado('Clave no encontrada');
+  await exigirAlcanceClave(repositorio, actor, clave);
+
+  const actuales = (await repositorio.notificacionesDeClaves([id]))[id] || {
+    activo: true,
+    municipios: []
+  };
+  const activo =
+    datos.activo === undefined || datos.activo === null
+      ? actuales.activo !== false
+      : datos.activo !== false;
+  const municipios = Array.isArray(datos.municipios)
+    ? [...new Set(datos.municipios.filter(Boolean).map(String))]
+    : actuales.municipios;
+
+  if (municipios.length) {
+    const catalogo = await repositorio.municipiosLigeros();
+    const existentes = new Set(catalogo.map((m) => String(m.id)));
+    if (municipios.some((municipioId) => !existentes.has(municipioId))) {
+      throw AppError.solicitudInvalida('Alguno de los municipios de avisos no existe');
+    }
+    const deLaClave = new Set((clave.municipios || []).map(String));
+    if (municipios.some((municipioId) => !deLaClave.has(municipioId))) {
+      throw AppError.prohibido('Los avisos no pueden salir del territorio de la clave');
+    }
+  }
+
+  const notificaciones = await repositorio.guardarNotificacionesClave(id, {
+    activo,
+    municipios
+  });
+  return {
+    clave: {
+      ...clave,
+      notificacionesActivas: notificaciones.activo !== false
+    },
+    notificaciones
+  };
+}
+
+/** Revoca los avisos sin tocar la validez de la clave. */
+export async function revocarNotificaciones(repositorio, actor, id) {
+  return configurarNotificaciones(repositorio, actor, id, { activo: false });
+}
+
+export async function reactivarNotificaciones(repositorio, actor, id) {
+  return configurarNotificaciones(repositorio, actor, id, { activo: true });
+}
+
 /** Valida una clave para una entrada y devuelve el conjunto de municipios. */
 export async function validar(repositorio, codigo) {
   const clave = await repositorio.claveAccesoPorCodigo(codigo);
@@ -276,7 +438,7 @@ export async function validar(repositorio, codigo) {
   // Los estados se expanden al validar: si más adelante se importan nuevos
   // municipios de ese estado, la misma clave los cubre sin recrearla.
   if (clave.estados?.length) {
-    const catalogo = await repositorio.todosMunicipios();
+    const catalogo = await repositorio.municipiosLigeros();
     const deEstados = catalogo
       .filter((municipio) => clave.estados.includes(municipio.estado))
       .map((municipio) => String(municipio.id));

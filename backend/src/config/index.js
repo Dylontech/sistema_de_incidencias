@@ -137,6 +137,13 @@ export const config = {
     trustProxy: valorTrustProxy(),
 
     /**
+     * Llave con la que se cifra la copia consultable de las contraseñas.
+     * En producción es obligatoria (ver `validarConfiguracion`); en desarrollo
+     * y pruebas se deriva del secreto JWT para no bloquear el arranque.
+     */
+    passwordLlave: process.env.PASSWORD_LLAVE || '',
+
+    /**
      * 'estricto' (por omisión): la CSP no admite estilos en línea, así que todo
      * el marcado usa clases y los valores dinámicos se aplican por CSSOM.
      * 'laxo': añade 'unsafe-inline' a los estilos (solo para depurar).
@@ -207,6 +214,11 @@ export function problemasDeConfiguracion() {
       problemas.push(
         'TRUST_PROXY no puede ser "true" en producción: indica el número de saltos ' +
           '(TRUST_PROXY=1) o la lista de IPs del proxy.'
+      );
+    }
+    if (!config.seguridad.passwordLlave) {
+      problemas.push(
+        'PASSWORD_LLAVE es obligatoria en producción: cifra la copia consultable de las contraseñas.'
       );
     }
   }

@@ -13,5 +13,14 @@ export const clavesService = {
   },
   eliminar(id) {
     return api.del(`/admin/claves/${id}`);
+  },
+  guardarNotificaciones(id, datos) {
+    return api.put(`/admin/claves/${id}/notificaciones`, datos);
+  },
+  revocarNotificaciones(id) {
+    return api.post(`/admin/claves/${id}/notificaciones/revocar`, {});
+  },
+  reactivarNotificaciones(id) {
+    return api.post(`/admin/claves/${id}/notificaciones/reactivar`, {});
   }
 };

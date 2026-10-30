@@ -148,6 +148,7 @@
  * @property {() => Promise<void>} cerrar
  * @property {() => Promise<boolean>} ping      comprueba que el almacén responde (salud)
  * @property {() => Promise<Municipio[]>} todosMunicipios
+ * @property {() => Promise<Array<Pick<Municipio,'id'|'nombre'|'estado'>>>} municipiosLigeros
  * @property {(id:string) => Promise<Municipio|null>} municipioPorId
  * @property {(clave:string) => Promise<Municipio|null>} municipioPorClave
  * @property {() => Promise<Zona[]>} todasLasZonas
@@ -235,6 +236,7 @@ export const METODOS_REQUERIDOS = [
   'cerrar',
   'ping',
   'todosMunicipios',
+  'municipiosLigeros',
   'municipioPorId',
   'municipioPorClave',
   'resumenPorMunicipio',
@@ -260,12 +262,16 @@ export const METODOS_REQUERIDOS = [
   'guardarPreferencias',
   'todasLasClaves',
   'claveAccesoPorCodigo',
+  'claveAccesoPorId',
   'crearClaveAcceso',
   'revocarClaveAcceso',
   'eliminarClaveAcceso',
   'actualizarClaveAcceso',
   'registrarUsoClave',
   'usuariosDeClaves',
+  'notificacionesDeClaves',
+  'guardarNotificacionesClave',
+  'clavesDeSesionesActivas',
   'registrarSesion',
   'sesionPorId',
   'cerrarSesion',
@@ -465,7 +471,30 @@ export const METODOS_REQUERIDOS = [
   'crearSolicitudPermiso',
   'solicitudesPermiso',
   'solicitudPermisoPorId',
-  'actualizarSolicitudPermiso'
+  'actualizarSolicitudPermiso',
+  // Roles integrados (matriz editable) y roles propios
+  'roles',
+  'rolPorId',
+  'rolPorClave',
+  'crearRol',
+  'actualizarRol',
+  'eliminarRol',
+  // Credenciales cifradas y solicitudes de cambio de contraseña
+  'passwordCifradaDeUsuario',
+  'crearSolicitudPassword',
+  'solicitudesPassword',
+  'solicitudPasswordPorId',
+  'actualizarSolicitudPassword',
+  // Solicitudes de baja de cuentas del personal
+  'crearSolicitudBaja',
+  'solicitudesBaja',
+  'solicitudBajaPorId',
+  'actualizarSolicitudBaja',
+  // Solicitudes de alta de cuentas (las pide un funcionario)
+  'crearSolicitudUsuario',
+  'solicitudesUsuario',
+  'solicitudUsuarioPorId',
+  'actualizarSolicitudUsuario'
 ];
 
 /** Comprueba que un repositorio cumple el contrato (usado en pruebas). */

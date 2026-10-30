@@ -28,6 +28,75 @@ function territorio(solicitud) {
     .join(' · ');
 }
 
+function fechaHora(valor) {
+  if (!valor) return '—';
+  const fecha = new Date(valor);
+  return Number.isNaN(fecha.getTime())
+    ? '—'
+    : fecha.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+const ETIQUETA_ESTADO = (solicitud) =>
+  ESTADOS[solicitud.estado] || solicitud.estado || 'Sin estado';
+
+/**
+ * Resumen detallado de una solicitud. Se abre desde la tabla y desde la
+ * notificación para revisar todos los datos antes de generarla o enviarla.
+ */
+export function renderizarDetalle(solicitud = {}) {
+  const contenedor = $('solicitudInformeDetalleCuerpo');
+  if (!contenedor) return;
+  const tipos = solicitud.tiposTodos
+    ? 'Todos los tipos'
+    : (solicitud.tipos || []).join(', ') || '—';
+  const id = esc(solicitud.id || '');
+  contenedor.innerHTML = `
+    <div class="detalle-solicitud">
+      <div class="detalle-solicitud-cabecera">
+        <div>
+          <div class="campo-nota">Folio</div>
+          <h4 class="u-m-0">${esc(solicitud.folio || '—')}</h4>
+        </div>
+        <span class="inc-badge badge-${solicitud.estado === 'enviada' ? 'verde' : solicitud.estado === 'error' || solicitud.estado === 'rechazada' ? 'rojo' : 'amarillo'}">${esc(ETIQUETA_ESTADO(solicitud))}</span>
+      </div>
+      <div class="detalle-solicitud-grid">
+        <div><span class="campo-nota">Solicitante</span><strong>${esc(solicitud.nombre || '—')}</strong></div>
+        <div><span class="campo-nota">Correo</span><strong>${esc(solicitud.correo || '—')}</strong></div>
+        <div><span class="campo-nota">Teléfono</span><strong>${esc(solicitud.telefono || '—')}</strong></div>
+        <div><span class="campo-nota">Formato</span><strong>${esc(String(solicitud.formato || 'pdf').toUpperCase())}</strong></div>
+        <div><span class="campo-nota">Ámbito</span><strong>${esc(solicitud.ambito || solicitud.ambitos || '—')}</strong></div>
+        <div><span class="campo-nota">Tipos</span><strong>${esc(tipos)}</strong></div>
+        <div class="detalle-solicitud-ancho"><span class="campo-nota">Territorio</span><strong>${esc(territorio(solicitud) || '—')}</strong></div>
+        <div><span class="campo-nota">Desde</span><strong>${esc(fechaCorta(solicitud.desde))}</strong></div>
+        <div><span class="campo-nota">Hasta</span><strong>${esc(fechaCorta(solicitud.hasta))}</strong></div>
+        <div><span class="campo-nota">Creada</span><strong>${esc(fechaHora(solicitud.creadoEn))}</strong></div>
+        <div><span class="campo-nota">Procesada</span><strong>${esc(fechaHora(solicitud.procesadoEn))}</strong></div>
+        <div><span class="campo-nota">Enviada</span><strong>${esc(fechaHora(solicitud.enviadoEn))}</strong></div>
+      </div>
+      ${
+        solicitud.mensaje
+          ? `<div class="detalle-solicitud-bloque"><span class="campo-nota">Mensaje del solicitante</span><p class="u-m-0">${esc(solicitud.mensaje)}</p></div>`
+          : ''
+      }
+      ${
+        solicitud.error
+          ? `<div class="detalle-solicitud-bloque detalle-solicitud-error"><span class="campo-nota">Error</span><p class="u-m-0">${esc(solicitud.error)}</p></div>`
+          : ''
+      }
+      <div class="u-fila-env u-mt-12">
+        <button class="btn btn-outline btn-sm" data-action="solicitudesInforme:vista" data-id="${id}" data-valor="pdf"><i class="bi bi-filetype-pdf"></i> Vista previa PDF</button>
+        <button class="btn btn-outline btn-sm" data-action="solicitudesInforme:vista" data-id="${id}" data-valor="csv"><i class="bi bi-filetype-csv"></i> Vista previa CSV</button>
+        ${
+          solicitud.archivo
+            ? `<button class="btn btn-outline btn-sm" data-action="solicitudesInforme:archivo" data-id="${id}"><i class="bi bi-eye-fill"></i> Abrir archivo</button>`
+            : ''
+        }
+        <button class="btn btn-outline btn-sm" data-action="solicitudesInforme:generar" data-id="${id}"><i class="bi bi-gear"></i> Generar</button>
+        <button class="btn btn-primary btn-sm" data-action="solicitudesInforme:enviar" data-id="${id}"><i class="bi bi-send"></i> Enviar</button>
+      </div>
+    </div>`;
+}
+
 export function renderizar(solicitudes = [], { texto = '', estado = '' } = {}) {
   const contenedor = $('solicitudesInformeLista');
   if (!contenedor) return;
@@ -60,6 +129,9 @@ export function renderizar(solicitudes = [], { texto = '', estado = '' } = {}) {
                 <td>${esc(String(s.formato || 'pdf').toUpperCase())}</td>
                 <td><span class="inc-badge badge-${s.estado === 'enviada' ? 'verde' : s.estado === 'error' || s.estado === 'rechazada' ? 'rojo' : 'amarillo'}">${esc(ESTADOS[s.estado] || s.estado)}</span></td>
                 <td class="u-acciones-tabla">
+                  <button class="btn btn-outline btn-sm" data-action="solicitudesInforme:detalle" data-id="${esc(s.id)}" title="Ver resumen completo" aria-label="Ver resumen completo">
+                    <i class="bi bi-layout-text-window-reverse"></i>
+                  </button>
                   ${s.archivo ? `
                   <button class="btn btn-outline btn-sm" data-action="solicitudesInforme:archivo" data-id="${esc(s.id)}" title="Ver archivo generado" aria-label="Ver archivo generado">
                     <i class="bi bi-eye-fill"></i>

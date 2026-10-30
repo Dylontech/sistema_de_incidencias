@@ -3,6 +3,67 @@ SISTEMA DE INCIDENCIAS MUNICIPALES — CAMBIOS, INSTALACIÓN Y OPERACIÓN
 Versión 2.3 · 2026-10-27
 ==============================================================================
 
+ACTUALIZACIÓN V2.11.3: se puede reactivar una cuenta dada de baja desde la
+tabla de usuarios (solo administración). El personal ya no crea cuentas
+directamente: rellena una solicitud de alta con nombre, usuario, correo y
+teléfono, y la administración la aprueba desde la bandeja «Solicitudes de
+alta»; la contraseña temporal se entrega al solicitante en su campana de
+avisos. La pestaña Municipios de un funcionario de un solo municipio muestra
+solo su ficha, sin selector ni buscador nacional. Se arregló «Editar permisos»
+y la plantilla de rol en «Roles y permisos», y la tipografía del panel es más
+grande. Requiere:
+  npm --prefix backend run migrate
+  (20261110_solicitudes_usuario.js)
+No borra datos: crea la tabla `solicitudes_usuario` y añade
+`usuarios.telefono` (nullable).
+
+ACTUALIZACIÓN V2.11.2: el aviso de una solicitud de baja o de contraseña abre
+la pestaña Usuarios con la cuenta y la solicitud resaltadas, de modo que los
+botones de aprobar/rechazar quedan a la vista. Quien pidió la baja recibe el
+aviso de que se cumplió, y cada aprobación o rechazo queda en auditoría
+(`baja_aprobada`, `baja_rechazada`, `solicitud_password_aprobada`,
+`solicitud_password_rechazada`). Un funcionario con `editar_usuarios` puede
+solicitar el cambio de contraseña de otra cuenta de su ámbito; la nueva
+contraseña se entrega al solicitante en su campana de avisos. Requiere:
+  npm --prefix backend run migrate
+  (20261109_solicitudes_password_solicitante.js)
+No borra datos: añade dos columnas nullable a `solicitudes_password`.
+
+ACTUALIZACIÓN V2.11.1: se elimina el tema claro/oscuro (la interfaz queda en
+claro), el funcionario solo puede editar el nombre de otras cuentas (rol,
+territorio, permisos, contraseña y estado responden 403) y las bajas se
+solicitan para que las resuelva la administración. El selector de estadísticas
+solo ofrece el ámbito propio y se corrigieron los huecos de Publicidad y
+Campañas en móvil. Requiere:
+  npm --prefix backend run migrate
+  (20261108_solicitudes_baja.js)
+No borra datos: crea la tabla `solicitudes_baja`.
+
+ACTUALIZACIÓN V2.11: roles del sistema con matriz editable, roles propios con
+plantilla, contraseñas consultables cifradas (AES-256-GCM) con revelado
+auditado y solicitudes de cambio de contraseña, estadísticas que rechazan (403)
+el territorio ajeno, límites del funcionario (sin permisos, contraseñas ni
+claves) y ayuda de cada permiso con guías simuladas. Requiere:
+  npm --prefix backend run migrate
+  (20261104_roles_permisos.js, 20261105_password_cifrada.js,
+   20261106_solicitudes_permisos_estados.js y 20261107_roles_permisos_v211.js)
+Definir PASSWORD_LLAVE en producción (32 bytes aleatorios). Las contraseñas
+anteriores no tienen copia cifrada: se pueden restablecer desde el panel de
+usuarios, pero no consultar.
+
+ACTUALIZACIÓN V2.10: permisos CRUD separados para usuarios, claves, tipos,
+solicitudes de acceso y avisos por clave; claves que llevan su propia matriz de
+permisos y territorio (la sesión los aplica en cada petición); alta de personal
+desde una clave (`claveId`); correo repetido con respuesta 409 entendible y
+baja lógica de cuentas (`DELETE /api/usuarios/:id`). Requiere
+`npm --prefix backend run migrate` (20261103_permisos_clave.js). Las claves
+anteriores quedan con `permisos = NULL` (sin recorte) y siguen funcionando.
+
+ACTUALIZACIÓN V2.9.5: avisos por clave con alcance por municipios y revocación
+independiente de la clave, resumen detallado de solicitudes desde la campana,
+controles de tamaño del panel y secciones de publicidad redimensionables.
+Requiere `npm --prefix backend run migrate` (20261029_avisos_por_clave.js).
+
 ACTUALIZACIÓN V2.9.4: claves que cubren estados completos, sesiones vinculadas
 a su clave, eliminación de claves con cierre de sesiones y bitácora de
 auditoría. Requiere `npm --prefix backend run migrate`

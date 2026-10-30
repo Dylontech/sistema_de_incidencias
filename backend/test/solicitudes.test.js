@@ -58,6 +58,17 @@ describe('Solicitudes públicas de informe', () => {
     assert.ok(guardada.tokenVerificacion);
     assert.equal(guardada.aceptaTerminos, true);
 
+    // La campana del admin debe apuntar al resumen de ESTA solicitud, no solo
+    // a la pestaña general.
+    const admin = await Api.admin(app);
+    const { notificaciones } = (await admin.get('/api/notificaciones')).body;
+    const aviso = notificaciones.find(
+      (n) => n.entidadTipo === 'solicitud_informe' && n.entidadId === guardada.id
+    );
+    assert.ok(aviso, 'debe crearse el aviso de la solicitud');
+    assert.match(aviso.url, /admin=solicitudes-informe/);
+    assert.match(aviso.url, new RegExp(`solicitud=${guardada.id}`));
+
     const verificada = await new Api(app).get(
       `/api/publico/solicitudes-informe/verificar/${guardada.tokenVerificacion}`
     );

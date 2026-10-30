@@ -28,11 +28,47 @@ import { cargar as cargarPublicidad } from './publicidad.controller.js';
 import { cargar as cargarCorreosInstitucionales } from './correosInstitucionales.controller.js';
 import { crearSelectorTerritorial } from '../core/selector-territorial.js';
 import { permisosService } from '../services/permisos.service.js';
+import { passwordService } from '../services/password.service.js';
+import { bajaService } from '../services/baja.service.js';
+import { altaService } from '../services/alta.service.js';
 import { rolesService } from '../services/roles.service.js';
 
 let selectorStats = null;
 let filtrosStats = null;
 let fichaActual = null;
+/** Candado de la generación de claves: evita altas duplicadas por doble clic. */
+let creandoClave = false;
+
+const CLAVE_TAMANO_PANEL = 'inc_admin_panel_tamano_v1';
+const TAMANOS_PANEL = ['compacto', 'normal', 'grande', 'tv'];
+
+function tamanoPanelGuardado() {
+  const valor = localStorage.getItem(CLAVE_TAMANO_PANEL);
+  return TAMANOS_PANEL.includes(valor) ? valor : 'normal';
+}
+
+function aplicarTamanoPanel(nivel) {
+  const elegido = TAMANOS_PANEL.includes(nivel) ? nivel : 'normal';
+  const caja = document.getElementById('modalAdminBox');
+  if (caja) {
+    TAMANOS_PANEL.forEach((tamano) => caja.classList.remove(`admin-panel-${tamano}`));
+    caja.classList.add(`admin-panel-${elegido}`);
+  }
+  try {
+    localStorage.setItem(CLAVE_TAMANO_PANEL, elegido);
+  } catch {
+    // Sin almacenamiento: el tamaño dura la sesión.
+  }
+  return elegido;
+}
+
+function cambiarTamanoPanel(paso) {
+  const actual = TAMANOS_PANEL.indexOf(tamanoPanelGuardado());
+  const siguiente = paso === 'restablecer'
+    ? 'normal'
+    : TAMANOS_PANEL[Math.max(0, Math.min(TAMANOS_PANEL.length - 1, actual + (paso === 'mas' ? 1 : -1)))];
+  return aplicarTamanoPanel(siguiente);
+}
 
 /** Permiso mínimo para ver y cargar cada pestaña del panel. */
 export const PERMISO_POR_TAB = {
@@ -40,10 +76,11 @@ export const PERMISO_POR_TAB = {
   incidencias: 'ver_incidencias_panel',
   tipos: 'ver_tipos',
   municipios: 'ver_municipios_panel',
-  claves: 'gestionar_claves',
+  claves: 'ver_claves',
+  'avisos-clave': 'ver_avisos_clave',
   zonas: 'ver_zonas',
   usuarios: 'ver_usuarios',
-  solicitudes: 'gestionar_usuarios',
+  solicitudes: 'ver_solicitudes_acceso',
   tickets: 'atender_tickets',
   sesiones: 'ver_monitoreo',
   auditoria: 'ver_auditoria',
@@ -111,6 +148,9 @@ export async function abrirTab(nombre) {
     case 'claves':
       await cargarClaves();
       break;
+    case 'avisos-clave':
+      await cargarAvisosClave();
+      break;
     case 'sesiones':
       await cargarSesiones();
       break;
@@ -139,9 +179,13 @@ export async function abrirTab(nombre) {
     case 'usuarios':
       await Promise.all([
         aplicacion.cargarUsuarios(document.getElementById('usuariosTipo')?.value || 'personal'),
-        cargarRolesEspeciales()
+        cargarRolesEspeciales(),
+        cargarCatalogoRoles()
       ]);
-      await cargarSolicitudesPermisos();
+      if (sesion.puede('ver_solicitudes_permisos')) await cargarSolicitudesPermisos();
+      await cargarSolicitudesPassword();
+      await cargarSolicitudesBaja();
+      await cargarSolicitudesAlta();
       break;
     case 'moderacion':
       // La cola se apoya en el listado ya cargado (incluye las ocultas del
@@ -183,24 +227,133 @@ export async function abrirTab(nombre) {
 
 async function cargarClaves() {
   const { claves } = await clavesService.listar();
-  adminView.renderClaves(claves, store.estado.municipios || []);
+  adminView.renderClaves(claves, store.estado.municipios || [], {
+    puedeEliminar: sesion.puede('eliminar_claves')
+  });
+}
+
+/** Claves vigentes que se pueden asignar al alta de una cuenta. */
+async function clavesParaAlta() {
+  if (!sesion.puede('ver_claves') && !sesion.puede('ver_avisos_clave')) return [];
+  try {
+    const { claves } = await clavesService.listar();
+    return claves || [];
+  } catch {
+    return [];
+  }
+}
+
+async function cargarAvisosClave() {
+  const { claves } = await clavesService.listar();
+  adminView.renderAvisosClave(claves, store.estado.municipios || []);
+}
+
+/** Busca una clave ya cargada y, si no está, la recarga desde el servidor. */
+async function claveParaAvisos(id) {
+  let clave = adminView.clavesCargadas().find((c) => c.id === id);
+  if (!clave) {
+    const { claves } = await clavesService.listar();
+    adminView.renderAvisosClave(claves, store.estado.municipios || []);
+    clave = (claves || []).find((c) => c.id === id);
+  }
+  return clave || null;
 }
 
 let rolesEspeciales = [];
+let rolesIntegrados = [];
+let rolesPropios = [];
 
 async function cargarRolesEspeciales() {
   const { roles } = await rolesService.listar();
   rolesEspeciales = roles || [];
   adminView.renderRolesEspeciales(rolesEspeciales);
+  adminView.renderListaRoles(rolesEspeciales);
   return rolesEspeciales;
+}
+
+/** Roles del sistema (matriz editable) y roles propios. */
+async function cargarCatalogoRoles() {
+  const { roles } = await rolesService.listarRoles();
+  rolesIntegrados = (roles || []).filter((r) => r.tipo === 'integrado');
+  rolesPropios = (roles || []).filter((r) => r.tipo === 'propio');
+  adminView.renderRolesSistema(rolesIntegrados);
+  adminView.renderRolesPropios(rolesPropios);
+  return { integrados: rolesIntegrados, propios: rolesPropios };
+}
+
+/** Estados que esta sesión puede elegir (alcance real, no el catálogo nacional). */
+function estadosDelAlcance() {
+  const propios = store.estado.alcance?.estados;
+  return Array.isArray(propios) && propios.length ? propios : store.estado.estados || [];
+}
+
+/** Nombres de los municipios del propio funcionario (territorio fijo al crear). */
+function municipiosDelActor() {
+  const ids =
+    store.estado.alcance?.municipios ||
+    (store.estado.municipioActivo?.id ? [store.estado.municipioActivo.id] : []);
+  return ids.map(
+    (id) => store.estado.municipios?.find((m) => String(m.id) === String(id))?.nombre || id
+  );
 }
 
 async function cargarSolicitudesPermisos() {
   const contenedor = document.getElementById('solicitudesPermisosLista');
   if (!contenedor) return;
+  const caja = document.getElementById('solicitudesPermisosBox');
+  caja?.classList.toggle('u-oculto', !sesion.puede('ver_solicitudes_permisos'));
+  if (!sesion.puede('ver_solicitudes_permisos')) return;
   try {
     const { solicitudes } = await permisosService.solicitudes();
     adminView.renderSolicitudesPermisos(solicitudes || []);
+  } catch {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
+  }
+}
+
+/** Solicitudes de cambio de contraseña (solo con permiso de revelado). */
+async function cargarSolicitudesPassword() {
+  const caja = document.getElementById('solicitudesPasswordBox');
+  const contenedor = document.getElementById('solicitudesPasswordLista');
+  if (!caja || !contenedor) return;
+  const permitido = sesion.puede('revelar_password_usuarios');
+  caja.classList.toggle('u-oculto', !permitido);
+  if (!permitido) return;
+  try {
+    const { solicitudes } = await passwordService.listar({ estado: 'pendiente' });
+    adminView.renderSolicitudesPassword(solicitudes || []);
+  } catch {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
+  }
+}
+
+/** Solicitudes de baja (solo administración). */
+async function cargarSolicitudesBaja() {
+  const caja = document.getElementById('solicitudesBajaBox');
+  const contenedor = document.getElementById('solicitudesBajaLista');
+  if (!caja || !contenedor) return;
+  const permitido = sesion.esAlgunaAdmin();
+  caja.classList.toggle('u-oculto', !permitido);
+  if (!permitido) return;
+  try {
+    const { solicitudes } = await bajaService.listar({ estado: 'pendiente' });
+    adminView.renderSolicitudesBaja(solicitudes || []);
+  } catch {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
+  }
+}
+
+/** Solicitudes de alta de cuentas (solo administración). */
+async function cargarSolicitudesAlta() {
+  const caja = document.getElementById('solicitudesAltaBox');
+  const contenedor = document.getElementById('solicitudesAltaLista');
+  if (!caja || !contenedor) return;
+  const permitido = sesion.esAlgunaAdmin();
+  caja.classList.toggle('u-oculto', !permitido);
+  if (!permitido) return;
+  try {
+    const { solicitudes } = await altaService.listar({ estado: 'pendiente' });
+    adminView.renderSolicitudesAlta(solicitudes || []);
   } catch {
     contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
   }
@@ -211,13 +364,16 @@ function prepararSelectorStats() {
   // Se recrea cada vez que se abre la pestaña: así toma el catálogo actual
   // (las 32 entidades) y no se queda con el que hubiera al primer render.
   const activo = store.estado.municipioActivo?.id;
+  // Un funcionario municipal no debe ver «Añadir un estado» ni «Todos los
+  // estados»: su selector se queda en modo municipios.
+  const soloMunicipios = store.estado.alcance?.modo === 'municipios';
   selectorStats = crearSelectorTerritorial({
     contenedor: 'statsTerritorio',
     municipios: store.estado.municipios || [],
     seleccionados: filtrosStats?.municipios || (activo ? [activo] : []),
-    estados: filtrosStats?.estados || [],
-    modo: 'ambos',
-    catalogoEstados: store.estado.estados || []
+    estados: soloMunicipios ? [] : filtrosStats?.estados || [],
+    modo: soloMunicipios ? 'municipios' : 'ambos',
+    catalogoEstados: soloMunicipios ? [] : estadosDelAlcance()
   });
   actualizarNotaStats();
 }
@@ -227,6 +383,12 @@ function actualizarNotaStats() {
   if (!nota) return;
   const municipios = selectorStats?.municipios() || [];
   const estados = selectorStats?.estados() || [];
+  if (store.estado.alcance?.modo === 'municipios') {
+    nota.textContent = municipios.length
+      ? `${municipios.length} municipio(s) de tu ámbito seleccionados. No puedes consultar otros territorios.`
+      : 'Solo puedes consultar los municipios que tienes asignados.';
+    return;
+  }
   nota.textContent = !municipios.length && !estados.length
     ? 'Mostrando todo tu ámbito territorial.'
     : `${municipios.length} municipio(s) y ${estados.length} estado(s) seleccionados.`;
@@ -235,7 +397,13 @@ function actualizarNotaStats() {
 /** Catálogo de municipios visibles con incidencias, tickets, sugerencias y personal. */
 async function cargarResumenMunicipios() {
   const { municipios } = await catalogosService.resumenMunicipios();
-  adminView.renderMunicipios(municipios, store.estado.municipioActivo?.id);
+  // Un funcionario de un solo municipio no debe ver el selector ni el filtro
+  // nacional: solo la ficha de su municipio.
+  const municipal =
+    store.estado.alcance?.modo === 'municipios' && (municipios || []).length <= 1;
+  document.getElementById('municipioActivoBox')?.classList.toggle('u-oculto', municipal);
+  document.getElementById('municipiosFiltroBox')?.classList.toggle('u-oculto', municipal);
+  adminView.renderMunicipios(municipios, store.estado.municipioActivo?.id, { municipal });
 }
 
 async function cargarSesiones() {
@@ -285,51 +453,128 @@ async function cargarReglasTickets() {
   adminView.renderReglasTickets(reglas, municipios, staffReglas);
 }
 
+/**
+ * Abre el panel de control, opcionalmente en una pestaña concreta. Devuelve
+ * una promesa que termina cuando la pestaña ya cargó; es la base de los
+ * enlaces profundos de las notificaciones.
+ */
+export async function abrirPanel(tabInicial = null) {
+  if (!sesion.esEmpleado()) {
+    toast('No tienes permiso para acceder al panel', 'err');
+    return false;
+  }
+  aplicarTamanoPanel(tamanoPanelGuardado());
+  loading(true, 'Cargando panel…');
+  try {
+    // La matriz de permisos es la única fuente de verdad de la UI.
+    document.querySelectorAll('#modalAdmin .admin-tab[data-permiso]').forEach((tab) => {
+      const soloAdmin = tab.dataset.valor === 'notificaciones' && !sesion.esAdmin();
+      const permitido = sesion.puede(tab.dataset.permiso) && !soloAdmin;
+      tab.classList.toggle('u-oculto', !permitido);
+      tab.disabled = !permitido;
+    });
+    document
+      .getElementById('btnRolesEspeciales')
+      ?.classList.toggle('u-oculto', !sesion.esAdmin());
+    document
+      .getElementById('solicitudesPermisosBox')
+      ?.classList.toggle('u-oculto', !sesion.puede('ver_solicitudes_permisos'));
+    document
+      .getElementById('solicitudesPasswordBox')
+      ?.classList.toggle('u-oculto', !sesion.puede('revelar_password_usuarios'));
+    document
+      .getElementById('solicitudesBajaBox')
+      ?.classList.toggle('u-oculto', !sesion.esAlgunaAdmin());
+    document
+      .getElementById('solicitudesAltaBox')
+      ?.classList.toggle('u-oculto', !sesion.esAlgunaAdmin());
+    const visibles = [
+      ...document.querySelectorAll('#modalAdmin .admin-tab[data-permiso]:not(.u-oculto)')
+    ];
+    if (!visibles.length) {
+      toast('Tu cuenta no tiene permiso para ninguna sección del panel', 'err');
+      return false;
+    }
+    const pedida = tabInicial
+      ? document.querySelector(
+          `#modalAdmin .admin-tab[data-valor="${tabInicial}"]:not(.u-oculto)`
+        )
+      : null;
+    const inicial =
+      pedida ||
+      document.querySelector('#modalAdmin .admin-tab[data-valor="stats"]:not(.u-oculto)') ||
+      visibles[0];
+    abrirModal('modalAdmin');
+    adminView.activarTab(inicial?.dataset.valor || 'stats');
+    if (inicial) await abrirTab(inicial.dataset.valor);
+    // Los enlaces a una solicitud concreta no necesitan cargar tipos ni la
+    // lista completa de cuentas antes de mostrar su resumen.
+    if (tabInicial !== 'solicitudes-informe') {
+      if (sesion.puede('ver_tipos')) await aplicacion.cargarTipos();
+      if (sesion.puede('ver_usuarios')) {
+        await aplicacion.cargarUsuarios(
+          document.getElementById('usuariosTipo')?.value || 'personal'
+        );
+      }
+    }
+    adminView.activarTab(inicial?.dataset.valor || 'stats');
+    return true;
+  } finally {
+    loading(false);
+  }
+}
+
+/**
+ * Lleva la vista a la cuenta o a la solicitud concreta dentro de la pestaña
+ * Usuarios y la resalta unos segundos. Es lo que hace que el clic en un aviso
+ * deje a la vista la acción pendiente y no solo la pestaña.
+ */
+export async function enfocarSolicitud({
+  usuarioId = null,
+  bajaId = null,
+  passwordId = null,
+  altaId = null
+} = {}) {
+  const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const limpio = (valor) => String(valor || '').replace(/["\\]/g, '');
+  const resaltar = (selector) => {
+    const fila = document.querySelector(selector);
+    if (!fila) return false;
+    fila.classList.add('fila-destacada');
+    fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => fila.classList.remove('fila-destacada'), 8000);
+    return true;
+  };
+
+  await esperar(300);
+  if (bajaId) {
+    document.getElementById('solicitudesBajaBox')?.classList.remove('u-oculto');
+    resaltar(`#solicitudesBajaLista tr[data-solicitud="${limpio(bajaId)}"]`);
+  }
+  if (passwordId) {
+    document.getElementById('solicitudesPasswordBox')?.classList.remove('u-oculto');
+    resaltar(`#solicitudesPasswordLista tr[data-solicitud="${limpio(passwordId)}"]`);
+  }
+  if (altaId) {
+    document.getElementById('solicitudesAltaBox')?.classList.remove('u-oculto');
+    resaltar(`#solicitudesAltaLista tr[data-solicitud="${limpio(altaId)}"]`);
+  }
+  if (usuarioId) {
+    const selectorTipo = document.getElementById('usuariosTipo');
+    if (selectorTipo && selectorTipo.value !== 'personal') {
+      selectorTipo.value = 'personal';
+      await aplicacion.cargarUsuarios('personal');
+      await esperar(150);
+    }
+    resaltar(`#usuariosLista tr[data-usuario="${limpio(usuarioId)}"]`);
+  }
+}
+
 export function registrar() {
   const buscarConRetraso = debounce(() => pintarPanelIncidencias(), 200);
 
   registrarAcciones({
-    'admin:abrir': () =>
-      intentar(async () => {
-        if (!sesion.esEmpleado()) {
-          toast('No tienes permiso para acceder al panel', 'err');
-          return;
-        }
-        loading(true, 'Cargando panel…');
-        try {
-          // La matriz de permisos es la única fuente de verdad de la UI.
-          document.querySelectorAll('#modalAdmin .admin-tab[data-permiso]').forEach((tab) => {
-            const soloAdmin = tab.dataset.valor === 'notificaciones' && !sesion.esAdmin();
-            const permitido = sesion.puede(tab.dataset.permiso) && !soloAdmin;
-            tab.classList.toggle('u-oculto', !permitido);
-            tab.disabled = !permitido;
-          });
-          document
-            .getElementById('btnRolesEspeciales')
-            ?.classList.toggle('u-oculto', !sesion.esAdmin());
-          const visibles = [
-            ...document.querySelectorAll('#modalAdmin .admin-tab[data-permiso]:not(.u-oculto)')
-          ];
-          if (!visibles.length) {
-            toast('Tu cuenta no tiene permiso para ninguna sección del panel', 'err');
-            return;
-          }
-          const inicial =
-            document.querySelector('#modalAdmin .admin-tab[data-valor="stats"]:not(.u-oculto)') ||
-            visibles[0];
-          if (inicial) await abrirTab(inicial.dataset.valor);
-          if (sesion.puede('ver_tipos')) await aplicacion.cargarTipos();
-          if (sesion.puede('ver_usuarios')) {
-            await aplicacion.cargarUsuarios(
-              document.getElementById('usuariosTipo')?.value || 'personal'
-            );
-          }
-          adminView.activarTab(inicial?.dataset.valor || 'stats');
-          abrirModal('modalAdmin');
-        } finally {
-          loading(false);
-        }
-      }),
+    'admin:abrir': () => intentar(() => abrirPanel()),
 
     'admin:cerrar': () => cerrarModal('modalAdmin'),
 
@@ -338,14 +583,27 @@ export function registrar() {
     /** Alta: abre el modal vacío (el panel de administración queda detrás). */
     'admin:usuarioNuevo': () =>
       intentar(async () => {
-        if (!sesion.puede('gestionar_usuarios')) {
+        if (!sesion.puede('crear_usuarios')) {
           toast('Tu cuenta no puede crear cuentas', 'err');
           return;
         }
         await cargarRolesEspeciales();
+        await cargarCatalogoRoles();
+        const claves = await clavesParaAlta();
+        const esAdmin = sesion.esAlgunaAdmin();
         adminView.prepararModalUsuario({
           municipios: store.estado.municipios || [],
-          estados: store.estado.estados || []
+          estados: estadosDelAlcance(),
+          claves,
+          roles: { integrados: rolesIntegrados, propios: rolesPropios },
+          permiteClaves: esAdmin,
+          permitePassword: true,
+          permiteRol: esAdmin,
+          permiteTerritorio: esAdmin,
+          permitePermisos: esAdmin,
+          textoTerritorioFijo: esAdmin
+            ? ''
+            : `La cuenta quedará en tus municipios: ${municipiosDelActor().join(', ') || 'sin asignar'}.`
         });
         adminView.limitarRolesAdmin(!sesion.esAdmin());
         abrirModal('modalUsuario', { nested: true });
@@ -354,16 +612,31 @@ export function registrar() {
     /** Edición: rellena el modal con la cuenta elegida en la tabla. */
     'admin:usuarioEditar': ({ id }) =>
       intentar(async () => {
+        if (!sesion.puede('editar_usuarios')) {
+          toast('Tu cuenta no puede editar cuentas', 'err');
+          return;
+        }
         const usuario = (store.estado.usuarios || []).find((u) => u.id === id);
         if (!usuario) {
           toast('No se encontró esa cuenta, recarga el panel', 'err');
           return;
         }
         await cargarRolesEspeciales();
+        await cargarCatalogoRoles();
+        const esAdmin = sesion.esAlgunaAdmin();
         adminView.prepararModalUsuario({
           usuario,
           municipios: store.estado.municipios || [],
-          estados: store.estado.estados || []
+          estados: estadosDelAlcance(),
+          roles: { integrados: rolesIntegrados, propios: rolesPropios },
+          permiteClaves: esAdmin,
+          permitePassword: esAdmin,
+          permiteRol: esAdmin,
+          permiteTerritorio: esAdmin,
+          permitePermisos: esAdmin,
+          textoTerritorioFijo: esAdmin
+            ? ''
+            : 'El rol, el territorio, los permisos y la contraseña los gestiona la administración. Aquí solo puedes cambiar el nombre completo.'
         });
         adminView.limitarRolesAdmin(!sesion.esAdmin());
         abrirModal('modalUsuario', { nested: true });
@@ -373,30 +646,111 @@ export function registrar() {
     'admin:usuarioRol': () => {
       adminView.actualizarNotaMunicipioUsuario();
       adminView.renderSelectRolEspecial();
-      adminView.renderPermisos(null, document.getElementById('usuarioRol')?.value || 'funcionario');
+      adminView.renderPermisosCuenta(null);
     },
 
-    /* ------------------------- roles especiales ------------------------- */
+    /** Una clave elegida rellena rol, territorio y permisos de la cuenta nueva. */
+    'admin:usuarioClave': () => {
+      const clave = adminView.claveUsuarioSeleccionada();
+      if (clave) adminView.aplicarClaveFormulario(clave);
+      else adminView.limpiarClaveFormulario();
+    },
+
+    /* ------------- roles del sistema, roles propios y especiales ------------- */
     'roles:abrir': () =>
       intentar(async () => {
-        await cargarRolesEspeciales();
-        adminView.renderListaRoles(rolesEspeciales);
+        await Promise.all([cargarRolesEspeciales(), cargarCatalogoRoles()]);
         adminView.prepararFormRol(null);
         abrirModal('modalRolesEspeciales', { nested: true });
       }),
-    'roles:nuevo': () => adminView.prepararFormRol(null),
-    'roles:editar': ({ id }) =>
-      adminView.prepararFormRol(adminView.rolPorId(id)),
+    'roles:desdeUsuario': () =>
+      intentar(async () => {
+        // Se abre encima del alta: el formulario de usuario queda detrás con
+        // todos sus datos y se recupera al aplicar el rol.
+        await cargarCatalogoRoles();
+        adminView.prepararRolDesdeUsuario(adminView.rolPlantillaActual(), 'especial');
+        abrirModal('modalRolesEspeciales', { nested: true });
+      }),
+    'roles:nuevo': () =>
+      adminView.prepararFormRol(null, {
+        // «Limpiar» siempre deja un formulario nuevo. Si se venía de editar un
+        // rol del sistema, no debe quedarse en modo integrado (bloqueaba el
+        // selector de plantilla y el guardado).
+        tipo:
+          document.getElementById('rolEspecialTipo')?.value === 'especial'
+            ? 'especial'
+            : 'propio'
+      }),
+    'roles:editar': ({ id }) => adminView.prepararFormRol(adminView.rolPorId(id)),
+    'roles:editarSistema': ({ id }) => {
+      const rol = adminView.rolSistemaPorId(id);
+      if (!rol) return toast('No se encontró ese rol, recarga el panel', 'err');
+      adminView.prepararFormRol(rol, { tipo: 'integrado' });
+    },
+    'roles:editarPropio': ({ id }) => {
+      const rol = adminView.rolPropioPorId(id);
+      if (!rol) return toast('No se encontró ese rol, recarga el panel', 'err');
+      adminView.prepararFormRol(rol, { tipo: 'propio' });
+    },
     'roles:guardar': () =>
       intentar(async () => {
         const datos = adminView.valoresRolForm();
         if (!datos.nombre) return toast('Escribe un nombre para el rol', 'err');
-        if (datos.id) await rolesService.actualizar(datos.id, datos);
-        else await rolesService.crear(datos);
-        await cargarRolesEspeciales();
-        adminView.renderListaRoles(rolesEspeciales);
+        let guardado = null;
+        if (datos.tipo === 'integrado') {
+          guardado = (
+            await rolesService.actualizarRol(datos.id, {
+              descripcion: datos.descripcion,
+              permisos: datos.permisos
+            })
+          ).rol;
+        } else if (datos.tipo === 'propio') {
+          const cuerpo = {
+            etiqueta: datos.nombre,
+            descripcion: datos.descripcion,
+            rolPlantilla: datos.rolBase,
+            territorio: datos.territorio,
+            permisos: datos.permisos,
+            activo: datos.activo
+          };
+          guardado = datos.id
+            ? (await rolesService.actualizarRol(datos.id, cuerpo)).rol
+            : (await rolesService.crearRol(cuerpo)).rol;
+        } else if (datos.id) {
+          guardado = (await rolesService.actualizar(datos.id, datos)).rol;
+        } else {
+          guardado = (await rolesService.crear(datos)).rol;
+        }
+        await Promise.all([cargarRolesEspeciales(), cargarCatalogoRoles()]);
         adminView.prepararFormRol(null);
         toast(datos.id ? 'Rol actualizado' : 'Rol creado', 'ok');
+        // «Aplicar a esta cuenta» solo tiene sentido si el alta sigue abierta.
+        const altaAbierta = document
+          .getElementById('modalUsuario')
+          ?.classList.contains('show');
+        if (guardado && altaAbierta) adminView.ofrecerAplicarRol(guardado);
+      }),
+    'roles:usarEnUsuario': () => {
+      const rol = adminView.rolRecienCreado();
+      if (!rol) return toast('Guarda el rol propio antes de aplicarlo', 'err');
+      adminView.aplicarRolAlFormulario(rol);
+      cerrarModal('modalRolesEspeciales');
+      toast(`Rol «${rol.etiqueta || rol.nombre}» aplicado a la cuenta`, 'ok');
+    },
+    'roles:restablecer': ({ id }) =>
+      intentar(async () => {
+        if (!(await preguntar('¿Restablecer este rol a los permisos de fábrica?'))) return;
+        await rolesService.restablecerRol(id);
+        await cargarCatalogoRoles();
+        adminView.prepararFormRol(null);
+        toast('Rol restablecido a fábrica', 'ok');
+      }),
+    'roles:eliminarPropio': ({ id }) =>
+      intentar(async () => {
+        if (!(await preguntar('¿Eliminar este rol propio? Las cuentas deben tener otro rol asignado.'))) return;
+        await rolesService.eliminarRol(id);
+        await cargarCatalogoRoles();
+        toast('Rol eliminado', 'ok');
       }),
     'roles:eliminar': ({ id }) =>
       intentar(async () => {
@@ -405,6 +759,196 @@ export function registrar() {
         await cargarRolesEspeciales();
         adminView.renderListaRoles(rolesEspeciales);
         toast('Rol eliminado', 'ok');
+      }),
+
+    /* ------------------------- contraseña (V2.11) ------------------------- */
+    'password:ver': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.puede('revelar_password_usuarios')) {
+          toast('Tu cuenta no puede consultar contraseñas', 'err');
+          return;
+        }
+        const usuario = (store.estado.usuarios || []).find((u) => u.id === id);
+        if (!usuario) return toast('No se encontró esa cuenta', 'err');
+        loading(true, 'Consultando contraseña…');
+        try {
+          const { password } = await catalogosService.passwordUsuario(id);
+          adminView.mostrarPasswordUsuario({ usuario, password });
+          abrirModal('modalPasswordUsuario', { nested: true });
+        } finally {
+          loading(false);
+        }
+      }),
+    'password:alternar': () => adminView.alternarPasswordVisible(),
+    'password:copiar': async () => {
+      const texto = adminView.passwordVisibleTexto();
+      if (!texto) return toast('Pulsa «Mostrar» antes de copiar', 'err');
+      try {
+        await navigator.clipboard.writeText(texto);
+        toast('Contraseña copiada', 'ok');
+      } catch {
+        toast('No se pudo copiar: revisa los permisos del navegador', 'err');
+      }
+    },
+    'password:restablecer': () =>
+      intentar(async () => {
+        const usuario = adminView.passwordUsuarioActual();
+        if (!usuario) return;
+        if (
+          !(await preguntar(
+            `¿Restablecer la contraseña de ${usuario.nombre}? Se generará una temporal y su consulta quedará en auditoría.`
+          ))
+        ) {
+          return;
+        }
+        const resultado = await catalogosService.restablecerPassword(usuario.id);
+        adminView.mostrarPasswordUsuario({
+          usuario,
+          password: resultado.password,
+          generada: true
+        });
+        toast('Contraseña restablecida', 'ok');
+      }),
+
+    /** Aprueba una solicitud de contraseña y muestra la temporal una vez. */
+    'password:aprobarSolicitud': ({ id }) =>
+      intentar(async () => {
+        const resultado = await passwordService.aprobar(id, 'Atendida desde el panel');
+        await cargarSolicitudesPassword();
+        const cuenta = resultado?.solicitud || {};
+        adminView.mostrarPasswordUsuario({
+          usuario: { nombre: cuenta.nombre || cuenta.username, id: cuenta.usuarioId },
+          password: resultado.password,
+          generada: true
+        });
+        abrirModal('modalPasswordUsuario', { nested: true });
+        toast('Contraseña temporal generada', 'ok');
+      }),
+    'password:rechazarSolicitud': ({ id }) =>
+      intentar(async () => {
+        if (!(await preguntar('¿Rechazar la solicitud de cambio de contraseña?'))) return;
+        await passwordService.rechazar(id, 'Rechazado desde el panel');
+        await cargarSolicitudesPassword();
+        toast('Solicitud rechazada', 'info');
+      }),
+
+    /**
+     * Un funcionario no cambia contraseñas: pide el restablecimiento de una
+     * cuenta de su ámbito y la administración se lo entrega por la campana.
+     */
+    'password:solicitarCuenta': ({ id }) =>
+      intentar(async () => {
+        const usuario = (store.estado.usuarios || []).find((u) => u.id === id);
+        if (!usuario) return toast('No se encontró esa cuenta', 'err');
+        adminView.prepararModalSolicitudPassword(usuario);
+        abrirModal('modalSolicitudPassword', { nested: true });
+      }),
+    'password:enviarSolicitudCuenta': () =>
+      intentar(async () => {
+        const datos = adminView.valoresSolicitudPassword();
+        if (!datos.usuarioId) return;
+        if (datos.motivo.length < 10) {
+          return toast('Explica en al menos 10 caracteres por qué se necesita el cambio', 'err');
+        }
+        await passwordService.crear(datos);
+        cerrarModal('modalSolicitudPassword');
+        toast('Solicitud enviada: la nueva contraseña llegará a tu campana', 'ok');
+      }),
+
+    /* ------------------------- ayuda de permisos ------------------------- */
+    'permisos:ayuda': ({ valor }) => {
+      adminView.renderAyudaPermiso(valor);
+      abrirModal('modalAyudaPermiso', { nested: true });
+    },
+
+    /* ------------------- solicitudes de baja (V2.11.1) ------------------- */
+    'baja:solicitar': ({ id }) =>
+      intentar(async () => {
+        const usuario = (store.estado.usuarios || []).find((u) => u.id === id);
+        if (!usuario) return toast('No se encontró esa cuenta', 'err');
+        adminView.prepararModalBaja(usuario);
+        abrirModal('modalBajaUsuario', { nested: true });
+      }),
+    'baja:enviar': () =>
+      intentar(async () => {
+        const datos = adminView.valoresBajaForm();
+        if (!datos.usuarioId) return;
+        if (datos.motivo.length < 10) {
+          return toast('Explica en al menos 10 caracteres por qué se da de baja', 'err');
+        }
+        await bajaService.crear(datos);
+        cerrarModal('modalBajaUsuario');
+        toast('Solicitud de baja enviada al administrador', 'ok');
+      }),
+    'baja:aprobar': ({ id }) =>
+      intentar(async () => {
+        if (!(await preguntar('¿Aplicar la baja? La cuenta se desactivará y no podrá entrar.'))) {
+          return;
+        }
+        await bajaService.aprobar(id, 'Aplicada desde el panel');
+        await Promise.all([cargarSolicitudesBaja(), aplicacion.cargarUsuarios('personal')]);
+        toast('Cuenta dada de baja', 'ok');
+      }),
+    'baja:rechazar': ({ id }) =>
+      intentar(async () => {
+        if (!(await preguntar('¿Rechazar esta solicitud de baja?'))) return;
+        await bajaService.rechazar(id, 'Rechazada desde el panel');
+        await cargarSolicitudesBaja();
+        toast('Solicitud rechazada', 'info');
+      }),
+
+    /* ------------------- solicitudes de alta (V2.11.3) ------------------- */
+    'alta:solicitar': () =>
+      intentar(async () => {
+        if (!sesion.puede('crear_usuarios')) {
+          toast('Tu cuenta no puede solicitar altas de usuarios', 'err');
+          return;
+        }
+        adminView.prepararModalAlta();
+        abrirModal('modalSolicitudAlta', { nested: true });
+      }),
+    'alta:enviar': () =>
+      intentar(async () => {
+        const datos = adminView.valoresAltaForm();
+        if (datos.nombre.length < 3) return toast('Escribe el nombre completo', 'err');
+        if (!/^[a-z0-9._-]{3,60}$/i.test(datos.username)) {
+          return toast(
+            'El usuario de acceso debe tener entre 3 y 60 letras, números, punto, guion o guion bajo',
+            'err'
+          );
+        }
+        await altaService.crear(datos);
+        cerrarModal('modalSolicitudAlta');
+        toast('Solicitud de alta enviada al administrador', 'ok');
+      }),
+    'alta:aprobar': ({ id }) =>
+      intentar(async () => {
+        if (
+          !(await preguntar(
+            '¿Aprobar esta alta? Se creará la cuenta como funcionario en los municipios del solicitante y la contraseña temporal se le entregará por la campana.'
+          ))
+        ) {
+          return;
+        }
+        const resultado = await altaService.aprobar(id, 'Aprobada desde el panel');
+        await Promise.all([cargarSolicitudesAlta(), aplicacion.cargarUsuarios('personal')]);
+        const usuario = resultado?.usuario;
+        if (usuario) {
+          adminView.mostrarPasswordUsuario({
+            usuario,
+            password: resultado.password,
+            generada: true
+          });
+          abrirModal('modalPasswordUsuario', { nested: true });
+        }
+        toast('Cuenta creada; la contraseña se entregó al solicitante', 'ok');
+      }),
+    'alta:rechazar': ({ id }) =>
+      intentar(async () => {
+        if (!(await preguntar('¿Rechazar esta solicitud de alta?'))) return;
+        await altaService.rechazar(id, 'Rechazada desde el panel');
+        await cargarSolicitudesAlta();
+        toast('Solicitud rechazada', 'info');
       }),
 
     /* ---------------------- solicitudes de permisos --------------------- */
@@ -425,69 +969,104 @@ export function registrar() {
     /** Crea o actualiza la cuenta y repinta la tabla. */
     'admin:usuarioGuardar': () =>
       intentar(async () => {
-        if (!sesion.puede('gestionar_usuarios')) {
+        const datosPrevios = adminView.valoresUsuarioForm();
+        const permisoAccion = datosPrevios.id ? 'editar_usuarios' : 'crear_usuarios';
+        if (!sesion.puede(permisoAccion)) {
           toast('Tu cuenta no puede gestionar cuentas', 'err');
           return;
         }
 
-        const datos = adminView.valoresUsuarioForm();
-        if (!datos.id && !datos.username) return toast('Escribe el usuario de acceso', 'err');
+        const datos = datosPrevios;
+        const esAdmin = sesion.esAlgunaAdmin();
         if (!datos.nombre) return toast('Escribe el nombre completo', 'err');
-        if (
-          !sesion.esAdmin() &&
-          ['admin', 'admin_estatal', 'admin_municipal'].includes(datos.rol)
-        ) {
-          return toast('Solo el administrador maestro puede crear administradores', 'err');
-        }
-        if (datos.rol === 'funcionario' && !datos.municipios.length) {
-          return toast('Elige al menos un municipio para el funcionario', 'err');
-        }
-        if (datos.rol === 'admin_municipal' && !datos.municipios.length) {
-          return toast('Elige al menos un municipio para el administrador municipal', 'err');
-        }
-        if (datos.rol === 'admin_estatal' && !datos.estados.length) {
-          return toast('Elige al menos un estado para el administrador estatal', 'err');
-        }
-        if (datos.rol === 'auditor' && !datos.municipios.length && !datos.estados.length) {
-          return toast('Elige al menos un municipio o estado para el auditor', 'err');
-        }
-        if (datos.rol === 'soporte' && !datos.municipios.length && !datos.estados.length) {
-          return toast('Elige al menos un municipio o estado para soporte', 'err');
-        }
-        if (
-          (datos.rol === 'enlace_estatal' || datos.rol === 'enlace_federal') &&
-          !datos.estados.length
-        ) {
-          return toast('Elige al menos un estado para el enlace', 'err');
-        }
-        if ((!datos.id || datos.password) && datos.password.length < 8) {
-          return toast('La contraseña debe tener al menos 8 caracteres', 'err');
-        }
 
-        // En edición, la contraseña vacía significa «no la cambies».
-        const envio = {
-          nombre: datos.nombre,
-          rol: datos.rol,
-          municipios: datos.municipios,
-          estados: datos.estados,
-          puedeEscribir:
-            ['funcionario', 'admin', 'admin_estatal', 'admin_municipal'].includes(datos.rol)
-              ? datos.puedeEscribir
-              : false,
-          permisos: datos.permisos,
-          correo: datos.correo,
-          activo: datos.activo
-        };
-        if (datos.password) envio.password = datos.password;
-        if (!datos.id) {
-          envio.username = datos.username;
-          envio.password = datos.password;
-        }
-        // Clave de acceso del personal (segundo factor del login).
-        envio.generarClave = datos.generarClave === true;
-        if (envio.generarClave) {
-          envio.claveUsosMaximos = datos.claveUsosMaximos;
-          envio.claveExpiraEn = datos.claveExpiraEn;
+        let envio;
+        if (!esAdmin) {
+          // V2.11.1: un funcionario solo cambia el nombre completo. Al crear
+          // una cuenta, el servidor fija el rol funcionario y el territorio del
+          // propio funcionario; no se envían rol, permisos ni territorio.
+          if (datos.id) {
+            envio = { nombre: datos.nombre };
+          } else {
+            if (!datos.username) return toast('Escribe el usuario de acceso', 'err');
+            if (!datos.password || datos.password.length < 8) {
+              return toast('La contraseña debe tener al menos 8 caracteres', 'err');
+            }
+            envio = {
+              username: datos.username,
+              nombre: datos.nombre,
+              password: datos.password,
+              rol: 'funcionario'
+            };
+          }
+        } else {
+          if (!datos.id && !datos.username) return toast('Escribe el usuario de acceso', 'err');
+          if (
+            !sesion.esAdmin() &&
+            ['admin', 'admin_estatal', 'admin_municipal'].includes(datos.rol)
+          ) {
+            return toast('Solo el administrador maestro puede crear administradores', 'err');
+          }
+          // Con una clave elegida, el rol y el territorio vienen de ella y el
+          // servidor los vuelve a validar; no se exige repetirlos en el formulario.
+          if (!datos.claveId) {
+            if (datos.rol === 'funcionario' && !datos.municipios.length) {
+              return toast('Elige al menos un municipio para el funcionario', 'err');
+            }
+            if (datos.rol === 'admin_municipal' && !datos.municipios.length) {
+              return toast('Elige al menos un municipio para el administrador municipal', 'err');
+            }
+            if (datos.rol === 'admin_estatal' && !datos.estados.length) {
+              return toast('Elige al menos un estado para el administrador estatal', 'err');
+            }
+            if (datos.rol === 'auditor' && !datos.municipios.length && !datos.estados.length) {
+              return toast('Elige al menos un municipio o estado para el auditor', 'err');
+            }
+            if (datos.rol === 'soporte' && !datos.municipios.length && !datos.estados.length) {
+              return toast('Elige al menos un municipio o estado para soporte', 'err');
+            }
+            if (
+              (datos.rol === 'enlace_estatal' || datos.rol === 'enlace_federal') &&
+              !datos.estados.length
+            ) {
+              return toast('Elige al menos un estado para el enlace', 'err');
+            }
+          }
+          if ((!datos.id || datos.password) && datos.password.length < 8) {
+            return toast('La contraseña debe tener al menos 8 caracteres', 'err');
+          }
+
+          // En edición, la contraseña vacía significa «no la cambies».
+          envio = {
+            nombre: datos.nombre,
+            rol: datos.rol,
+            municipios: datos.municipios,
+            estados: datos.estados,
+            puedeEscribir:
+              ['funcionario', 'admin', 'admin_estatal', 'admin_municipal'].includes(datos.rol)
+                ? datos.puedeEscribir
+                : false,
+            correo: datos.correo,
+            activo: datos.activo,
+            permisos: datos.permisos
+          };
+          if (datos.rolPropioId) envio.rolPropioId = datos.rolPropioId;
+          if (datos.id && datos.rolPropioId === null) envio.rolPropioId = null;
+          if (datos.password) envio.password = datos.password;
+          if (!datos.id) {
+            envio.username = datos.username;
+            envio.password = datos.password;
+            // Si se eligió una clave, el servidor toma de ella rol, territorio y
+            // permisos; los campos del formulario quedan como vista previa.
+            if (datos.claveId) envio.claveId = datos.claveId;
+          }
+          // Clave de acceso del personal (segundo factor del login). Solo la
+          // administración genera claves: un funcionario usa la suya.
+          envio.generarClave = datos.generarClave === true;
+          if (envio.generarClave) {
+            envio.claveUsosMaximos = datos.claveUsosMaximos;
+            envio.claveExpiraEn = datos.claveExpiraEn;
+          }
         }
 
         loading(true, datos.id ? 'Guardando cuenta…' : 'Creando cuenta…');
@@ -509,16 +1088,64 @@ export function registrar() {
         }
       }),
 
+    /** Baja lógica de una cuenta del personal. */
+    'admin:usuarioEliminar': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.puede('eliminar_usuarios')) {
+          toast('Tu cuenta no puede desactivar cuentas', 'err');
+          return;
+        }
+        const usuario = (store.estado.usuarios || []).find((u) => u.id === id);
+        if (!usuario) return toast('No se encontró esa cuenta', 'err');
+        if (
+          !(await preguntar(
+            `¿Desactivar la cuenta de ${usuario.nombre}? Dejará de poder iniciar sesión, pero su historial se conserva.`
+          ))
+        ) {
+          return;
+        }
+        await aplicacion.eliminarUsuario(id);
+        toast('Cuenta desactivada', 'ok');
+      }),
+
+    /** Devuelve a la vida una cuenta dada de baja. */
+    'admin:usuarioReactivar': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.esAlgunaAdmin() || !sesion.puede('editar_usuarios')) {
+          toast('Solo la administración puede reactivar cuentas', 'err');
+          return;
+        }
+        const usuario = (store.estado.usuarios || []).find((u) => String(u.id) === String(id));
+        if (!usuario) return toast('No se encontró esa cuenta', 'err');
+        if (
+          !(await preguntar(
+            `¿Reactivar la cuenta de ${usuario.nombre}? Volverá a poder iniciar sesión con su usuario y contraseña.`
+          ))
+        ) {
+          return;
+        }
+        await catalogosService.reactivarUsuario(id);
+        await aplicacion.cargarUsuarios(document.getElementById('usuariosTipo')?.value || 'personal');
+        toast('Cuenta reactivada', 'ok');
+      }),
+
     'admin:usuariosTipo': ({ valor }) =>
       intentar(() => aplicacion.cargarUsuarios(valor === 'ciudadanos' ? 'ciudadanos' : 'personal')),
 
     'claves:abrir': () => {
+      if (!sesion.puede('crear_claves')) {
+        toast('Tu cuenta no puede crear claves', 'err');
+        return;
+      }
       adminView.prepararModalClave(
         store.estado.municipios || [],
         store.estado.estados || []
       );
       abrirModal('modalClave', { nested: true });
     },
+
+    'claves:rol': () =>
+      adminView.renderPermisosClave(document.getElementById('claveRol')?.value || 'funcionario'),
 
     /** Configuración global de notificaciones (pestaña del panel). */
     'notificacionesAdmin:recargar': () => intentar(() => cargarConfigNotificaciones()),
@@ -585,15 +1212,39 @@ export function registrar() {
 
     'claves:guardar': () =>
       intentar(async () => {
+        if (!sesion.puede('crear_claves')) {
+          toast('Tu cuenta no puede crear claves', 'err');
+          return;
+        }
+        if (creandoClave) return;
         const datos = adminView.valoresClaveForm();
         if (!datos.nombre) return toast('Escribe un nombre para la clave', 'err');
         if (!datos.municipios.length && !datos.estados.length) {
           return toast('Elige al menos un estado o un municipio', 'err');
         }
-        await clavesService.crear(datos);
-        cerrarModal('modalClave');
-        await cargarClaves();
-        toast('Clave generada', 'ok');
+
+        creandoClave = true;
+        const boton = document.querySelector('[data-action="claves:guardar"]');
+        if (boton) {
+          boton.disabled = true;
+          boton.setAttribute('aria-busy', 'true');
+        }
+        loading(true, 'Generando clave…');
+        try {
+          const { clave } = await clavesService.crear(datos);
+          cerrarModal('modalClave');
+          toast('Clave generada', 'ok');
+          // Se pinta de inmediato y la recarga completa queda en segundo plano.
+          adminView.agregarClaveLista(clave);
+          cargarClaves().catch(() => {});
+        } finally {
+          creandoClave = false;
+          loading(false);
+          if (boton) {
+            boton.disabled = false;
+            boton.removeAttribute('aria-busy');
+          }
+        }
       }),
 
     /** Copia una clave al portapapeles (lista de claves o modal de alta). */
@@ -608,8 +1259,71 @@ export function registrar() {
       }
     },
 
+    'avisosClave:abrir': ({ id }) =>
+      intentar(async () => {
+        const clave = await claveParaAvisos(id);
+        if (!clave) return toast('No se encontró la clave', 'err');
+        adminView.prepararModalAvisosClave(clave, store.estado.municipios || []);
+        abrirModal('modalAvisosClave', { nested: true });
+      }),
+
+    'avisosClave:guardar': () =>
+      intentar(async () => {
+        if (!sesion.puede('editar_avisos_clave')) {
+          toast('Tu cuenta no puede configurar avisos', 'err');
+          return;
+        }
+        const id = document.getElementById('avisosClaveId')?.value;
+        if (!id) return;
+        const datos = adminView.valoresAvisosClave();
+        await clavesService.guardarNotificaciones(id, datos);
+        cerrarModal('modalAvisosClave');
+        await cargarAvisosClave();
+        toast('Permiso de avisos actualizado', 'ok');
+      }),
+
+    'avisosClave:revocar': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.puede('editar_avisos_clave')) {
+          toast('Tu cuenta no puede revocar avisos', 'err');
+          return;
+        }
+        if (
+          !(await preguntar(
+            '¿Revocar los avisos de esta clave? La clave seguirá sirviendo para iniciar sesión, pero dejará de recibir notificaciones.'
+          ))
+        ) {
+          return;
+        }
+        await clavesService.revocarNotificaciones(id);
+        await cargarAvisosClave();
+        toast('Avisos de la clave revocados', 'ok');
+      }),
+
+    'avisosClave:reactivar': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.puede('editar_avisos_clave')) {
+          toast('Tu cuenta no puede reactivar avisos', 'err');
+          return;
+        }
+        await clavesService.reactivarNotificaciones(id);
+        await cargarAvisosClave();
+        toast('Avisos de la clave reactivados', 'ok');
+      }),
+
+    'avisosClave:recargar': () => intentar(() => cargarAvisosClave()),
+    'avisosClave:filtrar': () =>
+      adminView.renderAvisosClave(
+        adminView.clavesCargadas(),
+        store.estado.municipios || []
+      ),
+
     'claves:eliminar': ({ id }) =>
       intentar(async () => {
+        if (!sesion.puede('eliminar_claves')) {
+          toast('Tu cuenta no puede eliminar claves', 'err');
+          return;
+        }
         if (
           !(await preguntar(
             '¿Eliminar esta clave? Se cerrarán todas las sesiones abiertas con ella y no se podrá volver a usar.'
@@ -707,6 +1421,12 @@ export function registrar() {
         toast('Prioridad actualizada', 'ok');
       }),
 
+    'admin:tamanoPanel': ({ valor }) =>
+      toast(
+        `Panel ${cambiarTamanoPanel(valor)}`,
+        'ok'
+      ),
+
     'admin:tab': ({ valor }) =>
       intentar(async () => {
         if (!puedeAbrirTab(valor)) {
@@ -800,7 +1520,7 @@ export function registrar() {
 
     'admin:irClaves': ({ id }) =>
       intentar(async () => {
-        if (!sesion.puede('gestionar_claves')) {
+        if (!sesion.puede('ver_claves')) {
           toast('Tu cuenta no puede gestionar claves', 'err');
           return;
         }
@@ -813,7 +1533,9 @@ export function registrar() {
 
     'claves:recargar': () => intentar(() => cargarClaves()),
     'claves:filtrar': () =>
-      adminView.renderClaves(adminView.clavesCargadas(), store.estado.municipios || []),
+      adminView.renderClaves(adminView.clavesCargadas(), store.estado.municipios || [], {
+        puedeEliminar: sesion.puede('eliminar_claves')
+      }),
 
     'stats:aplicar': () =>
       intentar(async () => {

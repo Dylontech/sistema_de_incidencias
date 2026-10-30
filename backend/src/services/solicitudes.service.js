@@ -214,7 +214,7 @@ export async function crearSolicitud(repositorio, datos = {}, { ip = '', userAge
     entidadId: solicitud.id,
     municipioId: solicitud.municipioId,
     estadoEntidad: solicitud.estadoEntidad,
-    url: '/?admin=solicitudes-informe',
+    url: `/?admin=solicitudes-informe&solicitud=${encodeURIComponent(solicitud.id)}`,
     claveDedupe: `solicitud_informe_creada:${solicitud.id}`
   });
 
@@ -496,6 +496,7 @@ export async function enviarSolicitud(repositorio, actor, id) {
     entidadId: id,
     municipioId: solicitud.municipioId,
     estadoEntidad: solicitud.estadoEntidad,
+    url: `/?admin=solicitudes-informe&solicitud=${encodeURIComponent(id)}`,
     claveDedupe: `solicitud_informe_enviada_manual:${id}:${Date.now()}`
   });
   return actualizada;
@@ -570,6 +571,7 @@ export async function procesarPendientes(repositorio) {
           entidadId: solicitud.id,
           municipioId: solicitud.municipioId,
           estadoEntidad: solicitud.estadoEntidad,
+          url: `/?admin=solicitudes-informe&solicitud=${encodeURIComponent(solicitud.id)}`,
           claveDedupe: `solicitud_informe_enviada:${solicitud.id}`
         }).catch(() => {});
       } catch (error) {
@@ -591,6 +593,7 @@ export async function procesarPendientes(repositorio) {
             entidadId: solicitud.id,
             municipioId: solicitud.municipioId,
             estadoEntidad: solicitud.estadoEntidad,
+            url: `/?admin=solicitudes-informe&solicitud=${encodeURIComponent(solicitud.id)}`,
             claveDedupe: `solicitud_informe_error:${solicitud.id}:${intentos}`
           }).catch(() => {});
         }

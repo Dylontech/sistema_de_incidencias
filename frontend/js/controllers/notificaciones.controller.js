@@ -41,7 +41,7 @@ export function registrar() {
         await notificacionesService.marcarLeida(id);
         await aplicacion.recargarNotificaciones();
         notifView.alternarPanel(false);
-        navegarAlOrigen(aviso);
+        await navegarAlOrigen(aviso);
       }),
 
     'notificaciones:marcarTodas': () =>
@@ -138,7 +138,7 @@ export function registrar() {
  * Lleva al origen del aviso usando las acciones ya existentes (bandeja, panel
  * de admin) o la página de soporte para tickets.
  */
-function navegarAlOrigen(aviso) {
+async function navegarAlOrigen(aviso) {
   if (!aviso) return;
   const destino = new URL(aviso.url || '/', location.origin);
   const incidenciaId =
@@ -146,6 +146,21 @@ function navegarAlOrigen(aviso) {
     (aviso.entidadTipo === 'incidencia' ? aviso.entidadId : null);
   if (incidenciaId) {
     incidenciasController.abrirDesdePanel(incidenciaId);
+    return;
+  }
+
+  // Las solicitudes de informe abren directamente su resumen completo, no
+  // solo la pestaña general. El administrador puede revisar el detalle antes
+  // de generar o enviar el archivo.
+  const solicitudId =
+    destino.searchParams.get('solicitud') ||
+    (aviso.entidadTipo === 'solicitud_informe' ? aviso.entidadId : null);
+  if (solicitudId) {
+    const { abrirPanel } = await import('./admin.controller.js');
+    const abierto = await abrirPanel('solicitudes-informe').catch(() => false);
+    if (!abierto) return;
+    const { abrirDetalle } = await import('./solicitudesInforme.controller.js');
+    await abrirDetalle(solicitudId);
     return;
   }
 
@@ -182,21 +197,46 @@ function navegarAlOrigen(aviso) {
     return;
   }
 
+  // Solicitudes de baja y de contraseña: la administración llega hasta la
+  // cuenta y la fila concreta (con sus botones); quien las pidió ve el
+  // resultado en «Mi cuenta».
+  const panelUsuarios = destino.searchParams.get('panel') === 'usuarios';
+  const usuarioAviso = destino.searchParams.get('usuario');
+  const bajaAviso = destino.searchParams.get('baja') ||
+    (aviso.entidadTipo === 'baja' ? aviso.entidadId : null);
+  const passwordAviso = destino.searchParams.get('password') ||
+    (aviso.entidadTipo === 'password' ? aviso.entidadId : null);
+  const altaAviso = destino.searchParams.get('alta') ||
+    (aviso.entidadTipo === 'alta' ? aviso.entidadId : null);
+  if (panelUsuarios || bajaAviso || passwordAviso || altaAviso) {
+    if (sesion.esEmpleado() && sesion.esAlgunaAdmin()) {
+      const { abrirPanel, enfocarSolicitud } = await import('./admin.controller.js');
+      const abierto = await abrirPanel('usuarios').catch(() => false);
+      if (abierto) {
+        await enfocarSolicitud({
+          usuarioId: usuarioAviso,
+          bajaId: bajaAviso,
+          passwordId: passwordAviso,
+          altaId: altaAviso
+        });
+        return;
+      }
+    }
+    // Funcionario solicitante (o cualquier otra cuenta): el estado vive en
+    // «Mi cuenta», junto a sus solicitudes de permisos y contraseña.
+    document.querySelector('[data-action="perfil:abrir"]')?.click();
+    return;
+  }
+
   const tabAdmin = destino.searchParams.get('admin');
   if (tabAdmin) {
-    document.getElementById('btn-admin')?.click();
-    setTimeout(
-      () => document.querySelector(`[data-action="admin:tab"][data-valor="${tabAdmin}"]`)?.click(),
-      250
-    );
+    const { abrirPanel } = await import('./admin.controller.js');
+    await abrirPanel(tabAdmin).catch(() => false);
     return;
   }
 
   if (aviso.entidadTipo === 'recoleccion_firmas') {
-    document.getElementById('btn-admin')?.click();
-    setTimeout(
-      () => document.querySelector('[data-action="admin:tab"][data-valor="firmas"]')?.click(),
-      250
-    );
+    const { abrirPanel } = await import('./admin.controller.js');
+    await abrirPanel('firmas').catch(() => false);
   }
 }

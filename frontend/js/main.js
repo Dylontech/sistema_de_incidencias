@@ -299,13 +299,17 @@ async function abrirDestinoInicial() {
   }
   const admin = params.get('admin');
   if (admin) {
-    setTimeout(() => {
-      document.getElementById('btn-admin')?.click();
-      setTimeout(
-        () => document.querySelector(`[data-action="admin:tab"][data-valor="${admin}"]`)?.click(),
-        300
-      );
-    }, 500);
+    const { abrirPanel } = await import('./controllers/admin.controller.js');
+    const abierto = await abrirPanel(admin).catch(() => false);
+    const solicitud = params.get('solicitud');
+    if (abierto && solicitud) {
+      try {
+        const { abrirDetalle } = await import('./controllers/solicitudesInforme.controller.js');
+        await abrirDetalle(solicitud);
+      } catch (error) {
+        console.error('[arranque] no se pudo abrir la solicitud:', error.message);
+      }
+    }
   }
 }
 

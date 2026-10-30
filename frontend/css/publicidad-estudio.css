@@ -37,6 +37,10 @@
 .pe-seccion {
   margin-bottom: 26px;
   scroll-margin-top: 64px;
+  resize: vertical;
+  overflow: auto;
+  min-height: 160px;
+  max-height: 85vh;
 }
 .pe-seccion > .titulo-seccion {
   margin-bottom: 4px;
@@ -146,6 +150,10 @@
 }
 .pe-detalle-cuerpo {
   padding: 4px 14px 12px;
+  resize: vertical;
+  overflow: auto;
+  min-height: 72px;
+  max-height: 70vh;
 }
 .pe-contador {
   float: right;
@@ -349,6 +357,36 @@
   color: #5b7774;
   font-size: 12px;
 }
+/* Campos del QR: la etiqueta larga ya no compite con cuatro columnas. */
+.pe-grid-qr {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.pe-grid-qr .pe-campo-ancho {
+  grid-column: 1 / -1;
+}
+.pe-grid-qr label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.pe-campo-nota {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #5b7774;
+}
+
+/* Cada columna del editor de campaña también se puede estirar. */
+.camp-col-form,
+.camp-col-vista {
+  min-width: 0;
+  resize: vertical;
+  overflow: auto;
+}
+
 @media (max-width: 900px) {
   .pe-estudio,
   .camp-grid {
@@ -357,5 +395,86 @@
   .pe-lienzo-col,
   .camp-col-vista {
     position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .pe-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 10px;
+  }
+  .pe-nav-btn {
+    flex: 0 0 auto;
+  }
+  .pe-seccion {
+    resize: none;
+    max-height: none;
+    overflow: visible;
+  }
+  .pe-detalle-cuerpo {
+    resize: none;
+    max-height: none;
+    overflow: visible;
+  }
+  .pe-galeria {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .pe-grid-qr {
+    grid-template-columns: 1fr;
+  }
+  .pe-canva {
+    grid-template-columns: 1fr;
+  }
+  .modal-box.camp-ancha {
+    max-width: 100%;
+  }
+  .admin-panel .filter-row {
+    flex-direction: column;
+  }
+  /*
+   * Al apilarse, el `flex: 1 1 180px` de la fila se interpreta como ALTURA y
+   * dejaba cada campo con 180px de alto (espacios enormes en móvil). En
+   * columna los hijos deben medir su contenido.
+   */
+  .admin-panel .filter-row > * {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+  .pe-form .form-group,
+  .camp-form .form-group {
+    margin-bottom: 10px;
+  }
+  .pe-detalle-cuerpo {
+    padding: 4px 10px 10px;
+  }
+}
+
+@media (min-width: 1600px) {
+  #modalAdmin .admin-panel-normal { max-width: min(1400px, 94vw); }
+  .pe-estudio {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 560px);
+  }
+  .pe-galeria {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .pe-canva {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+@media (min-width: 2200px) {
+  #modalAdmin .admin-panel-normal { max-width: min(1850px, 96vw); }
+  #modalAdmin .admin-panel-grande { max-width: min(2000px, 98vw); }
+  .pe-galeria {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+  .pe-canva {
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  }
+  .pe-lienzo-col {
+    max-width: 620px;
+    justify-self: end;
+    width: 100%;
   }
 }

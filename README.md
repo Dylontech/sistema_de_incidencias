@@ -19,6 +19,25 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 > la arquitectura, el modelo de datos, la API, los eventos, la configuración, las
 > migraciones, el catálogo de pruebas y el changelog que deben actualizarse con cada cambio.
 
+## Novedades V2.11
+
+- **Roles editables y roles propios**: la matriz de cada rol del sistema vive en la tabla `roles` y se edita desde «Roles y permisos», con «Restablecer a fábrica». El administrador maestro crea roles propios que heredan una plantilla y conservan su propia matriz y territorio.
+- **Contraseñas consultables y auditadas**: se guarda una copia cifrada (AES-256-GCM) junto al hash bcrypt. La administración puede consultarla o restablecerla dentro de su ámbito y cada consulta queda en la bitácora. El personal **solicita** el cambio y recibe la temporal por la campana de avisos.
+- **Solicitudes con seguimiento**: baja de cuentas, cambio de contraseña y **alta de usuarios** se piden desde el panel y las resuelve la administración. Los avisos abren directamente la cuenta y la solicitud, con las filas resaltadas y los botones de aprobar o rechazar a la vista.
+- **Alcance territorial real**: las estadísticas rechazan con **403** el territorio ajeno y el selector solo ofrece los municipios o estados del propio ámbito. Un funcionario de un municipio ve únicamente la ficha de su municipio.
+- **Reactivar cuentas**: una cuenta dada de baja se puede volver a activar conservando su historial y su territorio, con registro en auditoría.
+- **El funcionario ya no crea cuentas ni toca permisos**: solo edita el nombre, solicita altas, cambios de contraseña y bajas, y no puede elegir rol, territorio, permisos ni estado.
+- **Ayuda de permisos y enciclopedia**: cada permiso explica qué permite, qué bloquea, un ejemplo y su riesgo, con guías simuladas por módulo.
+- **Accesibilidad y presentación**: sin tema oscuro (interfaz clara fija), tipografía más grande, corrección de los huecos de Publicidad y Campañas en móvil y tamaño de texto configurable con A−/A/A+.
+
+## Novedades V2.9.5
+
+- Las notificaciones de solicitudes de informe abren el **resumen detallado** de la solicitud, no solo la pestaña general.
+- Nueva pestaña **Avisos por clave** con permiso `gestionar_avisos_clave`: limita los avisos por municipio según la clave usada y permite revocarlos sin invalidar la clave.
+- El panel de control permite **agrandar o reducir el texto** con A−/A/A+, cambiar el tamaño del modal y redimensionarlo arrastrando la esquina.
+- **Publicidad y campañas** tienen secciones expandibles/redimensionables, el bloque QR ya no desborda etiquetas largas y las vistas se adaptan a móvil, laptop, monitores grandes y TV.
+- La generación de claves evita duplicados por dobles clics, muestra la clave nueva de inmediato y usa un catálogo ligero que reduce la espera a décimas de segundo.
+
 ## Novedades V2.8.0
 
 - **Publicidad ampliada**: 22 plantillas, 10 formatos (incluido tamaño personalizado), 8 diseños y 8 familias tipográficas, imagen editable, importación/exportación JSON, plantillas propias guardadas en el dispositivo y QR con texto, enlace, tamaño, nivel de corrección y etiqueta editables.
@@ -283,6 +302,8 @@ funciona y con qué está hecho:
 - **Agradecimientos** — INEGI (Marco Geoestadístico y su catálogo geoestadístico) y el espejo
   `MacWilliXD/INEGI-geojson`, Leaflet, OpenStreetMap y OpenTopoMap, Esri y sus fuentes de datos,
   Bootstrap Icons y el resto de librerías libres.
+- **Autores** — Dylon Gabriel Mandujano Gonzalez (DylonTech) y Diego Alexander Beltrán Moreno,
+  ingenieros en sistemas y desarrolladores web con una contribución equitativa al proyecto.
 - **Contacto y aviso** — enlaces a DylonTech (sitio, GitHub y repositorio del proyecto) y correo,
   más el aviso de que es una **versión preliminar hecha con asistencia de IA**, que puede tener
   errores y que **no es una entidad gubernamental**.
@@ -1054,6 +1075,21 @@ defectos del monolito:
     cuenta suspendida no puede entrar siquiera a la página
     ([ver moderación](#moderación)). Todo queda en el historial del reporte y avisado por
     notificación; borrar de verdad sigue siendo cosa de un administrador.
+
+---
+
+## Autores y créditos
+
+El Sistema de Incidencias Municipales lo desarrollaron dos ingenieros en sistemas con una
+**contribución equitativa** al diseño, la programación, las pruebas y las mejoras del proyecto:
+
+| Autor | Perfil | Enlaces |
+| --- | --- | --- |
+| **Dylon Gabriel Mandujano Gonzalez** | Ingeniero en sistemas y desarrollador web · DylonTech | [dylontech.com](https://www.dylontech.com) · [GitHub](https://github.com/Dylontech) |
+| **Diego Alexander Beltrán Moreno** | Ingeniero en sistemas y desarrollo web | Contribución equitativa al desarrollo del sistema |
+
+Contacto del proyecto: [dylongabrielm@dylontech.com](mailto:dylongabrielm@dylontech.com) ·
+[github.com/Dylontech/sistema_de_incidencias](https://github.com/Dylontech/sistema_de_incidencias)
 
 ---
 

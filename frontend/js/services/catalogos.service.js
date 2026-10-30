@@ -52,5 +52,21 @@ export const catalogosService = {
   /** Edición de una cuenta del personal (solo administrador). */
   actualizarUsuario(id, datos) {
     return api.patch(`/usuarios/${id}`, datos);
+  },
+  /** Baja lógica de una cuenta del personal. */
+  eliminarUsuario(id) {
+    return api.delete(`/usuarios/${id}`);
+  },
+  reactivarUsuario(id) {
+    return api.post(`/usuarios/${id}/reactivar`, {});
+  },
+  /** Consulta auditada de la contraseña de una cuenta. */
+  passwordUsuario(id, motivo = '') {
+    const query = motivo ? `?motivo=${encodeURIComponent(motivo)}` : '';
+    return api.get(`/usuarios/${id}/password${query}`);
+  },
+  /** Genera una contraseña temporal nueva (o fija la indicada). */
+  restablecerPassword(id, datos = {}) {
+    return api.post(`/usuarios/${id}/password/restablecer`, datos);
   }
 };

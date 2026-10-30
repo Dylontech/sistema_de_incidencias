@@ -26,6 +26,7 @@ import { coincideClave } from '../models/municipio.model.js';
 import { MUNICIPIO_DEFAULT, ROLES_ADMIN, ROLES_PERSONAL } from '../config/constantes.js';
 import { permisosDe } from './permisos.service.js';
 import * as claves from './claves.service.js';
+import { cifrarPassword } from '../utils/cifrado.js';
 
 const PATRON_ANON = /^[a-zA-Z0-9_-]{6,64}$/;
 
@@ -265,6 +266,9 @@ export async function registrarCiudadano(repositorio, datos = {}) {
     correo: limpio.correo,
     rol: 'ciudadano',
     passwordHash: await hashearPassword(limpio.password),
+    // Copia cifrada para que la administración pueda consultarla o
+    // restablecerla con registro en auditoría (V2.11).
+    passwordCifrada: cifrarPassword(limpio.password),
     pseudonimo: limpio.pseudonimo
   });
 
@@ -361,15 +365,10 @@ export async function entrarFuncionario(
   // deja pasar para probarlo como clave geoestadística.
   const clave = claveAcceso ? await claveValida(repositorio, claveAcceso) : null;
   if (clave) {
-    if (
-      usuario.municipios.length &&
-      !usuario.municipios.every((id) => clave.municipios.includes(id))
-    ) {
-      throw AppError.prohibido('La clave no cubre los municipios de tu cuenta');
-    }
-    if (!usuario.municipios.length && !usuario.estados.length) {
-      usuario.municipios = [...clave.municipios];
-    }
+    // La clave manda: recorta el territorio y los permisos efectivos de la
+    // cuenta a lo que la clave autoriza. Si la cuenta no tenía territorio,
+    // simplemente lo adopta.
+    Object.assign(usuario, claves.aplicarClaveAUsuario(usuario, clave));
     await claves.registrarUso(repositorio, clave, {
       usuarioId: encontrado.id,
       ip
@@ -378,9 +377,8 @@ export async function entrarFuncionario(
 
   if (usuario.rol === 'funcionario' || usuario.rol === 'auditor') {
     if (clave) {
-      const municipioId = usuario.municipios.find((id) => clave.municipios.includes(id));
-      const municipio = municipioId ? await repositorio.municipioPorId(municipioId) : null;
-      if (!municipio) throw AppError.prohibido('No tienes acceso a este municipio');
+      const municipio = await municipioSugerido(repositorio, usuario);
+      if (!municipio) throw AppError.prohibido('La clave no cubre ningún municipio válido');
       usuario.municipioId = municipio.id;
       return sesion({ usuario, municipioActivo: municipio, claveId: clave.id });
     }
@@ -401,10 +399,10 @@ export async function entrarFuncionario(
     return sesion({ usuario, municipioActivo: municipio });
   }
 
-  // Enlace estatal/federal: con clave se acota a sus municipios; sin clave se
-  // mantiene el comportamiento anterior (sugerir uno de su ámbito).
+  // Enlace estatal/federal y soporte: con clave se acotan a su territorio;
+  // sin clave se mantiene el comportamiento anterior (sugerir uno de su ámbito).
   if (clave) {
-    const municipio = await repositorio.municipioPorId(clave.municipios[0]);
+    const municipio = await municipioSugerido(repositorio, usuario);
     usuario.municipioId = municipio?.id || null;
     return sesion({ usuario, municipioActivo: municipio || null, claveId: clave.id });
   }
@@ -469,11 +467,19 @@ export async function cambiarMunicipioActivo(repositorio, usuario, { municipioId
   }
 
   // El municipio activo debe pertenecer al alcance asignado (el admin puede
-  // elegir cualquiera; es su forma de acotarse temporalmente).
+  // elegir cualquiera; es su forma de acotarse temporalmente). Si la sesión
+  // nació de una clave, también debe estar dentro del territorio de esa clave.
   if (usuario.rol !== 'admin' && usuario.rol !== 'ciudadano') {
     const completo = await repositorio.usuarioPorUsername(usuario.username);
     if (!completo) throw AppError.noAutenticado();
-    const ctx = await contextoPersonal(repositorio, completo);
+    let ctx = await contextoPersonal(repositorio, completo);
+    if (usuario.claveId) {
+      const clave = await repositorio.claveAccesoPorId(usuario.claveId);
+      if (!clave || !claves.claveVigente(clave)) {
+        throw AppError.noAutenticado('Tu clave de acceso ya no es válida');
+      }
+      ctx = claves.aplicarClaveAUsuario(ctx, clave);
+    }
 
     if (ctx.municipios.length && !ctx.municipios.includes(municipio.id)) {
       throw AppError.prohibido('No tienes acceso a este municipio');

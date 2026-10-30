@@ -25,7 +25,16 @@ import {
   esAdminTerritorial,
   esAlgunaAdmin
 } from './alcance.service.js';
-import { normalizarPermisos, permisosDe, tienePermiso } from './permisos.service.js';
+import {
+  normalizarPermisos,
+  overridesDesdeLista,
+  permisosDe,
+  permisosFueraDeAlcance,
+  tienePermiso
+} from './permisos.service.js';
+import * as claves from './claves.service.js';
+import { rolPropioActivo } from './roles.service.js';
+import { cifrarPassword, descifrarPassword, passwordTemporal } from '../utils/cifrado.js';
 import {
   construirUsuario,
   hashearPassword,
@@ -45,10 +54,71 @@ function exigirPassword(password) {
   return limpio;
 }
 
+/**
+ * Solo la administración cambia contraseñas. El personal las solicita desde
+ * «Mi cuenta» y el administrador de su ámbito las restablece.
+ */
+function exigirPuedeCambiarPassword(actor) {
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido(
+      'Solo la administración puede cambiar contraseñas. Solicita el cambio desde «Mi cuenta».'
+    );
+  }
+}
+
+/**
+ * Cambiar la matriz de permisos de una cuenta es exclusivo de la administración
+ * y nadie puede conceder permisos que no tenga (salvo el admin maestro).
+ */
+function exigirPuedeEditarPermisos(actor, permisos) {
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido('Solo la administración puede cambiar los permisos de una cuenta');
+  }
+  const concedidos = Object.entries(permisos || {})
+    .filter(([, valor]) => valor === true)
+    .map(([permiso]) => permiso);
+  const fuera = permisosFueraDeAlcance(actor, concedidos);
+  if (fuera.length) {
+    throw AppError.prohibido(
+      `No puedes conceder permisos que tú no tienes: ${fuera.join(', ')}`
+    );
+  }
+}
+
 async function exigirUsernameLibre(repositorio, username) {
   if (await repositorio.usuarioPorUsername(username)) {
     throw AppError.conflicto('Ya existe un usuario con ese nombre de acceso');
   }
+}
+
+/**
+ * El correo es el canal de avisos y no puede repetirse entre cuentas.
+ * Se comprueba antes de escribir y, además, la base lo respalda con un índice
+ * único; los choques por concurrencia se traducen a un 409 legible.
+ */
+async function exigirCorreoLibre(repositorio, correo, { exceptoId = null } = {}) {
+  if (!correo) return;
+  const existente = await repositorio.usuarioPorCorreo(correo);
+  if (existente && existente.id !== exceptoId) {
+    throw AppError.conflicto(
+      'Ese correo ya está registrado en otra cuenta. Usa otro correo para esta cuenta.'
+    );
+  }
+}
+
+/** Traduce un choque del índice único de MySQL a un conflicto entendible. */
+function conflictoPorDuplicado(error) {
+  if (error?.code !== 'ER_DUP_ENTRY') return null;
+  const mensaje = String(error.message || '');
+  if (/correo/i.test(mensaje)) {
+    return AppError.conflicto(
+      'Ese correo ya está registrado en otra cuenta. Usa otro correo para esta cuenta.'
+    );
+  }
+  if (/username/i.test(mensaje)) {
+    return AppError.conflicto('Ya existe un usuario con ese nombre de acceso');
+  }
+  return AppError.conflicto('Ya existe una cuenta con esos datos');
 }
 
 function listaUnica(valor) {
@@ -159,14 +229,28 @@ function visiblePara(actor, cuenta, alcanceCuenta, estadoDeMunicipio = new Map()
  */
 async function exigirPuedeGestionar(repositorio, actor, { rol, municipios = [], estados = [] }) {
   if (esAdminMaestro(actor)) return;
-  // Un funcionario o soporte con `gestionar_usuarios` aprobado puede crear y
-  // editar cuentas, pero solo dentro de su ámbito y nunca administradores.
-  const porPermiso = tienePermiso(actor, 'gestionar_usuarios');
+  // Un funcionario o soporte con un permiso CRUD de usuarios (o el paraguas
+  // `gestionar_usuarios`) puede crear/editar cuentas, pero solo dentro de su
+  // ámbito y nunca administradores. La ruta ya exige el permiso concreto.
+  const porPermiso = [
+    'gestionar_usuarios',
+    'crear_usuarios',
+    'editar_usuarios',
+    'eliminar_usuarios'
+  ].some((permiso) => tienePermiso(actor, permiso));
   if (!esAdminTerritorial(actor) && !porPermiso) {
     throw AppError.prohibido('No puedes gestionar cuentas del personal');
   }
   if (ROLES_ADMIN.includes(rol)) {
     throw AppError.prohibido('Solo el administrador maestro puede gestionar administradores');
+  }
+  // V2.11: quien no es administrador solo crea y edita cuentas de funcionario.
+  // Un funcionario con `crear_usuarios` no puede abrir cuentas de auditor,
+  // soporte ni enlace, aunque tenga el permiso CRUD.
+  if (!esAlgunaAdmin(actor) && rol !== 'funcionario') {
+    throw AppError.prohibido(
+      'Solo puedes crear o editar cuentas de funcionario dentro de tus municipios'
+    );
   }
 
   const alcance = alcanceDe(actor);
@@ -231,26 +315,82 @@ async function rolEspecial(repositorio, id) {
   return rol;
 }
 
-/** Alta de una cuenta de personal. */
+/**
+ * Alta de una cuenta de personal.
+ *
+ * Si llega `claveId`, la clave manda: define rol, territorio y permisos. Así
+ * el administrador puede preparar una clave (por ejemplo Maravatío + «ver
+ * usuarios») y crear la cuenta sin volver a configurar nada a mano.
+ */
 export async function crear(repositorio, datos = {}, { actor = null } = {}) {
+  const actorAdmin = !actor || esAlgunaAdmin(actor);
+  // V2.11.2: las cuentas las crea la administración. Un funcionario con
+  // `crear_usuarios` rellena una **solicitud de alta** y la administración la
+  // aprueba; así no puede elegir rol, territorio ni permisos.
+  if (actor && !actorAdmin) {
+    throw AppError.prohibido(
+      'Solo la administración crea cuentas. Envía una solicitud de alta desde el listado de usuarios.'
+    );
+  }
+
   const entrada = validarEntrada(datos);
+  const clave = datos.claveId
+    ? await claves.validarParaCuenta(repositorio, actor, datos.claveId)
+    : null;
+  const rolPropio = entrada.rolPropioId
+    ? await rolPropioActivo(repositorio, entrada.rolPropioId)
+    : null;
+  if (rolPropio && clave) {
+    throw AppError.solicitudInvalida('Una cuenta creada desde una clave no lleva rol propio');
+  }
+  const rol = !actorAdmin
+    ? 'funcionario'
+    : rolPropio
+      ? rolPropio.rolPlantilla
+      : clave?.rolSugerido && ROLES_PERSONAL.includes(clave.rolSugerido)
+        ? clave.rolSugerido
+        : entrada.rol;
+
   const especial = await rolEspecial(repositorio, entrada.rolPersonalizadoId);
-  if (especial && especial.rolBase !== entrada.rol) {
+  if (especial && especial.rolBase !== rol) {
     throw AppError.solicitudInvalida(
       `El rol especial «${especial.nombre}» solo aplica al rol base ${especial.rolBase}`
     );
   }
   await exigirUsernameLibre(repositorio, entrada.username);
+  await exigirCorreoLibre(repositorio, entrada.correo);
   const password = exigirPassword(datos.password);
 
-  const alcance = await validarAlcance(repositorio, entrada.rol, {
-    municipios: datos.municipios ?? (entrada.municipioId ? [entrada.municipioId] : []),
-    estados: datos.estados ?? []
-  });
+  let alcance;
+  if (!actorAdmin) {
+    // El territorio de la cuenta nueva es siempre el del funcionario que la
+    // crea: no puede elegir estados ni municipios.
+    const propio = alcanceDe(actor);
+    const municipiosPropios = propio.municipios ? [...propio.municipios] : [];
+    if (!municipiosPropios.length) {
+      throw AppError.prohibido(
+        'Necesitas tener municipios asignados para crear cuentas de funcionario'
+      );
+    }
+    alcance = await validarAlcance(repositorio, 'funcionario', {
+      municipios: municipiosPropios,
+      estados: []
+    });
+  } else {
+    alcance = clave
+      ? await validarAlcance(repositorio, rol, {
+          municipios: clave.municipios,
+          estados: clave.estados
+        })
+      : await validarAlcance(repositorio, rol, {
+          municipios: datos.municipios ?? (entrada.municipioId ? [entrada.municipioId] : []),
+          estados: datos.estados ?? []
+        });
+  }
 
   if (actor) {
     await exigirPuedeGestionar(repositorio, actor, {
-      rol: entrada.rol,
+      rol,
       municipios: alcance.municipios,
       estados: alcance.estados
     });
@@ -260,28 +400,49 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
     username: entrada.username,
     nombre: entrada.nombre,
     correo: entrada.correo ?? null,
-    rol: entrada.rol,
+    telefono: entrada.telefono ?? null,
+    rol,
     municipioId: alcance.municipios[0] || null,
     passwordHash: await hashearPassword(password),
+    passwordCifrada: cifrarPassword(password),
     rolPersonalizadoId: especial?.id || null,
-    puedeEscribir: ROLES_LECTURA.includes(entrada.rol) ? false : entrada.rol !== 'soporte'
+    rolPropioId: rolPropio?.id || null,
+    puedeEscribir: ROLES_LECTURA.includes(rol) ? false : rol !== 'soporte'
   });
 
   // El panel puede crear la cuenta ya inactiva o con permisos a medida.
   if (datos.activo === false) usuario.activo = false;
-  if (datos.permisos !== undefined) {
+  if (Array.isArray(clave?.permisos)) {
+    // La clave define exactamente lo que podrá hacer la cuenta: los permisos
+    // que no estén en la clave quedan denegados de forma explícita.
+    usuario.permisos = overridesDesdeLista(clave.permisos);
+  } else if (datos.permisos !== undefined) {
     const normalizados = normalizarPermisos(datos.permisos);
-    if (normalizados) usuario.permisos = normalizados;
+    if (normalizados) {
+      if (actor) exigirPuedeEditarPermisos(actor, normalizados);
+      usuario.permisos = normalizados;
+    }
   }
 
-  const creado = await repositorio.crearUsuario(usuario);
+  let creado;
+  try {
+    creado = await repositorio.crearUsuario(usuario);
+  } catch (error) {
+    throw conflictoPorDuplicado(error) || error;
+  }
   await repositorio.guardarAlcanceUsuario(creado.id, alcance);
 
   return publico({
     ...creado,
     ...alcance,
     rolPersonalizado: especial || null,
-    permisosEfectivos: permisosDe({ ...creado, rolPersonalizado: especial || null })
+    rolPropio: rolPropio || null,
+    permisosEfectivos: permisosDe({
+      ...creado,
+      rolPersonalizado: especial || null,
+      rolPropio: rolPropio || null,
+      rolConfig: null
+    })
   });
 }
 
@@ -296,6 +457,29 @@ export async function actualizar(repositorio, actor, id, datos = {}) {
   if (!ROLES_PERSONAL.includes(actual.rol)) {
     throw AppError.prohibido('Esa cuenta no es del personal del sistema');
   }
+  // V2.11.1: un funcionario con `editar_usuarios` solo cambia el nombre
+  // completo. Cualquier intento de tocar rol, territorio, permisos, correo o
+  // contraseña responde 403 aunque el cliente lo envíe a mano.
+  if (actor && !esAlgunaAdmin(actor)) {
+    const prohibidos = [
+      'rol',
+      'rolPropioId',
+      'rolPersonalizadoId',
+      'municipios',
+      'estados',
+      'puedeEscribir',
+      'activo',
+      'permisos',
+      'password',
+      'correo',
+      'telefono'
+    ].filter((campo) => datos[campo] !== undefined);
+    if (prohibidos.length) {
+      throw AppError.prohibido(
+        'Solo puedes cambiar el nombre completo. El rol, el territorio, los permisos, el correo y la contraseña los gestiona la administración.'
+      );
+    }
+  }
   if (ROLES_ADMIN.includes(actual.rol) && !esAdminMaestro(actor)) {
     throw AppError.prohibido('Solo el administrador maestro puede editar administradores');
   }
@@ -303,9 +487,23 @@ export async function actualizar(repositorio, actor, id, datos = {}) {
   const cambios = validarEntrada(datos, { parcial: true });
   delete cambios.username;
   delete cambios.pseudonimo;
+  if (cambios.correo !== undefined) {
+    await exigirCorreoLibre(repositorio, cambios.correo, { exceptoId: id });
+  }
   const especial = await rolEspecial(repositorio, cambios.rolPersonalizadoId);
+  const rolPropio =
+    cambios.rolPropioId !== undefined
+      ? await rolPropioActivo(repositorio, cambios.rolPropioId)
+      : null;
 
-  const rol = cambios.rol || actual.rol;
+  const rol = rolPropio ? rolPropio.rolPlantilla : cambios.rol || actual.rol;
+  if (rolPropio && cambios.rol && cambios.rol !== rolPropio.rolPlantilla) {
+    throw AppError.solicitudInvalida(
+      `El rol propio «${rolPropio.etiqueta}» pertenece a la plantilla ${rolPropio.rolPlantilla}`
+    );
+  }
+  if (rolPropio) cambios.rol = rolPropio.rolPlantilla;
+  if (cambios.rolPropioId !== undefined) cambios.rolPropioId = rolPropio?.id || null;
   if (especial && especial.rolBase !== rol) {
     throw AppError.solicitudInvalida(
       `El rol especial «${especial.nombre}» solo aplica al rol base ${especial.rolBase}`
@@ -360,20 +558,202 @@ export async function actualizar(repositorio, actor, id, datos = {}) {
     }
   }
 
-  if (datos.password) cambios.passwordHash = await hashearPassword(exigirPassword(datos.password));
-  if (datos.permisos !== undefined) cambios.permisos = normalizarPermisos(datos.permisos);
+  if (datos.password) {
+    exigirPuedeCambiarPassword(actor);
+    const limpia = exigirPassword(datos.password);
+    cambios.passwordHash = await hashearPassword(limpia);
+    cambios.passwordCifrada = cifrarPassword(limpia);
+  }
+  if (datos.permisos !== undefined) {
+    const normalizados = normalizarPermisos(datos.permisos);
+    if (normalizados) {
+      exigirPuedeEditarPermisos(actor, normalizados);
+      cambios.permisos = normalizados;
+    }
+  }
 
-  const actualizado = await repositorio.actualizarUsuario(id, cambios);
+  let actualizado;
+  try {
+    actualizado = await repositorio.actualizarUsuario(id, cambios);
+  } catch (error) {
+    throw conflictoPorDuplicado(error) || error;
+  }
   await repositorio.guardarAlcanceUsuario(id, alcance);
 
   const definitivo = {
     ...actualizado,
     ...alcance,
     puedeEscribir: puedeEscribirDe({ ...actualizado, ...cambios }),
-    rolPersonalizado: especial || actualizado?.rolPersonalizado || null
+    rolPersonalizado: especial || actualizado?.rolPersonalizado || null,
+    rolPropio: rolPropio || actualizado?.rolPropio || null
   };
   return publico({
     ...definitivo,
     permisosEfectivos: permisosDe(definitivo)
   });
+}
+
+/**
+ * Baja lógica de una cuenta del personal.
+ *
+ * No se borra la fila porque es autora de reportes, historial y auditoría: se
+ * desactiva, el middleware rechaza sus tokens y deja de aparecer como activa.
+ * Las mismas salvaguardas que la edición impiden quitarse el acceso o dejar el
+ * sistema sin administrador maestro.
+ */
+export async function eliminar(repositorio, actor, id) {
+  const actual = await repositorio.usuarioPorId(id);
+  if (!actual) throw AppError.noEncontrado('Usuario no encontrado');
+  if (!ROLES_PERSONAL.includes(actual.rol)) {
+    throw AppError.prohibido('Esa cuenta no es del personal del sistema');
+  }
+  // Dar de baja una cuenta es de la administración. El funcionario puede
+  // solicitarla desde el panel (solicitudes de baja).
+  if (actor && !esAlgunaAdmin(actor)) {
+    throw AppError.prohibido(
+      'Solo la administración puede dar de baja una cuenta. Envía una solicitud de baja desde el listado.'
+    );
+  }
+  if (ROLES_ADMIN.includes(actual.rol) && !esAdminMaestro(actor)) {
+    throw AppError.prohibido('Solo el administrador maestro puede desactivar administradores');
+  }
+  if (actor?.id === actual.id || actor?.username === actual.username) {
+    throw AppError.conflicto('No puedes desactivar tu propia cuenta');
+  }
+
+  const asignacion = await repositorio.alcanceDeUsuario(id);
+  await exigirPuedeGestionar(repositorio, actor, {
+    rol: actual.rol,
+    municipios: asignacion.municipios.length
+      ? asignacion.municipios
+      : actual.municipioId
+        ? [actual.municipioId]
+        : [],
+    estados: asignacion.estados
+  });
+
+  if (
+    actual.rol === 'admin' &&
+    (await administradoresActivos(repositorio, { exceptoId: id })) === 0
+  ) {
+    throw AppError.conflicto('Debe quedar al menos un administrador activo');
+  }
+
+  const actualizado = await repositorio.actualizarUsuario(id, { activo: false });
+  return publico(actualizado);
+}
+
+/**
+ * Devuelve a la vida una cuenta dada de baja (baja lógica).
+ *
+ * Solo la administración reactiva: el alta de una cuenta nueva por parte de un
+ * funcionario pasa por una solicitud, pero recuperar una cuenta existente
+ * conserva su historial y su territorio, así que requiere revisión.
+ */
+export async function reactivar(repositorio, actor, id) {
+  const actual = await repositorio.usuarioPorId(id);
+  if (!actual) throw AppError.noEncontrado('Usuario no encontrado');
+  if (!ROLES_PERSONAL.includes(actual.rol)) {
+    throw AppError.prohibido('Esa cuenta no es del personal del sistema');
+  }
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido(
+      'Solo la administración puede reactivar cuentas. Si necesitas una cuenta nueva, envía una solicitud de alta.'
+    );
+  }
+  if (ROLES_ADMIN.includes(actual.rol) && !esAdminMaestro(actor)) {
+    throw AppError.prohibido('Solo el administrador maestro puede reactivar administradores');
+  }
+  if (actual.activo !== false) {
+    throw AppError.conflicto('Esa cuenta ya está activa');
+  }
+
+  const asignacion = await repositorio.alcanceDeUsuario(id);
+  await exigirPuedeGestionar(repositorio, actor, {
+    rol: actual.rol,
+    municipios: asignacion.municipios.length
+      ? asignacion.municipios
+      : actual.municipioId
+        ? [actual.municipioId]
+        : [],
+    estados: asignacion.estados
+  });
+
+  const actualizado = await repositorio.actualizarUsuario(id, { activo: true });
+  return publico({ ...actualizado, ...asignacion });
+}
+
+/* ------------------------------------------------------------------------- */
+/* V2.11 — contraseñas consultables y restablecimiento                       */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * La consulta de contraseñas es de la administración y respeta el territorio:
+ * un admin municipal solo ve las cuentas de su municipio y nunca las de
+ * administración (esas solo las ve el maestro).
+ */
+async function exigirPuedeConsultarCuenta(repositorio, actor, cuenta) {
+  if (!esAlgunaAdmin(actor)) {
+    throw AppError.prohibido('Solo la administración puede consultar contraseñas');
+  }
+  if (esAdminMaestro(actor)) return;
+  if (ROLES_ADMIN.includes(cuenta.rol)) {
+    throw AppError.prohibido(
+      'Solo el administrador maestro puede consultar contraseñas de administradores'
+    );
+  }
+  const asignacion = await repositorio.alcanceDeUsuario(cuenta.id);
+  const catalogo = await repositorio.todosMunicipios();
+  const estadoDeMunicipio = new Map(catalogo.map((m) => [String(m.id), m.estado]));
+  if (!visiblePara(actor, cuenta, asignacion, estadoDeMunicipio)) {
+    throw AppError.prohibido('Esa cuenta está fuera de tu ámbito territorial');
+  }
+}
+
+/**
+ * Devuelve la contraseña en claro de una cuenta, descifrando la copia guardada.
+ *
+ * Las cuentas anteriores a V2.11 no tienen copia (bcrypt es irreversible), así
+ * que se responde 409 con la instrucción de restablecerla.
+ */
+export async function revelarPassword(repositorio, actor, id) {
+  if (!tienePermiso(actor, 'revelar_password_usuarios')) {
+    throw AppError.prohibido('No tienes permiso para consultar contraseñas');
+  }
+  const cuenta = await repositorio.usuarioPorId(id);
+  if (!cuenta) throw AppError.noEncontrado('Usuario no encontrado');
+  await exigirPuedeConsultarCuenta(repositorio, actor, cuenta);
+
+  const password = descifrarPassword(await repositorio.passwordCifradaDeUsuario(id));
+  if (!password) {
+    throw new AppError(
+      409,
+      'Esta cuenta se creó antes de que se guardara la copia consultable. Restablécele una contraseña nueva.',
+      { codigo: 'password_no_consultable', puedeRestablecer: true }
+    );
+  }
+  return { usuario: publico(cuenta), password };
+}
+
+/**
+ * Restablece la contraseña de una cuenta. Sin `datos.password` se genera una
+ * temporal legible; se devuelve en claro una única vez para entregarla en mano.
+ */
+export async function restablecerPassword(repositorio, actor, id, datos = {}) {
+  if (!tienePermiso(actor, 'revelar_password_usuarios')) {
+    throw AppError.prohibido('No tienes permiso para restablecer contraseñas');
+  }
+  const cuenta = await repositorio.usuarioPorId(id);
+  if (!cuenta) throw AppError.noEncontrado('Usuario no encontrado');
+  if (!ROLES_PERSONAL.includes(cuenta.rol) && !esAdminMaestro(actor)) {
+    throw AppError.prohibido('Solo el administrador maestro puede restablecer cuentas ciudadanas');
+  }
+  await exigirPuedeConsultarCuenta(repositorio, actor, cuenta);
+
+  const limpia = datos.password ? exigirPassword(datos.password) : passwordTemporal();
+  await repositorio.actualizarUsuario(id, {
+    passwordHash: await hashearPassword(limpia),
+    passwordCifrada: cifrarPassword(limpia)
+  });
+  return { usuario: publico(cuenta), password: limpia, generada: !datos.password };
 }

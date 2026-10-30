@@ -34,6 +34,7 @@ const TABLAS = [
   'claves_acceso',
   'clave_acceso_municipios',
   'clave_acceso_estados',
+  'clave_notificacion_municipios',
   'clave_acceso_usos',
   'sesiones_usuario',
   'auditoria',
@@ -62,7 +63,11 @@ const TABLAS = [
   'simulacion_operaciones',
   'municipios_informacion',
   'roles_personalizados',
-  'solicitudes_permisos'
+  'solicitudes_permisos',
+  'roles',
+  'solicitudes_password',
+  'solicitudes_baja',
+  'solicitudes_usuario'
 ];
 
 /**
@@ -71,12 +76,26 @@ const TABLAS = [
  * (por ejemplo al guardar usuarios.permisos).
  */
 const COLUMNAS = {
-  usuarios: ['permisos', 'comentarios_restringidos', 'rol_personalizado_id'],
+  usuarios: [
+    'permisos',
+    'comentarios_restringidos',
+    'rol_personalizado_id',
+    'rol_propio_id',
+    'password_cifrada',
+    'telefono'
+  ],
   incidencias: ['clave_idempotencia', 'folio', 'meta_firmas'],
   solicitudes_informe: ['municipios', 'estados', 'tipos_todos'],
   notificaciones: ['archivada_en', 'simulado'],
-  claves_acceso: ['correo_contacto', 'correo_institucional_id'],
+  claves_acceso: [
+    'correo_contacto',
+    'correo_institucional_id',
+    'notificaciones_activas',
+    'permisos'
+  ],
   sesiones_usuario: ['clave_id'],
+  solicitudes_permisos: ['estados'],
+  solicitudes_password: ['solicitado_por_id', 'solicitado_por'],
   publicaciones_redes: [
     'color_primario',
     'color_secundario',
@@ -103,6 +122,18 @@ const COLUMNAS = {
 const aFecha = (iso) => (iso ? new Date(iso) : null);
 const desdeFecha = (valor) => (valor ? new Date(valor).toISOString() : null);
 const aNumero = (valor) => (valor === null || valor === undefined ? null : Number(valor));
+
+/** Lista de permisos de una clave; `null` significa «sin recorte». */
+const aListaPermisos = (valor) => {
+  if (valor === null || valor === undefined || valor === '') return null;
+  try {
+    const datos = typeof valor === 'string' ? JSON.parse(valor) : valor;
+    if (!Array.isArray(datos)) return null;
+    return [...new Set(datos.filter(Boolean).map(String))];
+  } catch {
+    return null;
+  }
+};
 
 export class RepositorioMysql {
   constructor({ client = config.db.client, connection = config.db.connection } = {}) {
@@ -186,6 +217,12 @@ export class RepositorioMysql {
   async todosMunicipios() {
     const filas = await this.knex('municipios').select('*').orderBy('nombre', 'asc');
     return filas.map((f) => this.#aMunicipio(f));
+  }
+
+  async municipiosLigeros() {
+    return this.knex('municipios')
+      .select('id', 'nombre', 'estado')
+      .orderBy('nombre', 'asc');
   }
 
   async municipioPorId(id) {
@@ -329,6 +366,7 @@ export class RepositorioMysql {
       username: fila.username,
       nombre: fila.nombre,
       correo: fila.correo || null,
+      telefono: fila.telefono || null,
       rol: fila.rol,
       municipioId: fila.municipio_id,
       activo: Boolean(fila.activo),
@@ -343,6 +381,9 @@ export class RepositorioMysql {
       })(),
       rolPersonalizadoId: fila.rol_personalizado_id || null,
       rolPersonalizado: null,
+      rolPropioId: fila.rol_propio_id || null,
+      rolPropio: null,
+      rolConfig: null,
       passwordHash: fila.password_hash,
       advertencias: aNumero(fila.advertencias) || 0,
       suspendido: Boolean(fila.suspendido),
@@ -363,15 +404,40 @@ export class RepositorioMysql {
     return this.#hidratarRoles(filas.map((f) => this.#aUsuario(f)));
   }
 
-  /** Añade el rol especial a las cuentas que lo tengan asignado. */
+  /**
+   * Añade a las cuentas su rol especial, su rol propio y la matriz del rol
+   * integrado (`rolConfig`), que es la que manda sobre `PERMISOS_POR_ROL`.
+   */
   async #hidratarRoles(usuarios) {
-    const ids = [...new Set(usuarios.map((u) => u.rolPersonalizadoId).filter(Boolean))];
-    if (!ids.length) return usuarios;
-    const filas = await this.knex('roles_personalizados').whereIn('id', ids);
-    const porId = new Map(filas.map((f) => [f.id, this.#aRolPersonalizado(f)]));
+    if (!usuarios.length) return usuarios;
+    const idsEspeciales = [...new Set(usuarios.map((u) => u.rolPersonalizadoId).filter(Boolean))];
+    const idsPropios = [...new Set(usuarios.map((u) => u.rolPropioId).filter(Boolean))];
+    const claves = [...new Set(usuarios.map((u) => u.rol).filter(Boolean))];
+    const [filasEspeciales, filasRoles] = await Promise.all([
+      idsEspeciales.length
+        ? this.knex('roles_personalizados').whereIn('id', idsEspeciales)
+        : [],
+      claves.length || idsPropios.length
+        ? this.knex('roles')
+            .whereIn('clave', claves)
+            .orWhereIn('id', idsPropios.length ? idsPropios : [''])
+        : []
+    ]);
+    const porIdEspecial = new Map(
+      filasEspeciales.map((f) => [f.id, this.#aRolPersonalizado(f)])
+    );
+    const roles = filasRoles.map((f) => this.#aRol(f));
+    const rolPorId = new Map(roles.map((r) => [r.id, r]));
+    const rolPorClave = new Map(
+      roles.filter((r) => r.tipo === 'integrado').map((r) => [r.clave, r])
+    );
     return usuarios.map((u) => ({
       ...u,
-      rolPersonalizado: u.rolPersonalizadoId ? porId.get(u.rolPersonalizadoId) || null : null
+      rolPersonalizado: u.rolPersonalizadoId
+        ? porIdEspecial.get(u.rolPersonalizadoId) || null
+        : null,
+      rolPropio: u.rolPropioId ? rolPorId.get(u.rolPropioId) || null : null,
+      rolConfig: rolPorClave.get(u.rol) || null
     }));
   }
 
@@ -429,6 +495,12 @@ export class RepositorioMysql {
     const fila = await this.knex('usuarios').where({ id }).first();
     if (!fila) return null;
     return (await this.#hidratarRoles([this.#aUsuario(fila)]))[0];
+  }
+
+  /** Contraseña cifrada (AES-256-GCM) para el revelado auditado. */
+  async passwordCifradaDeUsuario(id) {
+    const fila = await this.knex('usuarios').where({ id }).select('password_cifrada').first();
+    return fila?.password_cifrada || null;
   }
 
   async crearUsuario(usuario) {
@@ -586,9 +658,24 @@ export class RepositorioMysql {
       revocadaEn: desdeFecha(fila.revocada_en),
       correoContacto: fila.correo_contacto || null,
       correoInstitucionalId: fila.correo_institucional_id || null,
+      notificacionesActivas:
+        fila.notificaciones_activas === undefined || fila.notificaciones_activas === null
+          ? true
+          : Boolean(Number(fila.notificaciones_activas)),
+      permisos: aListaPermisos(fila.permisos),
       municipios,
       estados
     };
+  }
+
+  /** Hidrata una clave con sus municipios, estados y permisos. */
+  async #claveConTerritorio(fila) {
+    if (!fila) return null;
+    const [municipios, estados] = await Promise.all([
+      this.knex('clave_acceso_municipios').where({ clave_id: fila.id }).pluck('municipio_id'),
+      this.knex('clave_acceso_estados').where({ clave_id: fila.id }).pluck('estado')
+    ]);
+    return this.#aClave(fila, municipios, estados);
   }
 
   async todasLasClaves() {
@@ -621,12 +708,12 @@ export class RepositorioMysql {
     const fila = await this.knex('claves_acceso')
       .whereRaw('UPPER(codigo) = ?', [String(codigo || '').trim().toUpperCase()])
       .first();
-    if (!fila) return null;
-    const [municipios, estados] = await Promise.all([
-      this.knex('clave_acceso_municipios').where({ clave_id: fila.id }).pluck('municipio_id'),
-      this.knex('clave_acceso_estados').where({ clave_id: fila.id }).pluck('estado')
-    ]);
-    return this.#aClave(fila, municipios, estados);
+    return this.#claveConTerritorio(fila);
+  }
+
+  async claveAccesoPorId(id) {
+    const fila = await this.knex('claves_acceso').where({ id: String(id || '') }).first();
+    return this.#claveConTerritorio(fila);
   }
 
   async crearClaveAcceso(clave) {
@@ -642,7 +729,9 @@ export class RepositorioMysql {
         expira_en: aFecha(clave.expiraEn),
         creado_por: clave.creadoPor || null,
         correo_contacto: clave.correoContacto || null,
-        correo_institucional_id: clave.correoInstitucionalId || null
+        correo_institucional_id: clave.correoInstitucionalId || null,
+        notificaciones_activas: clave.notificacionesActivas !== false,
+        permisos: Array.isArray(clave.permisos) ? JSON.stringify(clave.permisos) : null
       });
       if ((clave.municipios || []).length) {
         await trx('clave_acceso_municipios').insert(
@@ -659,6 +748,7 @@ export class RepositorioMysql {
       ...clave,
       municipios: clave.municipios || [],
       estados: clave.estados || [],
+      notificacionesActivas: clave.notificacionesActivas !== false,
       usos: 0
     };
   }
@@ -684,6 +774,7 @@ export class RepositorioMysql {
       this.knex('clave_acceso_municipios').where({ clave_id: id }).pluck('municipio_id'),
       this.knex('clave_acceso_estados').where({ clave_id: id }).pluck('estado')
     ]);
+    await this.knex('clave_notificacion_municipios').where({ clave_id: id }).del();
     await this.knex('claves_acceso').where({ id }).del();
     return this.#aClave(fila, municipios, estados);
   }
@@ -714,6 +805,74 @@ export class RepositorioMysql {
     return mapa;
   }
 
+  /** Configuración de avisos de varias claves: { [claveId]: { activo, municipios } }. */
+  async notificacionesDeClaves(ids = []) {
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    const mapa = {};
+    if (!limpios.length) return mapa;
+    const [claves, filas] = await Promise.all([
+      this.knex('claves_acceso')
+        .whereIn('id', limpios)
+        .select('id', 'notificaciones_activas'),
+      this.knex('clave_notificacion_municipios')
+        .whereIn('clave_id', limpios)
+        .select('clave_id', 'municipio_id')
+    ]);
+    const municipios = new Map();
+    for (const fila of filas) {
+      if (!municipios.has(fila.clave_id)) municipios.set(fila.clave_id, []);
+      municipios.get(fila.clave_id).push(fila.municipio_id);
+    }
+    for (const clave of claves) {
+      mapa[clave.id] = {
+        activo:
+          clave.notificaciones_activas === undefined || clave.notificaciones_activas === null
+            ? true
+            : Boolean(Number(clave.notificaciones_activas)),
+        municipios: municipios.get(clave.id) || []
+      };
+    }
+    return mapa;
+  }
+
+  /** Guarda el permiso de avisos y, si se indica, reemplaza su alcance. */
+  async guardarNotificacionesClave(id, { activo = true, municipios } = {}) {
+    await this.knex.transaction(async (trx) => {
+      await trx('claves_acceso')
+        .where({ id })
+        .update({ notificaciones_activas: activo !== false });
+      if (Array.isArray(municipios)) {
+        await trx('clave_notificacion_municipios').where({ clave_id: id }).del();
+        if (municipios.length) {
+          await trx('clave_notificacion_municipios').insert(
+            [...new Set(municipios.map(String))].map((municipioId) => ({
+              clave_id: id,
+              municipio_id: municipioId
+            }))
+          );
+        }
+      }
+    });
+    return (await this.notificacionesDeClaves([id]))[id] || { activo: true, municipios: [] };
+  }
+
+  /** clave_id de la sesión abierta más reciente de cada usuario. */
+  async clavesDeSesionesActivas(usuarioIds = []) {
+    const limpios = [...new Set((usuarioIds || []).filter(Boolean).map(String))];
+    if (!limpios.length) return {};
+    const filas = await this.knex('sesiones_usuario')
+      .whereIn('usuario_id', limpios)
+      .whereNotNull('clave_id')
+      .whereNull('cerrada_en')
+      .orderBy('ultima_actividad', 'desc')
+      .select('usuario_id', 'clave_id');
+    const mapa = {};
+    for (const fila of filas) {
+      if (!mapa[fila.usuario_id]) mapa[fila.usuario_id] = fila.clave_id;
+    }
+    return mapa;
+  }
+
   async actualizarClaveAcceso(id, cambios = {}) {
     const fila = {};
     if ('correoContacto' in cambios) fila.correo_contacto = cambios.correoContacto ?? null;
@@ -721,14 +880,12 @@ export class RepositorioMysql {
       fila.correo_institucional_id = cambios.correoInstitucionalId ?? null;
     }
     if ('nombre' in cambios) fila.nombre = cambios.nombre;
+    if ('permisos' in cambios) {
+      fila.permisos = Array.isArray(cambios.permisos) ? JSON.stringify(cambios.permisos) : null;
+    }
     if (Object.keys(fila).length) await this.knex('claves_acceso').where({ id }).update(fila);
     const actual = await this.knex('claves_acceso').where({ id }).first();
-    if (!actual) return null;
-    const [municipios, estados] = await Promise.all([
-      this.knex('clave_acceso_municipios').where({ clave_id: id }).pluck('municipio_id'),
-      this.knex('clave_acceso_estados').where({ clave_id: id }).pluck('estado')
-    ]);
-    return this.#aClave(actual, municipios, estados);
+    return this.#claveConTerritorio(actual);
   }
 
   async registrarUsoClave(id, { usuarioId = null, ipHash = null } = {}) {
@@ -920,6 +1077,7 @@ export class RepositorioMysql {
     pon('username', usuario.username);
     pon('nombre', usuario.nombre);
     pon('correo', usuario.correo ?? null);
+    pon('telefono', usuario.telefono ?? null);
     pon('rol', usuario.rol);
     pon('municipio_id', usuario.municipioId ?? null, 'municipioId');
     pon('activo', usuario.activo !== false);
@@ -931,7 +1089,9 @@ export class RepositorioMysql {
       'permisos'
     );
     pon('rol_personalizado_id', usuario.rolPersonalizadoId ?? null, 'rolPersonalizadoId');
+    pon('rol_propio_id', usuario.rolPropioId ?? null, 'rolPropioId');
     pon('password_hash', usuario.passwordHash, 'passwordHash');
+    pon('password_cifrada', usuario.passwordCifrada ?? null, 'passwordCifrada');
     pon('advertencias', aNumero(usuario.advertencias) || 0);
     pon('suspendido', usuario.suspendido === true);
     pon('suspendido_hasta', aFecha(usuario.suspendidoHasta), 'suspendidoHasta');
@@ -4356,12 +4516,20 @@ export class RepositorioMysql {
     } catch {
       permisos = [];
     }
+    let estados = [];
+    try {
+      const valor = fila.estados ? JSON.parse(fila.estados) : [];
+      estados = Array.isArray(valor) ? valor : [];
+    } catch {
+      estados = [];
+    }
     return {
       id: fila.id,
       usuarioId: fila.usuario_id,
       username: fila.username,
       nombre: fila.nombre || '',
       municipioId: fila.municipio_id || null,
+      estados,
       permisos,
       motivo: fila.motivo,
       estado: fila.estado,
@@ -4379,6 +4547,7 @@ export class RepositorioMysql {
       username: solicitud.username,
       nombre: solicitud.nombre || null,
       municipio_id: solicitud.municipioId || null,
+      estados: JSON.stringify(solicitud.estados || []),
       permisos: JSON.stringify(solicitud.permisos || []),
       motivo: solicitud.motivo,
       estado: solicitud.estado || 'pendiente',
@@ -4415,5 +4584,294 @@ export class RepositorioMysql {
       await this.knex('solicitudes_permisos').where({ id }).update(fila);
     }
     return this.solicitudPermisoPorId(id);
+  }
+
+  /* ------------------ roles integrados y roles propios -------------------- */
+
+  #aRol(fila) {
+    if (!fila) return null;
+    let permisos = [];
+    try {
+      const valor = fila.permisos ? JSON.parse(fila.permisos) : [];
+      permisos = Array.isArray(valor) ? valor : [];
+    } catch {
+      permisos = [];
+    }
+    return {
+      id: fila.id,
+      clave: fila.clave,
+      etiqueta: fila.etiqueta,
+      descripcion: fila.descripcion || '',
+      tipo: fila.tipo,
+      rolPlantilla: fila.rol_plantilla,
+      permisos,
+      territorio: fila.territorio,
+      activo: Boolean(fila.activo),
+      orden: Number(fila.orden) || 100,
+      creadoPor: fila.creado_por || null,
+      creadoEn: desdeFecha(fila.creado_en),
+      actualizadoEn: desdeFecha(fila.actualizado_en)
+    };
+  }
+
+  async roles() {
+    const filas = await this.knex('roles').orderBy([
+      { column: 'orden', order: 'asc' },
+      { column: 'etiqueta', order: 'asc' }
+    ]);
+    return filas.map((f) => this.#aRol(f));
+  }
+
+  async rolPorId(id) {
+    const fila = await this.knex('roles').where({ id }).first();
+    return this.#aRol(fila);
+  }
+
+  async rolPorClave(clave) {
+    const fila = await this.knex('roles').where({ clave }).first();
+    return this.#aRol(fila);
+  }
+
+  async crearRol(rol) {
+    await this.knex('roles').insert({
+      id: rol.id,
+      clave: rol.clave,
+      etiqueta: rol.etiqueta,
+      descripcion: rol.descripcion || null,
+      tipo: rol.tipo || 'propio',
+      rol_plantilla: rol.rolPlantilla,
+      permisos: JSON.stringify(rol.permisos || []),
+      territorio: rol.territorio || 'municipios',
+      activo: rol.activo !== false,
+      orden: Number(rol.orden) || 100,
+      creado_por: rol.creadoPor || null,
+      creado_en: aFecha(rol.creadoEn) || new Date(),
+      actualizado_en: aFecha(rol.actualizadoEn) || new Date()
+    });
+    return rol;
+  }
+
+  async actualizarRol(id, cambios = {}) {
+    const fila = {};
+    if ('clave' in cambios) fila.clave = cambios.clave;
+    if ('etiqueta' in cambios) fila.etiqueta = cambios.etiqueta;
+    if ('descripcion' in cambios) fila.descripcion = cambios.descripcion ?? null;
+    if ('rolPlantilla' in cambios) fila.rol_plantilla = cambios.rolPlantilla;
+    if ('permisos' in cambios) fila.permisos = JSON.stringify(cambios.permisos || []);
+    if ('territorio' in cambios) fila.territorio = cambios.territorio;
+    if ('activo' in cambios) fila.activo = cambios.activo !== false;
+    if ('orden' in cambios) fila.orden = Number(cambios.orden) || 100;
+    if ('actualizadoEn' in cambios) fila.actualizado_en = aFecha(cambios.actualizadoEn);
+    if (Object.keys(fila).length) await this.knex('roles').where({ id }).update(fila);
+    return this.rolPorId(id);
+  }
+
+  async eliminarRol(id) {
+    await this.knex('usuarios').where({ rol_propio_id: id }).update({ rol_propio_id: null });
+    return (await this.knex('roles').where({ id }).del()) > 0;
+  }
+
+  /* ------------------ solicitudes de cambio de contraseña ------------------ */
+
+  #aSolicitudPassword(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      usuarioId: fila.usuario_id,
+      username: fila.username,
+      nombre: fila.nombre || '',
+      motivo: fila.motivo,
+      estado: fila.estado,
+      solicitadoPorId: fila.solicitado_por_id || null,
+      solicitadoPor: fila.solicitado_por || null,
+      resueltoPor: fila.resuelto_por || null,
+      resueltoEn: desdeFecha(fila.resuelto_en),
+      respuesta: fila.respuesta || '',
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearSolicitudPassword(solicitud) {
+    await this.knex('solicitudes_password').insert({
+      id: solicitud.id,
+      usuario_id: solicitud.usuarioId,
+      username: solicitud.username,
+      nombre: solicitud.nombre || null,
+      motivo: solicitud.motivo,
+      estado: solicitud.estado || 'pendiente',
+      solicitado_por_id: solicitud.solicitadoPorId || null,
+      solicitado_por: solicitud.solicitadoPor || null,
+      resuelto_por: solicitud.resueltoPor || null,
+      resuelto_en: aFecha(solicitud.resueltoEn),
+      respuesta: solicitud.respuesta || null,
+      creado_en: aFecha(solicitud.creadoEn) || new Date()
+    });
+    return solicitud;
+  }
+
+  async solicitudesPassword({ usuarioId = null, estado = null, limite = 100 } = {}) {
+    const consulta = this.knex('solicitudes_password').select('*');
+    if (usuarioId) consulta.where('usuario_id', usuarioId);
+    if (estado) consulta.where('estado', estado);
+    const filas = await consulta
+      .orderBy('creado_en', 'desc')
+      .limit(Math.min(Number(limite) || 100, 500));
+    return filas.map((f) => this.#aSolicitudPassword(f));
+  }
+
+  async solicitudPasswordPorId(id) {
+    const fila = await this.knex('solicitudes_password').where({ id }).first();
+    return this.#aSolicitudPassword(fila);
+  }
+
+  async actualizarSolicitudPassword(id, cambios = {}) {
+    const fila = {};
+    if ('estado' in cambios) fila.estado = cambios.estado;
+    if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
+    if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
+    if ('respuesta' in cambios) fila.respuesta = cambios.respuesta ?? null;
+    if (Object.keys(fila).length) {
+      await this.knex('solicitudes_password').where({ id }).update(fila);
+    }
+    return this.solicitudPasswordPorId(id);
+  }
+
+  /* --------------------------- solicitudes de baja ------------------------- */
+
+  #aSolicitudBaja(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      usuarioId: fila.usuario_id,
+      username: fila.username,
+      nombre: fila.nombre || '',
+      solicitadoPorId: fila.solicitado_por_id || null,
+      solicitadoPor: fila.solicitado_por || null,
+      motivo: fila.motivo,
+      estado: fila.estado,
+      resueltoPor: fila.resuelto_por || null,
+      resueltoEn: desdeFecha(fila.resuelto_en),
+      respuesta: fila.respuesta || '',
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearSolicitudBaja(solicitud) {
+    await this.knex('solicitudes_baja').insert({
+      id: solicitud.id,
+      usuario_id: solicitud.usuarioId,
+      username: solicitud.username,
+      nombre: solicitud.nombre || null,
+      solicitado_por_id: solicitud.solicitadoPorId || null,
+      solicitado_por: solicitud.solicitadoPor || null,
+      motivo: solicitud.motivo,
+      estado: solicitud.estado || 'pendiente',
+      resuelto_por: solicitud.resueltoPor || null,
+      resuelto_en: aFecha(solicitud.resueltoEn),
+      respuesta: solicitud.respuesta || null,
+      creado_en: aFecha(solicitud.creadoEn) || new Date()
+    });
+    return solicitud;
+  }
+
+  async solicitudesBaja({ usuarioId = null, estado = null, limite = 100 } = {}) {
+    const consulta = this.knex('solicitudes_baja').select('*');
+    if (usuarioId) consulta.where('usuario_id', usuarioId);
+    if (estado) consulta.where('estado', estado);
+    const filas = await consulta
+      .orderBy('creado_en', 'desc')
+      .limit(Math.min(Number(limite) || 100, 500));
+    return filas.map((f) => this.#aSolicitudBaja(f));
+  }
+
+  async solicitudBajaPorId(id) {
+    const fila = await this.knex('solicitudes_baja').where({ id }).first();
+    return this.#aSolicitudBaja(fila);
+  }
+
+  async actualizarSolicitudBaja(id, cambios = {}) {
+    const fila = {};
+    if ('estado' in cambios) fila.estado = cambios.estado;
+    if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
+    if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
+    if ('respuesta' in cambios) fila.respuesta = cambios.respuesta ?? null;
+    if (Object.keys(fila).length) {
+      await this.knex('solicitudes_baja').where({ id }).update(fila);
+    }
+    return this.solicitudBajaPorId(id);
+  }
+
+  /* ------------------------- solicitudes de alta -------------------------- */
+
+  #aSolicitudUsuario(fila) {
+    if (!fila) return null;
+    let municipios = [];
+    try {
+      municipios = fila.municipios ? JSON.parse(fila.municipios) : [];
+    } catch {
+      municipios = [];
+    }
+    return {
+      id: fila.id,
+      username: fila.username,
+      nombre: fila.nombre || '',
+      correo: fila.correo || null,
+      telefono: fila.telefono || null,
+      notas: fila.notas || '',
+      municipios: Array.isArray(municipios) ? municipios : [],
+      estado: fila.estado,
+      solicitadoPorId: fila.solicitado_por_id || null,
+      solicitadoPor: fila.solicitado_por || null,
+      resueltoPor: fila.resuelto_por || null,
+      resueltoEn: desdeFecha(fila.resuelto_en),
+      respuesta: fila.respuesta || '',
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearSolicitudUsuario(solicitud) {
+    await this.knex('solicitudes_usuario').insert({
+      id: solicitud.id,
+      username: solicitud.username,
+      nombre: solicitud.nombre,
+      correo: solicitud.correo || null,
+      telefono: solicitud.telefono || null,
+      notas: solicitud.notas || null,
+      municipios: JSON.stringify(solicitud.municipios || []),
+      estado: solicitud.estado || 'pendiente',
+      solicitado_por_id: solicitud.solicitadoPorId || null,
+      solicitado_por: solicitud.solicitadoPor || null,
+      resuelto_por: solicitud.resueltoPor || null,
+      resuelto_en: aFecha(solicitud.resueltoEn),
+      respuesta: solicitud.respuesta || null,
+      creado_en: aFecha(solicitud.creadoEn) || new Date()
+    });
+    return solicitud;
+  }
+
+  async solicitudesUsuario({ estado = null, limite = 100 } = {}) {
+    const consulta = this.knex('solicitudes_usuario').select('*');
+    if (estado) consulta.where('estado', estado);
+    const filas = await consulta
+      .orderBy('creado_en', 'desc')
+      .limit(Math.min(Number(limite) || 100, 500));
+    return filas.map((f) => this.#aSolicitudUsuario(f));
+  }
+
+  async solicitudUsuarioPorId(id) {
+    const fila = await this.knex('solicitudes_usuario').where({ id }).first();
+    return this.#aSolicitudUsuario(fila);
+  }
+
+  async actualizarSolicitudUsuario(id, cambios = {}) {
+    const fila = {};
+    if ('estado' in cambios) fila.estado = cambios.estado;
+    if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
+    if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
+    if ('respuesta' in cambios) fila.respuesta = cambios.respuesta ?? null;
+    if (Object.keys(fila).length) {
+      await this.knex('solicitudes_usuario').where({ id }).update(fila);
+    }
+    return this.solicitudUsuarioPorId(id);
   }
 }

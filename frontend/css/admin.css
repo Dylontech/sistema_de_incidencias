@@ -10,7 +10,7 @@
 }
 .admin-tab {
   padding: 10px 16px; border: none; background: transparent;
-  font-size: 13px; font-weight: 600; color: var(--gris);
+  font-size: 14.5px; font-weight: 600; color: var(--gris);
   border-bottom: 2px solid transparent; margin-bottom: -2px;
   display: inline-flex; align-items: center; gap: 6px;
 }
@@ -18,20 +18,108 @@
 .admin-panel { display: none; }
 .admin-panel.active { display: block; }
 
+/* El panel se puede redimensionar arrastrando la esquina inferior derecha. */
+#modalAdmin .modal-box {
+  resize: both;
+  overflow: hidden;
+  min-width: 360px;
+  min-height: 320px;
+}
+#modalAdmin .modal-head {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.admin-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.admin-head-tools-label {
+  margin-right: 2px;
+}
+.admin-head-tools-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--borde);
+  margin: 0 4px;
+}
+#modalAdmin .admin-panel-compacto { max-width: 760px; max-height: 86vh; }
+#modalAdmin .admin-panel-normal { max-width: 1000px; max-height: 92vh; }
+#modalAdmin .admin-panel-grande { max-width: min(1500px, 96vw); max-height: 96vh; }
+#modalAdmin .admin-panel-tv { max-width: min(2100px, 98vw); max-height: 98vh; }
+
+/* Escala de texto del panel: los mismos botones A−/A/A+ de la barra lateral. */
+html[data-texto='grande'] #modalAdmin .modal-body,
+html[data-texto='grande'] #modalAdmin .admin-tabs { zoom: 1.06; }
+html[data-texto='muy-grande'] #modalAdmin .modal-body,
+html[data-texto='muy-grande'] #modalAdmin .admin-tabs { zoom: 1.12; }
+
+/* Las filas de campos se adaptan a pantallas pequeñas y a etiquetas largas. */
+.admin-panel .filter-row {
+  flex-wrap: wrap;
+}
+.admin-panel .filter-row > * {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.admin-panel .form-group label {
+  overflow-wrap: anywhere;
+}
+
+/* Resumen de una solicitud de informe */
+.detalle-solicitud-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--borde);
+}
+.detalle-solicitud-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.detalle-solicitud-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.detalle-solicitud-ancho {
+  grid-column: 1 / -1;
+}
+.detalle-solicitud-bloque {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow-wrap: anywhere;
+}
+.detalle-solicitud-error {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
 .stats-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px; margin-bottom: 16px;
 }
 .stat-card {
-  background: #fff; border: 1px solid var(--borde);
+  background: var(--superficie); border: 1px solid var(--borde);
   border-radius: 10px; padding: 14px 12px; text-align: center;
 }
 .stat-card .stat-num {
-  font-size: 1.6rem; font-weight: 800;
+  font-size: 1.65rem; font-weight: 800;
   color: var(--primario); line-height: 1.1;
 }
 .stat-card .stat-label {
-  font-size: 10px; color: var(--gris);
+  font-size: 13px; color: var(--texto-suave);
   text-transform: uppercase; letter-spacing: .4px;
   margin-top: 4px;
 }
@@ -41,20 +129,21 @@
 .stat-card.amarillo .stat-num { color: var(--amarillo); }
 
 .data-table {
-  width: 100%; border-collapse: collapse; font-size: 12px;
-  background: #fff; border-radius: 10px; overflow: hidden;
+  width: 100%; border-collapse: collapse; font-size: 14px;
+  background: var(--superficie); color: var(--texto);
+  border-radius: 10px; overflow: hidden;
 }
 .data-table th {
-  background: #f8f9fc; padding: 10px 12px;
-  text-align: left; font-size: 10.5px; font-weight: 700;
-  color: #4a5568; text-transform: uppercase;
+  background: var(--superficie-2); padding: 10px 12px;
+  text-align: left; font-size: 13px; font-weight: 700;
+  color: var(--texto-suave); text-transform: uppercase;
   letter-spacing: .4px; border-bottom: 2px solid var(--borde);
 }
 .data-table td {
-  padding: 9px 12px; border-bottom: 1px solid #f0f4f8;
+  padding: 10px 12px; border-bottom: 1px solid var(--borde);
   vertical-align: middle;
 }
-.data-table tbody tr:hover { background: #f8f9fc; }
+.data-table tbody tr:hover { background: var(--superficie-2); }
 
 /* Accesos rápidos por municipio en la pestaña Municipios. */
 .municipio-acciones {

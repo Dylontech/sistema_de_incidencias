@@ -629,8 +629,173 @@ export const GUIA_TUTORIALES = [
     pasos: [
       paso('#reporteStats', 'Resumen del periodo', 'El modal muestra los totales y la tabla por tipo con el promedio de días.', 'auto'),
       paso('[data-action="reportes:csv"]', 'Exporta los datos', 'Descarga CSV para hoja de cálculo, JSON como respaldo o abre el informe imprimible.', 'abajo')
+    ]  },
+
+  /* --------------------------- permisos (V2.11) --------------------------- */
+  {
+    id: 'permisos-usuarios',
+    titulo: 'Permisos de Usuarios',
+    descripcion: 'Ver, crear, editar, desactivar y consultar contraseñas.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'usuarios',
+    pasos: [
+      paso('#usuariosLista', 'La tabla del personal', 'Cada cuenta muestra su rol, su territorio y si puede escribir. Los ciudadanos no aparecen aquí: solo los gestiona el administrador maestro.', 'auto', { tipo: 'navegar' }),
+      paso('#usuarioPermisos', 'La matriz de permisos', 'Cada módulo tiene cuatro acciones. Pulsa el botón «?» de cualquier casilla para leer qué permite, qué bloquea y un ejemplo real.', 'auto', { tipo: 'demoUsuario', soloAdmin: true }),
+      paso('#btnRolesEspeciales', 'Roles y permisos', 'Aquí ajustas la matriz base de cada rol del sistema, creas roles propios y repartes roles especiales.', 'abajo'),
+      paso('#solicitudesPermisosLista', 'Solicitudes de permisos', 'El personal pide permisos desde «Mi cuenta». Solo quien tiene «Ver solicitudes de permisos» ve esta bandeja.', 'auto'),
+      paso('#solicitudesPasswordLista', 'Solicitudes de contraseña', 'Las peticiones de cambio de contraseña se resuelven aquí: al aprobar se genera una temporal y queda auditada.', 'auto')
     ]
-  }
+  },
+  {
+    id: 'permisos-claves',
+    titulo: 'Permisos de Claves de acceso',
+    descripcion: 'Qué territorio y qué permisos autoriza una clave.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'claves',
+    pasos: [
+      paso('#clavesLista', 'Las claves vigentes', 'Cada clave declara su código, su territorio, los permisos que concede y las sesiones abiertas con ella.', 'auto', { tipo: 'navegar' }),
+      paso('#clavePermisos', 'La clave también recorta permisos', 'Al entrar con una clave, la sesión adopta su territorio y su lista de permisos. Si la clave no los declara, conserva los de la cuenta.', 'auto', { tipo: 'demoClave', soloAdmin: true }),
+      paso('#claveTerritorio', 'Estado y municipios', 'Primero se elige el estado y después el municipio; «Añadir otro estado» repite el proceso.', 'auto'),
+      paso('[data-action="claves:guardar"]', 'Se muestra una sola vez', 'El código se enseña al guardar y no se repite: entrégalo en mano.', 'arriba')
+    ]
+  },
+  {
+    id: 'permisos-tipos',
+    titulo: 'Permisos de Tipos',
+    descripcion: 'Crear y eliminar conceptos del catálogo.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'tipos',
+    pasos: [
+      paso('#tiposLista', 'El catálogo', 'Los tipos base del sistema no se borran; los personalizados sí, siempre que no tengan reportes asociados.', 'auto', { tipo: 'navegar' }),
+      paso('[data-action="tipos:nuevo"]', 'Crear un tipo', 'La demo abre el formulario sin guardar nada: escribe un nombre, un icono y un aviso opcional.', 'abajo', { tipo: 'demoTipo', soloAdmin: true })
+    ]
+  },
+  {
+    id: 'permisos-solicitudes-acceso',
+    titulo: 'Permisos de Solicitudes',
+    descripcion: 'Altas de personal y peticiones de permisos extra.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'solicitudes',
+    pasos: [
+      paso('#solicitudesLista', 'Solicitudes de acceso', 'Llegan desde la pantalla pública de solicitud. Aprobar no crea la cuenta: hace falta la clave y el territorio.', 'auto', { tipo: 'navegar' }),
+      paso('#usuariosLista', 'Solicitudes de permisos', 'Se resuelven en la pestaña Usuarios. Nadie puede aprobar permisos que no tenga: así se evita la escalada.', 'auto')
+    ]
+  },
+  {
+    id: 'permisos-avisos-clave',
+    titulo: 'Permisos de Avisos por clave',
+    descripcion: 'Qué municipios reciben avisos con cada clave.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'avisos-clave',
+    pasos: [
+      paso('#tabAvisosClave', 'Avisos por clave', 'Revocar los avisos no invalida la clave para iniciar sesión; solo deja de notificar.', 'auto', { tipo: 'navegar' }),
+      paso('#avisosClaveLista', 'Subconjunto del territorio', 'Solo se pueden elegir municipios que ya pertenezcan a la clave.', 'auto')
+    ]
+  },
+  {
+    id: 'permisos-incidencias',
+    titulo: 'Permisos de Incidencias y moderación',
+    descripcion: 'Reportar, cambiar estado, resolver, moderar y exportar.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'incidencias',
+    pasos: [
+      paso('#panel-incidencias', 'Trabajo diario', 'Reportar, editar lo propio, cambiar estado y resolver son permisos separados: se puede avanzar sin cerrar.', 'auto', { tipo: 'navegar' }),
+      paso('#moderacionLista', 'Moderación', 'Ocultar una publicación la retira del mapa público. Ver la cola no implica poder ocultar.', 'auto')
+    ]
+  },
+  {
+    id: 'permisos-mapa',
+    titulo: 'Permisos de Mapa y catálogos',
+    descripcion: 'Municipios, fichas, zonas y firmas.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'municipios',
+    pasos: [
+      paso('#municipiosLista', 'Municipios y fichas', 'El funcionario propone la ficha; la aprobación es de administración.', 'auto', { tipo: 'navegar' }),
+      paso('#zonasLista', 'Zonas', 'Las zonas (colonias y comunidades) alimentan la geocerca y los filtros del mapa.', 'auto')
+    ]
+  },
+  {
+    id: 'permisos-soporte',
+    titulo: 'Permisos de Soporte y notificaciones',
+    descripcion: 'Responder, atender la cola y configurar avisos.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'tickets',
+    pasos: [
+      paso('#ticketsAdminLista', 'Responder no es atender', 'Responder permite contestar un ticket; atender abre la cola completa, asigna, prioriza y cierra.', 'auto', { tipo: 'navegar' }),
+      paso('#notificacionesAdminLista', 'Configurar avisos', 'Decide qué eventos avisan a cada rol. No cambia las preferencias personales de cada cuenta.', 'auto')
+    ]
+  },
+  {
+    id: 'permisos-monitoreo',
+    titulo: 'Permisos de Monitoreo y analítica',
+    descripcion: 'Estadísticas, sesiones, auditoría e informes.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'stats',
+    pasos: [
+      paso('#statsTerritorio', 'Estadísticas con alcance', 'El selector solo ofrece el territorio de la sesión. Pedir otro por la API responde 403, no ceros.', 'auto', { tipo: 'demoStats', soloAdmin: true }),
+      paso('#sesionesLista', 'Sesiones y auditoría', 'Monitoreo muestra las sesiones abiertas; la auditoría registra las escrituras y las consultas de contraseña.', 'auto')
+    ]
+  },
+  {
+    id: 'permisos-sistema',
+    titulo: 'Permisos de Administración del sistema',
+    descripcion: 'Configuración, respaldos, legal, simulador y publicidad.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'configuracion',
+    pasos: [
+      paso('#panel-configuracion', 'Configuración y respaldos', 'Los límites, los márgenes del informe y el logo se cambian aquí. Restaurar un respaldo sobrescribe datos.', 'auto', { tipo: 'navegar' }),
+      paso('#panel-publicidad', 'Simulador y publicidad', 'El simulador no envía correos reales ni cuenta en estadísticas; la publicidad genera QR y campañas.', 'auto')
+    ]
+  },
+  {
+    id: 'panel-roles',
+    titulo: 'Roles del sistema, propios y especiales',
+    descripcion: 'Editar matrices, crear roles y restablecer a fábrica.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'usuarios',
+    pasos: [
+      paso('#btnRolesEspeciales', 'Abre «Roles y permisos»', 'Verás tres listas: roles del sistema, roles propios y roles especiales.', 'abajo', { tipo: 'navegar' }),
+      paso('#rolesIntegradosLista', 'Roles del sistema', 'Edita la matriz de un rol integrado o restablécelo a los permisos de fábrica.', 'auto'),
+      paso('#rolesPropiosLista', 'Roles propios', 'Un rol propio hereda el comportamiento de una plantilla (funcionario, auditor…) y añade su matriz.', 'auto'),
+      paso('#rolEspecialPermisos', 'La matriz del rol', 'Los cambios se aplican a las cuentas en su siguiente petición; no hace falta reiniciar el sistema.', 'auto'),
+      paso('#rolEspecialAplicar', 'Aplicar a la cuenta', 'Al guardar desde el alta de usuario, «Aplicar a esta cuenta» vuelve al formulario con los datos intactos.', 'arriba')
+    ]
+  },
+  {
+    id: 'panel-password',
+    titulo: 'Consultar y restablecer contraseñas',
+    descripcion: 'Acceso auditado a la contraseña cifrada.',
+    categoria: 'Permisos',
+    roles: ADMIN,
+    vista: 'panel',
+    tab: 'usuarios',
+    pasos: [
+      paso('#usuariosLista', 'El botón de la llave', 'Aparece solo con el permiso «Consultar y restablecer contraseñas». La contraseña se muestra difuminada.', 'auto', { tipo: 'navegar' }),
+      paso('#passwordUsuarioTexto', 'La consulta queda en auditoría', 'Cada revelado se registra con tu usuario, la fecha y el motivo. La contraseña nunca se guarda en la bitácora.', 'auto'),
+      paso('[data-action="password:restablecer"]', 'Restablecer', 'Genera una temporal legible. Las cuentas anteriores a V2.11 no tienen copia cifrada: solo se pueden restablecer.', 'arriba')
+    ]  }
 ];
 
 const PERMISO_POR_GUIA = {
@@ -648,10 +813,10 @@ const PERMISO_POR_GUIA = {
   'panel-incidencias': 'ver_incidencias_panel',
   'panel-tipos': 'ver_tipos',
   'panel-municipios': 'ver_municipios_panel',
-  'panel-claves': 'gestionar_claves',
+  'panel-claves': 'ver_claves',
   'panel-zonas': 'ver_zonas',
   'panel-usuarios': 'ver_usuarios',
-  'panel-solicitudes': 'gestionar_usuarios',
+  'panel-solicitudes': 'ver_solicitudes_acceso',
   'panel-tickets': 'atender_tickets',
   'panel-sesiones': 'ver_monitoreo',
   'panel-notificaciones': 'configurar_notificaciones',
@@ -663,6 +828,18 @@ const PERMISO_POR_GUIA = {
   'panel-respaldos': 'gestionar_respaldos',
   'panel-simulador': 'usar_simulador',
   'panel-publicidad': 'gestionar_publicidad',
+  'panel-roles': 'ver_usuarios',
+  'panel-password': 'revelar_password_usuarios',
+  'permisos-usuarios': 'ver_usuarios',
+  'permisos-claves': 'ver_claves',
+  'permisos-tipos': 'ver_tipos',
+  'permisos-solicitudes-acceso': 'ver_solicitudes_acceso',
+  'permisos-avisos-clave': 'ver_avisos_clave',
+  'permisos-incidencias': 'ver_incidencias_panel',
+  'permisos-mapa': 'ver_municipios_panel',
+  'permisos-soporte': 'atender_tickets',
+  'permisos-monitoreo': 'ver_metricas',
+  'permisos-sistema': 'gestionar_configuracion',
   monitoreo: 'ver_monitoreo',
   'informes-panel': 'exportar',
   'soporte-panel': 'atender_tickets'

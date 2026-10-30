@@ -10,6 +10,7 @@ import { constants as fsConstants, promises as fsPromesas } from 'node:fs';
 import { AlmacenJson } from './almacen.js';
 import { config } from '../../config/index.js';
 import { ROLES_PERSONAL } from '../../config/constantes.js';
+import { rolesIntegradosSemilla } from '../../config/roles.js';
 import { municipiosSemilla, zonasSemilla, tiposSemilla, usuariosSemilla } from '../../config/semilla.js';
 import { hashearPassword } from '../../models/usuario.model.js';
 import { coincideTexto } from '../../models/incidencia.model.js';
@@ -154,6 +155,11 @@ export class RepositorioJson {
     return this.#leerCatalogo('municipios', municipiosSemilla);
   }
 
+  async municipiosLigeros() {
+    const lista = await this.todosMunicipios();
+    return lista.map(({ id, nombre, estado }) => ({ id, nombre, estado }));
+  }
+
   async municipioPorId(id) {
     const lista = await this.todosMunicipios();
     return lista.find((m) => m.id === id) || null;
@@ -259,15 +265,25 @@ export class RepositorioJson {
   /* -------------------------------- usuarios ------------------------------- */
 
   async todosLosUsuarios() {
-    const [usuarios, roles] = await Promise.all([
+    const [usuarios, rolesEspeciales, roles] = await Promise.all([
       this.almacen.leer('usuarios', []),
-      this.almacen.leer('roles_personalizados', [])
+      this.almacen.leer('roles_personalizados', []),
+      this.roles()
     ]);
-    const porId = new Map(roles.map((r) => [r.id, r]));
-    return usuarios.map((u) => ({
-      ...u,
-      rolPersonalizado: u.rolPersonalizadoId ? porId.get(u.rolPersonalizadoId) || null : null
-    }));
+    const porId = new Map(rolesEspeciales.map((r) => [r.id, r]));
+    const rolPorId = new Map(roles.map((r) => [r.id, r]));
+    const rolPorClave = new Map(
+      roles.filter((r) => r.tipo === 'integrado').map((r) => [r.clave, r])
+    );
+    return usuarios.map((u) => {
+      const { passwordCifrada, ...resto } = u;
+      return {
+        ...resto,
+        rolPersonalizado: u.rolPersonalizadoId ? porId.get(u.rolPersonalizadoId) || null : null,
+        rolPropio: u.rolPropioId ? rolPorId.get(u.rolPropioId) || null : null,
+        rolConfig: rolPorClave.get(u.rol) || null
+      };
+    });
   }
 
   /** Personal activo por rol (evita cargar ciudadanos en el aviso de incidencias). */
@@ -319,6 +335,12 @@ export class RepositorioJson {
     return lista.find((u) => u.id === id) || null;
   }
 
+  /** Contraseña cifrada (AES-256-GCM) para el revelado auditado. */
+  async passwordCifradaDeUsuario(id) {
+    const lista = await this.almacen.leer('usuarios', []);
+    return lista.find((u) => u.id === id)?.passwordCifrada || null;
+  }
+
   async crearUsuario(usuario) {
     return this.almacen.transaccion('usuarios', [], (lista) => ({
       datos: [...lista, usuario],
@@ -337,7 +359,8 @@ export class RepositorioJson {
       const actualizado = { ...lista[indice], ...cambios, id: lista[indice].id };
       const datos = lista.slice();
       datos[indice] = actualizado;
-      return { datos, resultado: actualizado };
+      const { passwordCifrada, ...publico } = actualizado;
+      return { datos, resultado: publico };
     });
   }
 
@@ -483,6 +506,10 @@ export class RepositorioJson {
     return claves
       .map((clave) => ({
         ...clave,
+        notificacionesActivas: clave.notificacionesActivas !== false,
+        permisos: Array.isArray(clave.permisos)
+          ? [...new Set(clave.permisos.filter(Boolean).map(String))]
+          : null,
         municipios: municipios
           .filter((m) => m.claveId === clave.id)
           .map((m) => m.municipioId),
@@ -495,6 +522,11 @@ export class RepositorioJson {
     const objetivo = String(codigo || '').trim().toUpperCase();
     const claves = await this.todasLasClaves();
     return claves.find((c) => String(c.codigo).toUpperCase() === objetivo) || null;
+  }
+
+  async claveAccesoPorId(id) {
+    const claves = await this.todasLasClaves();
+    return claves.find((c) => c.id === String(id || '')) || null;
   }
 
   async crearClaveAcceso(clave) {
@@ -514,7 +546,13 @@ export class RepositorioJson {
         ...(clave.estados || []).map((estado) => ({ claveId: clave.id, estado }))
       ]
     }));
-    return { ...clave, municipios: clave.municipios || [], estados: clave.estados || [] };
+    return {
+      ...clave,
+      municipios: clave.municipios || [],
+      estados: clave.estados || [],
+      notificacionesActivas: clave.notificacionesActivas !== false,
+      permisos: Array.isArray(clave.permisos) ? [...clave.permisos] : null
+    };
   }
 
   async revocarClaveAcceso(id) {
@@ -543,6 +581,9 @@ export class RepositorioJson {
     await this.almacen.transaccion('clave_acceso_estados', [], (lista) => ({
       datos: lista.filter((e) => e.claveId !== id)
     }));
+    await this.almacen.transaccion('clave_notificacion_municipios', [], (lista) => ({
+      datos: lista.filter((m) => m.claveId !== id)
+    }));
     return clave;
   }
 
@@ -570,6 +611,65 @@ export class RepositorioJson {
         username: usuario?.username || uso.username || null,
         nombre: usuario?.nombre || uso.nombre || null
       });
+    }
+    return mapa;
+  }
+
+  /** Configuración de avisos de varias claves: { [claveId]: { activo, municipios } }. */
+  async notificacionesDeClaves(ids = []) {
+    const limpios = new Set((ids || []).filter(Boolean).map(String));
+    if (!limpios.size) return {};
+    const [claves, filas] = await Promise.all([
+      this.almacen.leer('claves_acceso', []),
+      this.almacen.leer('clave_notificacion_municipios', [])
+    ]);
+    const mapa = {};
+    for (const clave of claves) {
+      if (!limpios.has(String(clave.id))) continue;
+      mapa[clave.id] = {
+        activo: clave.notificacionesActivas !== false,
+        municipios: filas
+          .filter((fila) => fila.claveId === clave.id)
+          .map((fila) => fila.municipioId)
+      };
+    }
+    return mapa;
+  }
+
+  /** Guarda el permiso de avisos y, si se indica, reemplaza su alcance. */
+  async guardarNotificacionesClave(id, { activo = true, municipios } = {}) {
+    await this.almacen.transaccion('claves_acceso', [], (lista) => {
+      const indice = lista.findIndex((c) => c.id === id);
+      if (indice === -1) return { datos: lista };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], notificacionesActivas: activo !== false };
+      return { datos: copia };
+    });
+    if (Array.isArray(municipios)) {
+      await this.almacen.transaccion('clave_notificacion_municipios', [], (lista) => ({
+        datos: [
+          ...lista.filter((fila) => fila.claveId !== id),
+          ...[...new Set(municipios.map(String))].map((municipioId) => ({
+            claveId: id,
+            municipioId
+          }))
+        ]
+      }));
+    }
+    return (await this.notificacionesDeClaves([id]))[id] || { activo: true, municipios: [] };
+  }
+
+  /** clave_id de la sesión abierta más reciente de cada usuario. */
+  async clavesDeSesionesActivas(usuarioIds = []) {
+    const limpios = new Set((usuarioIds || []).filter(Boolean).map(String));
+    if (!limpios.size) return {};
+    const sesiones = await this.almacen.leer('sesiones_usuario', []);
+    const mapa = {};
+    const ordenadas = sesiones
+      .filter((s) => limpios.has(String(s.usuarioId)) && s.claveId && !s.cerradaEn)
+      .sort((a, b) => String(b.ultimaActividad).localeCompare(String(a.ultimaActividad)));
+    for (const sesion of ordenadas) {
+      if (!mapa[sesion.usuarioId]) mapa[sesion.usuarioId] = sesion.claveId;
     }
     return mapa;
   }
@@ -2559,6 +2659,162 @@ export class RepositorioJson {
 
   async actualizarSolicitudPermiso(id, cambios = {}) {
     return this.almacen.transaccion('solicitudes_permisos', [], (lista) => {
+      const indice = lista.findIndex((s) => s.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* ------------------ roles integrados y roles propios -------------------- */
+
+  async roles() {
+    const lista = await this.almacen.leer('roles', rolesIntegradosSemilla());
+    return lista
+      .slice()
+      .sort(
+        (a, b) =>
+          (Number(a.orden) || 100) - (Number(b.orden) || 100) ||
+          String(a.etiqueta).localeCompare(String(b.etiqueta), 'es')
+      );
+  }
+
+  async rolPorId(id) {
+    const lista = await this.roles();
+    return lista.find((r) => r.id === id) || null;
+  }
+
+  async rolPorClave(clave) {
+    const lista = await this.roles();
+    return lista.find((r) => r.clave === clave) || null;
+  }
+
+  async crearRol(rol) {
+    return this.almacen.transaccion('roles', rolesIntegradosSemilla(), (lista) => ({
+      datos: [...lista, rol],
+      resultado: rol
+    }));
+  }
+
+  async actualizarRol(id, cambios = {}) {
+    return this.almacen.transaccion('roles', rolesIntegradosSemilla(), (lista) => {
+      const indice = lista.findIndex((r) => r.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  async eliminarRol(id) {
+    const resultado = await this.almacen.transaccion(
+      'roles',
+      rolesIntegradosSemilla(),
+      (lista) => {
+        const filtrados = lista.filter((r) => r.id !== id);
+        return { datos: filtrados, resultado: filtrados.length !== lista.length };
+      }
+    );
+    await this.almacen.transaccion('usuarios', [], (lista) => ({
+      datos: lista.map((u) =>
+        u.rolPropioId === id ? { ...u, rolPropioId: null } : u
+      ),
+      resultado: null
+    }));
+    return resultado;
+  }
+
+  /* ------------------ solicitudes de cambio de contraseña ------------------ */
+
+  async crearSolicitudPassword(solicitud) {
+    return this.almacen.transaccion('solicitudes_password', [], (lista) => ({
+      datos: [...lista, solicitud],
+      resultado: solicitud
+    }));
+  }
+
+  async solicitudesPassword({ usuarioId = null, estado = null, limite = 100 } = {}) {
+    const lista = await this.almacen.leer('solicitudes_password', []);
+    return lista
+      .filter((s) => !usuarioId || s.usuarioId === usuarioId)
+      .filter((s) => !estado || s.estado === estado)
+      .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn))
+      .slice(0, Math.min(Number(limite) || 100, 500));
+  }
+
+  async solicitudPasswordPorId(id) {
+    const lista = await this.almacen.leer('solicitudes_password', []);
+    return lista.find((s) => s.id === id) || null;
+  }
+
+  async actualizarSolicitudPassword(id, cambios = {}) {
+    return this.almacen.transaccion('solicitudes_password', [], (lista) => {
+      const indice = lista.findIndex((s) => s.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* --------------------------- solicitudes de baja ------------------------- */
+
+  async crearSolicitudBaja(solicitud) {
+    return this.almacen.transaccion('solicitudes_baja', [], (lista) => ({
+      datos: [...lista, solicitud],
+      resultado: solicitud
+    }));
+  }
+
+  async solicitudesBaja({ usuarioId = null, estado = null, limite = 100 } = {}) {
+    const lista = await this.almacen.leer('solicitudes_baja', []);
+    return lista
+      .filter((s) => !usuarioId || s.usuarioId === usuarioId)
+      .filter((s) => !estado || s.estado === estado)
+      .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn))
+      .slice(0, Math.min(Number(limite) || 100, 500));
+  }
+
+  async solicitudBajaPorId(id) {
+    const lista = await this.almacen.leer('solicitudes_baja', []);
+    return lista.find((s) => s.id === id) || null;
+  }
+
+  async actualizarSolicitudBaja(id, cambios = {}) {
+    return this.almacen.transaccion('solicitudes_baja', [], (lista) => {
+      const indice = lista.findIndex((s) => s.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* --------------------------- solicitudes de alta ------------------------- */
+
+  async crearSolicitudUsuario(solicitud) {
+    return this.almacen.transaccion('solicitudes_usuario', [], (lista) => ({
+      datos: [...lista, solicitud],
+      resultado: solicitud
+    }));
+  }
+
+  async solicitudesUsuario({ estado = null, limite = 100 } = {}) {
+    const lista = await this.almacen.leer('solicitudes_usuario', []);
+    return lista
+      .filter((s) => !estado || s.estado === estado)
+      .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn))
+      .slice(0, Math.min(Number(limite) || 100, 500));
+  }
+
+  async solicitudUsuarioPorId(id) {
+    const lista = await this.almacen.leer('solicitudes_usuario', []);
+    return lista.find((s) => s.id === id) || null;
+  }
+
+  async actualizarSolicitudUsuario(id, cambios = {}) {
+    return this.almacen.transaccion('solicitudes_usuario', [], (lista) => {
       const indice = lista.findIndex((s) => s.id === id);
       if (indice === -1) return { datos: lista, resultado: null };
       const copia = lista.slice();

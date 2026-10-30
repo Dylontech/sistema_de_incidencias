@@ -43,7 +43,13 @@ function ejecutar(nombre, evento, elemento) {
   return resultado;
 }
 
+const conectados = new WeakSet();
+
 export function conectarDelegacion(raiz = document) {
+  // Una misma raíz no debe escuchar dos veces: los botones de tema de las
+  // páginas públicas conviven con su script propio.
+  if (conectados.has(raiz)) return;
+  conectados.add(raiz);
   raiz.addEventListener('click', (evento) => {
     const elemento = evento.target.closest?.('[data-action]');
     if (!elemento || elemento.disabled) return;

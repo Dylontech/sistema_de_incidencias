@@ -3,6 +3,20 @@ import { $, esc, textoAntiguedad, etiquetaEstado, fmtFechaCorta, aplicarEstilosD
 import { crearSelectorTerritorial } from '../core/selector-territorial.js';
 import { crearSelectorTerritorialPorEstado } from '../core/selector-territorial-bloques.js';
 import { renderListaTipos } from './tipos.view.js';
+import {
+  ACCIONES_CRUD,
+  ETIQUETAS_PERMISO,
+  GRUPOS_PERMISOS,
+  PERMISOS_CRUD,
+  PERMISOS_LISTA,
+  expandirPermisos,
+  permisosBaseDeRol,
+  permisosEfectivosDeRol
+} from '../data/permisos.js';
+import { PERMISOS_AYUDA } from '../data/permisos-ayuda.js';
+import { store } from '../core/store.js';
+
+export { ETIQUETAS_PERMISO, PERMISOS_LISTA };
 
 export function activarTab(nombre) {
   document.querySelectorAll('#modalAdmin .admin-panel').forEach((p) => p.classList.remove('active'));
@@ -276,13 +290,32 @@ export function filtroMunicipiosActivo() {
   return Boolean($('municipiosBuscar')?.value || $('municipiosEstado')?.value);
 }
 
-export function renderMunicipios(municipios = [], activoId) {
+/**
+ * @param {Array} municipios resumen por municipio.
+ * @param {string} activoId municipio activo.
+ * @param {Object} opciones
+ * @param {boolean} opciones.municipal la sesión solo gestiona sus municipios:
+ *   sin selector de municipio, sin filtro por estado y sin el grupo de entidad.
+ */
+export function renderMunicipios(municipios = [], activoId, opciones = {}) {
+  // Un funcionario de un solo municipio no debe ver los controles nacionales.
+  const municipal =
+    opciones.municipal ??
+    (store.estado.alcance?.modo === 'municipios' && (municipios || []).length <= 1);
+
   // `aplicarMunicipio` vuelve a pintar con el catálogo simple; si ya hay un
   // resumen cargado se conserva para no borrar los conteos.
   if (municipios.some((m) => 'incidenciasAbiertas' in m)) {
     moduleState.resumenMunicipios = municipios;
   } else if (moduleState.resumenMunicipios) {
     municipios = moduleState.resumenMunicipios;
+  }
+  if (municipal) {
+    // Un funcionario de un solo municipio no debe poder cambiar de municipio
+    // desde aquí: se queda con el suyo aunque el resumen traiga más.
+    const propio = String(activoId || municipios[0]?.id || '');
+    const soloElPropio = municipios.filter((m) => String(m.id) === propio);
+    if (soloElPropio.length) municipios = soloElPropio;
   }
 
   const selector = $('municipioSelect');
@@ -316,7 +349,7 @@ export function renderMunicipios(municipios = [], activoId) {
   }
 
   const texto = normalizarBusqueda($('municipiosBuscar')?.value);
-  const estado = filtroEstado?.value || '';
+  const estado = municipal ? '' : filtroEstado?.value || '';
   const visibles = municipios.filter(
     (m) =>
       (!estado || m.estado === estado) &&
@@ -333,6 +366,14 @@ export function renderMunicipios(municipios = [], activoId) {
 
   contenedor.innerHTML = visibles.length
     ? `
+    ${
+      municipal
+        ? `<p class="campo-nota u-mb-8">
+            Esta es la ficha de tu municipio. Actualiza sus datos con el botón «Ficha»;
+            el cambio queda pendiente de aprobación de la administración.
+          </p>`
+        : ''
+    }
     <div class="u-scroll-x">
       <table class="data-table">
         <thead>
@@ -343,16 +384,20 @@ export function renderMunicipios(municipios = [], activoId) {
             <th title="Sugerencias pendientes">Sugerencias</th>
             <th title="Personal asignado">Personal</th>
             <th>Ficha</th>
-            <th>Ir a</th>
+            ${municipal ? '' : '<th>Ir a</th>'}
           </tr>
         </thead>
         <tbody>
           ${[...porEstado.entries()]
             .map(
               ([nombreEstado, lista]) => `
-              <tr class="municipios-grupo"><td colspan="8">
+              ${
+                municipal
+                  ? ''
+                  : `<tr class="municipios-grupo"><td colspan="8">
                 <i class="bi bi-geo-alt-fill"></i> ${esc(nombreEstado)} · ${lista.length} municipio(s)
-              </td></tr>
+              </td></tr>`
+              }
               ${lista
                 .map(
                   (m) => `
@@ -380,7 +425,10 @@ export function renderMunicipios(municipios = [], activoId) {
                     </button>
                   </td>
                   <td class="municipio-acciones">
-                    <button class="btn btn-sm btn-outline" data-action="admin:irMunicipio" data-id="${esc(m.id)}" data-valor="incidencias" title="Ver incidencias de este municipio">
+                    ${
+                      municipal
+                        ? ''
+                        : `<button class="btn btn-sm btn-outline" data-action="admin:irMunicipio" data-id="${esc(m.id)}" data-valor="incidencias" title="Ver incidencias de este municipio">
                       <i class="bi bi-list-ul"></i>
                     </button>
                     <button class="btn btn-sm btn-outline" data-action="admin:irMunicipio" data-id="${esc(m.id)}" data-valor="tickets" title="Ver tickets de este municipio">
@@ -391,7 +439,8 @@ export function renderMunicipios(municipios = [], activoId) {
                     </button>
                     <button class="btn btn-sm btn-outline" data-action="admin:irMunicipio" data-id="${esc(m.id)}" data-valor="usuarios" title="Ver personal de este municipio">
                       <i class="bi bi-people-fill"></i>
-                    </button>
+                    </button>`
+                    }
                   </td>
                 </tr>`
                 )
@@ -442,31 +491,65 @@ export function renderListaRoles(roles = []) {
 export function renderPermisosRol(permisos = []) {
   const contenedor = $('rolEspecialPermisos');
   if (!contenedor) return;
-  const activos = new Set(permisos);
-  contenedor.innerHTML = PERMISOS_LISTA.map(
-    (permiso) =>
-      `<label class="check-line"><input type="checkbox" data-permiso="${permiso}"${
-        activos.has(permiso) ? ' checked' : ''
-      }><span>${ETIQUETAS_PERMISO[permiso]}</span></label>`
-  ).join('');
+  const activos = new Set(expandirPermisos(permisos));
+  contenedor.innerHTML = htmlPermisos(activos);
 }
 
-export function prepararFormRol(rol = null) {
-  $('rolEspecialId').value = rol?.id || '';
-  $('rolEspecialNombre').value = rol?.nombre || '';
+export function prepararFormRol(rol = null, { tipo = null } = {}) {
+  const clase = tipo || rol?.tipo || 'especial';
+  const id = $('rolEspecialId');
+  if (!id) return;
+  $('rolEspecialTipo').value = clase;
+  id.value = rol?.id || '';
+  $('rolEspecialNombre').value = rol?.nombre || rol?.etiqueta || '';
+  $('rolEspecialNombre').readOnly = clase === 'integrado';
   $('rolEspecialDescripcion').value = rol?.descripcion || '';
-  $('rolEspecialBase').value = rol?.rolBase || 'funcionario';
+  $('rolEspecialBase').value = rol?.rolBase || rol?.rolPlantilla || 'funcionario';
+  // La plantilla de un rol del sistema no se puede cambiar, pero el selector
+  // se vuelve a habilitar al editar cualquier otro rol.
+  $('rolEspecialBase').disabled = clase === 'integrado';
+  $('rolEspecialBaseBox')?.classList.toggle('u-oculto', false);
+  const notaBase = $('rolEspecialBaseNota');
+  if (notaBase) {
+    notaBase.textContent =
+      clase === 'integrado'
+        ? 'La plantilla de un rol del sistema no se cambia; solo su matriz de permisos.'
+        : 'El rol hereda de esta plantilla su comportamiento y su alcance.';
+    notaBase.classList.remove('u-oculto');
+  }
   $('rolEspecialActivo').checked = rol ? rol.activo !== false : true;
+  $('rolEspecialActivoBox')?.classList.toggle('u-oculto', clase === 'integrado');
+  $('rolEspecialTerritorioBox')?.classList.toggle('u-oculto', clase !== 'propio');
+  if ($('rolEspecialTerritorio')) {
+    $('rolEspecialTerritorio').value = rol?.territorio || 'municipios';
+  }
   renderPermisosRol(rol?.permisos || []);
-  $('rolEspecialFormTitulo').textContent = rol ? 'Editar rol' : 'Nuevo rol';
+  $('rolEspecialFormTitulo').textContent =
+    clase === 'integrado'
+      ? `Permisos de ${rol?.etiqueta || 'rol del sistema'}`
+      : clase === 'propio'
+        ? rol
+          ? 'Editar rol propio'
+          : 'Nuevo rol propio'
+        : rol
+          ? 'Editar rol especial'
+          : 'Nuevo rol especial';
+  $('rolEspecialAplicar')?.classList.add('u-oculto');
+  // Al editar, el formulario está debajo de las listas: se lleva a la vista
+  // para que el clic en «Editar permisos» muestre algo.
+  if (rol?.id) {
+    document.getElementById('rolEspecialFormTitulo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 export function valoresRolForm() {
   return {
     id: $('rolEspecialId')?.value || null,
+    tipo: $('rolEspecialTipo')?.value || 'especial',
     nombre: $('rolEspecialNombre')?.value.trim() || '',
     descripcion: $('rolEspecialDescripcion')?.value.trim() || '',
     rolBase: $('rolEspecialBase')?.value || 'funcionario',
+    territorio: $('rolEspecialTerritorio')?.value || 'municipios',
     activo: $('rolEspecialActivo')?.checked !== false,
     permisos: [...document.querySelectorAll('#rolEspecialPermisos input[data-permiso]')]
       .filter((c) => c.checked)
@@ -475,7 +558,311 @@ export function valoresRolForm() {
 }
 
 export function rolPorId(id) {
-  return (moduleState.rolesEspeciales || []).find((r) => r.id === id) || null;
+  // Los roles especiales usan id de texto y los del sistema/propios usan id
+  // numérico: `dataset.id` siempre llega como cadena, así que se comparan
+  // ambos como texto.
+  return (moduleState.rolesEspeciales || []).find((r) => String(r.id) === String(id)) || null;
+}
+
+/** Abre el formulario de rol desde el alta de usuario, con su plantilla. */
+export function prepararRolDesdeUsuario(plantilla = 'funcionario', tipo = 'especial') {
+  prepararFormRol(null, { tipo });
+  const base = $('rolEspecialBase');
+  if (base) base.value = plantilla;
+  $('rolEspecialFormTitulo').textContent =
+    tipo === 'propio' ? 'Nuevo rol propio para esta cuenta' : 'Nuevo rol especial para esta cuenta';
+}
+
+/** Guarda el rol recién creado y muestra «Aplicar a esta cuenta». */
+export function ofrecerAplicarRol(rol = {}) {
+  moduleState.rolRecienCreado = rol;
+  $('rolEspecialAplicar')?.classList.remove('u-oculto');
+  $('rolEspecialFormTitulo').textContent = `Rol «${rol.etiqueta || rol.nombre}» guardado`;
+}
+
+export function rolRecienCreado() {
+  return moduleState.rolRecienCreado || null;
+}
+
+/**
+ * Aplica el rol al formulario del alta sin tocar el resto de campos: el modal
+ * de usuario sigue abierto detrás y conserva lo ya escrito.
+ */
+export function aplicarRolAlFormulario(rol = {}) {
+  const selector = $('usuarioRol');
+  if (!selector || !rol?.id) return;
+  if (rol.tipo === 'propio') {
+    renderRolesPropiosEnSelect(rol.id);
+    selector.value = `propio:${rol.id}`;
+    selector.disabled = false;
+    renderPermisosCuenta(null);
+    actualizarNotaMunicipioUsuario();
+  } else {
+    // Rol especial: se vuelve a pintar el selector y se deja marcado.
+    renderSelectRolEspecial(rol.id);
+  }
+  moduleState.rolRecienCreado = null;
+}
+
+export function rolSistemaPorId(id) {
+  return (moduleState.rolesIntegrados || []).find((r) => String(r.id) === String(id)) || null;
+}
+
+export function rolPropioPorId(id) {
+  return (moduleState.rolesPropios || []).find((r) => String(r.id) === String(id)) || null;
+}
+
+/** Lista de roles del sistema (matriz editable). */
+export function renderRolesSistema(roles = []) {
+  moduleState.rolesIntegrados = roles;
+  const contenedor = $('rolesIntegradosLista');
+  if (!contenedor) return;
+  if (!roles.length) {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar los roles del sistema.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Rol</th><th>Territorio</th><th>Permisos</th><th>Cuentas</th><th></th></tr></thead>
+        <tbody>
+          ${roles
+            .map(
+              (r) => `<tr>
+                <td><strong>${esc(r.etiqueta)}</strong><div class="campo-nota">${esc(r.clave)}</div></td>
+                <td>${esc(r.territorio)}</td>
+                <td>${(r.permisos || []).length}</td>
+                <td>${r.cuentas ?? 0}</td>
+                <td class="u-acciones-tabla">
+                  <button class="btn btn-outline btn-sm" data-action="roles:editarSistema" data-id="${esc(r.id)}" title="Editar permisos"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-outline btn-sm" data-action="roles:restablecer" data-id="${esc(r.id)}" title="Restablecer a fábrica"><i class="bi bi-arrow-counterclockwise"></i></button>
+                </td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Lista de roles propios (los que crea el administrador maestro). */
+export function renderRolesPropios(roles = []) {
+  moduleState.rolesPropios = roles;
+  const contenedor = $('rolesPropiosLista');
+  if (!contenedor) return;
+  if (!roles.length) {
+    contenedor.innerHTML =
+      '<p class="campo-nota">Aún no hay roles propios. Crea uno con el formulario de abajo.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Rol</th><th>Plantilla</th><th>Territorio</th><th>Permisos</th><th>Cuentas</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${roles
+            .map(
+              (r) => `<tr>
+                <td><strong>${esc(r.etiqueta)}</strong><div class="campo-nota">${esc(r.descripcion || '')}</div></td>
+                <td>${esc(r.rolPlantilla)}</td>
+                <td>${esc(r.territorio)}</td>
+                <td>${(r.permisos || []).length}</td>
+                <td>${r.cuentas ?? 0}</td>
+                <td><span class="inc-badge badge-${r.activo ? 'verde' : 'gris'}">${r.activo ? 'Activo' : 'Inactivo'}</span></td>
+                <td class="u-acciones-tabla">
+                  <button class="btn btn-outline btn-sm" data-action="roles:editarPropio" data-id="${esc(r.id)}" title="Editar"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="roles:eliminarPropio" data-id="${esc(r.id)}" title="Eliminar"><i class="bi bi-trash3"></i></button>
+                </td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Solicitudes de cambio de contraseña (solo administración). */
+export function renderSolicitudesPassword(solicitudes = []) {
+  const contenedor = $('solicitudesPasswordLista');
+  if (!contenedor) return;
+  if (!solicitudes.length) {
+    contenedor.innerHTML =
+      '<p class="campo-nota">No hay solicitudes de contraseña pendientes ni recientes.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta</th><th>Pidió</th><th>Motivo</th><th>Estado</th><th>Fecha</th><th></th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr data-solicitud="${esc(s.id)}">
+                <td><strong>${esc(s.nombre || s.username)}</strong><div class="campo-nota">${esc(s.username)}</div></td>
+                <td>${esc(
+                  s.solicitadoPor && s.solicitadoPor !== s.username ? s.solicitadoPor : 'La propia cuenta'
+                )}</td>
+                <td>${esc(s.motivo)}${
+                  s.respuesta ? `<div class="campo-nota">Respuesta: ${esc(s.respuesta)}</div>` : ''
+                }</td>
+                <td><span class="inc-badge badge-${
+                  s.estado === 'resuelta' ? 'verde' : s.estado === 'rechazada' ? 'rojo' : 'amarillo'
+                }">${esc(s.estado)}</span></td>
+                <td>${fmtFechaCorta(s.creadoEn)}</td>
+                <td class="u-acciones-tabla">
+                  ${
+                    s.estado === 'pendiente'
+                      ? `<button class="btn btn-success btn-sm" data-action="password:aprobarSolicitud" data-id="${esc(s.id)}" title="Restablecer contraseña"><i class="bi bi-check2"></i></button>
+                         <button class="btn btn-danger btn-sm" data-action="password:rechazarSolicitud" data-id="${esc(s.id)}" title="Rechazar"><i class="bi bi-x"></i></button>`
+                      : ''
+                  }
+                </td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Solicitudes de baja de cuentas (solo administración). */
+export function renderSolicitudesBaja(solicitudes = []) {
+  const contenedor = $('solicitudesBajaLista');
+  if (!contenedor) return;
+  if (!solicitudes.length) {
+    contenedor.innerHTML =
+      '<p class="campo-nota">No hay solicitudes de baja pendientes ni recientes.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta</th><th>Pidió</th><th>Motivo</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr data-solicitud="${esc(s.id)}">
+                <td><strong>${esc(s.nombre || s.username)}</strong><div class="campo-nota">${esc(s.username)}</div></td>
+                <td>${esc(s.solicitadoPor || '—')}</td>
+                <td>${esc(s.motivo)}${
+                  s.respuesta ? `<div class="campo-nota">Respuesta: ${esc(s.respuesta)}</div>` : ''
+                }</td>
+                <td><span class="inc-badge badge-${
+                  s.estado === 'aprobada' ? 'verde' : s.estado === 'rechazada' ? 'rojo' : 'amarillo'
+                }">${esc(s.estado)}</span></td>
+                <td class="u-acciones-tabla">
+                  ${
+                    s.estado === 'pendiente'
+                      ? `<button class="btn btn-success btn-sm" data-action="baja:aprobar" data-id="${esc(s.id)}" title="Aplicar la baja"><i class="bi bi-check2"></i></button>
+                         <button class="btn btn-danger btn-sm" data-action="baja:rechazar" data-id="${esc(s.id)}" title="Rechazar"><i class="bi bi-x"></i></button>`
+                      : ''
+                  }
+                </td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Solicitudes de alta de cuentas (solo administración). */
+export function renderSolicitudesAlta(solicitudes = []) {
+  const contenedor = $('solicitudesAltaLista');
+  if (!contenedor) return;
+  if (!solicitudes.length) {
+    contenedor.innerHTML =
+      '<p class="campo-nota">No hay solicitudes de alta pendientes ni recientes.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta solicitada</th><th>Pidió</th><th>Contacto</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr data-solicitud="${esc(s.id)}">
+                <td><strong>${esc(s.nombre)}</strong><div class="campo-nota">${esc(s.username)}</div></td>
+                <td>${esc(s.solicitadoPor || '—')}</td>
+                <td>${esc(s.correo || '—')}${
+                  s.telefono ? `<div class="campo-nota">${esc(s.telefono)}</div>` : ''
+                }</td>
+                <td class="u-fs-12px">${esc(s.notas || '—')}${
+                  s.respuesta ? `<div class="campo-nota">Respuesta: ${esc(s.respuesta)}</div>` : ''
+                }</td>
+                <td><span class="inc-badge badge-${
+                  s.estado === 'aprobada' ? 'verde' : s.estado === 'rechazada' ? 'rojo' : 'amarillo'
+                }">${esc(s.estado)}</span></td>
+                <td class="u-acciones-tabla">
+                  ${
+                    s.estado === 'pendiente'
+                      ? `<button class="btn btn-success btn-sm" data-action="alta:aprobar" data-id="${esc(s.id)}" title="Crear la cuenta"><i class="bi bi-check2"></i></button>
+                         <button class="btn btn-danger btn-sm" data-action="alta:rechazar" data-id="${esc(s.id)}" title="Rechazar"><i class="bi bi-x"></i></button>`
+                      : ''
+                  }
+                </td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Limpia el formulario de solicitud de alta. */
+export function prepararModalAlta() {
+  for (const id of [
+    'altaUsuarioNombre',
+    'altaUsuarioUsername',
+    'altaUsuarioCorreo',
+    'altaUsuarioTelefono',
+    'altaUsuarioNotas'
+  ]) {
+    if ($(id)) $(id).value = '';
+  }
+}
+
+export function valoresAltaForm() {
+  return {
+    nombre: $('altaUsuarioNombre')?.value.trim() || '',
+    username: $('altaUsuarioUsername')?.value.trim() || '',
+    correo: $('altaUsuarioCorreo')?.value.trim() || '',
+    telefono: $('altaUsuarioTelefono')?.value.trim() || '',
+    notas: $('altaUsuarioNotas')?.value.trim() || ''
+  };
+}
+
+/** Prepara el modal de solicitud de baja. */
+export function prepararModalBaja(usuario = {}) {
+  if ($('bajaUsuarioId')) $('bajaUsuarioId').value = usuario.id || '';
+  if ($('bajaUsuarioNombre')) {
+    $('bajaUsuarioNombre').textContent = `la cuenta de ${usuario.nombre || usuario.username || ''}`;
+  }
+  if ($('bajaUsuarioMotivo')) $('bajaUsuarioMotivo').value = '';
+}
+
+export function valoresBajaForm() {
+  return {
+    usuarioId: $('bajaUsuarioId')?.value || '',
+    motivo: $('bajaUsuarioMotivo')?.value.trim() || ''
+  };
+}
+
+/** Prepara el modal para pedir el cambio de contraseña de otra cuenta. */
+export function prepararModalSolicitudPassword(usuario = {}) {
+  if ($('solicitudPasswordUsuarioId')) $('solicitudPasswordUsuarioId').value = usuario.id || '';
+  if ($('solicitudPasswordUsuarioNombre')) {
+    $('solicitudPasswordUsuarioNombre').textContent = usuario.nombre || usuario.username || 'esta cuenta';
+  }
+  if ($('solicitudPasswordMotivo')) $('solicitudPasswordMotivo').value = '';
+}
+
+export function valoresSolicitudPassword() {
+  return {
+    usuarioId: $('solicitudPasswordUsuarioId')?.value || '',
+    motivo: $('solicitudPasswordMotivo')?.value.trim() || ''
+  };
 }
 
 export function renderSolicitudesPermisos(solicitudes = []) {
@@ -546,13 +933,26 @@ export function renderZonas(zonas = []) {
 export function renderUsuarios(
   usuarios = [],
   municipios = [],
-  { esAdmin = false, puedeGestionar = esAdmin } = {}
+  {
+    esAdmin = false,
+    puedeCrear = esAdmin,
+    puedeEditar = puedeCrear,
+    puedeEliminar = false,
+    puedeRevelar = false,
+    puedeSolicitarBaja = false,
+    puedeSolicitarPassword = false,
+    puedeSolicitarAlta = false,
+    puedeReactivar = false,
+    usuarioActualId = null
+  } = {}
 ) {
   const contenedor = $('usuariosLista');
   if (!contenedor) return;
 
   const botonNuevo = $('btnNuevoUsuario');
-  if (botonNuevo) botonNuevo.style.display = puedeGestionar ? 'inline-flex' : 'none';
+  if (botonNuevo) botonNuevo.style.display = puedeCrear ? 'inline-flex' : 'none';
+  const botonSolicitar = $('btnSolicitarAlta');
+  if (botonSolicitar) botonSolicitar.classList.toggle('u-oculto', !puedeSolicitarAlta);
 
   if (!usuarios.length) {
     contenedor.innerHTML =
@@ -560,13 +960,20 @@ export function renderUsuarios(
     return;
   }
 
+  const conAcciones =
+    puedeEditar ||
+    puedeEliminar ||
+    puedeRevelar ||
+    puedeSolicitarBaja ||
+    puedeSolicitarPassword ||
+    puedeReactivar;
   contenedor.innerHTML = `
     <div class="u-scroll-x">
       <table class="data-table">
         <thead>
           <tr>
             <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Alcance</th><th>Escritura</th><th>Estado</th>
-            ${puedeGestionar ? '<th>Acciones</th>' : ''}
+            ${conAcciones ? '<th>Acciones</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -581,11 +988,16 @@ export function renderUsuarios(
               const estados = u.estados || [];
               const alcance = [...asignados, ...estados.map((e) => `Estado: ${e}`)].join(', ');
               const color = u.rol === 'admin' ? 'rojo' : u.rol === 'funcionario' ? 'amarillo' : 'verde';
+              const esCuentaAdmin = ['admin', 'admin_estatal', 'admin_municipal'].includes(u.rol);
               return `
-              <tr>
+              <tr data-usuario="${esc(u.id)}">
                 <td><code>${esc(u.username)}</code></td>
                 <td>${esc(u.nombre)}${u.correo ? `<div class="campo-nota">${esc(u.correo)}</div>` : ''}</td>
                 <td><span class="inc-badge badge-${color}">${esc(u.rol)}</span>${
+                  u.rolPropio?.etiqueta
+                    ? `<div class="campo-nota">◆ ${esc(u.rolPropio.etiqueta)}</div>`
+                    : ''
+                }${
                   u.rolPersonalizado?.nombre
                     ? `<div class="campo-nota">★ ${esc(u.rolPersonalizado.nombre)}</div>`
                     : ''
@@ -594,11 +1006,51 @@ export function renderUsuarios(
                 <td>${u.puedeEscribir ? '✍️ Sí' : '👁️ Solo lectura'}</td>
                 <td>${u.activo !== false ? '✅ Activa' : '🚫 Inactiva'}</td>
                 ${
-                  puedeGestionar
-                    ? `<td>
-                         <button class="btn btn-sm btn-outline" data-action="admin:usuarioEditar" data-id="${esc(u.id)}" title="Editar cuenta">
-                           <i class="bi bi-pencil-square"></i>
-                         </button>
+                  conAcciones
+                    ? `<td class="u-nowrap">
+                         ${
+                           puedeEditar
+                             ? `<button class="btn btn-sm btn-outline" data-action="admin:usuarioEditar" data-id="${esc(u.id)}" title="Editar cuenta">
+                                  <i class="bi bi-pencil-square"></i>
+                                </button>`
+                             : ''
+                         }
+                         ${
+                           puedeEliminar
+                             ? `<button class="btn btn-sm btn-danger" data-action="admin:usuarioEliminar" data-id="${esc(u.id)}" title="Desactivar cuenta">
+                                  <i class="bi bi-person-x"></i>
+                                </button>`
+                             : ''
+                         }
+                         ${
+                           puedeReactivar && u.activo === false
+                             ? `<button class="btn btn-sm btn-success" data-action="admin:usuarioReactivar" data-id="${esc(u.id)}" title="Reactivar esta cuenta">
+                                  <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>`
+                             : ''
+                         }
+                         ${
+                           puedeRevelar
+                             ? `<button class="btn btn-sm btn-outline" data-action="password:ver" data-id="${esc(u.id)}" title="Consultar contraseña (queda en auditoría)">
+                                  <i class="bi bi-key"></i>
+                                </button>`
+                             : ''
+                         }
+                         ${
+                           puedeSolicitarBaja && u.activo !== false
+                             ? `<button class="btn btn-sm btn-outline" data-action="baja:solicitar" data-id="${esc(u.id)}" title="Solicitar baja de esta cuenta">
+                                  <i class="bi bi-person-dash"></i>
+                                </button>`
+                             : ''
+                         }
+                         ${
+                           puedeSolicitarPassword && !esCuentaAdmin && u.activo !== false &&
+                           String(u.id) !== String(usuarioActualId || '')
+                             ? `<button class="btn btn-sm btn-outline" data-action="password:solicitarCuenta" data-id="${esc(u.id)}" title="Solicitar cambio de contraseña (la administración la restablece)">
+                                  <i class="bi bi-shield-lock"></i>
+                                </button>`
+                             : ''
+                         }
                        </td>`
                     : ''
                 }
@@ -622,11 +1074,53 @@ export function renderRolesEspeciales(roles = []) {
   renderSelectRolEspecial();
 }
 
+/** Valor actual del selector de rol (`funcionario`, `propio:<id>`...). */
+function rolSeleccionadoValor() {
+  return $('usuarioRol')?.value || 'funcionario';
+}
+
+/** Rol propio elegido en el formulario, o `null`. */
+export function rolPropioSeleccionado() {
+  const valor = rolSeleccionadoValor();
+  if (!valor.startsWith('propio:')) return null;
+  const id = valor.slice('propio:'.length);
+  return (moduleState.rolesPropios || []).find((r) => r.id === id) || null;
+}
+
+/** Plantilla real del rol elegido (los roles propios heredan de ella). */
+export function rolPlantillaActual() {
+  return rolPropioSeleccionado()?.rolPlantilla || rolSeleccionadoValor();
+}
+
+/** Añade los roles propios al selector de rol sin duplicarlos. */
+export function renderRolesPropiosEnSelect(seleccionadoId = null) {
+  const selector = $('usuarioRol');
+  if (!selector) return;
+  selector.querySelectorAll('optgroup[data-propios]').forEach((grupo) => grupo.remove());
+  const propios = (moduleState.rolesPropios || []).filter(
+    (rol) => rol.activo !== false && rol.rolPlantilla !== 'admin'
+  );
+  if (propios.length) {
+    const grupo = document.createElement('optgroup');
+    grupo.label = 'Roles propios';
+    grupo.dataset.propios = '1';
+    for (const rol of propios) {
+      const opcion = document.createElement('option');
+      opcion.value = `propio:${rol.id}`;
+      opcion.dataset.propio = rol.id;
+      opcion.textContent = `${rol.etiqueta} (${rol.rolPlantilla})`;
+      grupo.append(opcion);
+    }
+    selector.append(grupo);
+  }
+  if (seleccionadoId) selector.value = `propio:${seleccionadoId}`;
+}
+
 /** Rellena el selector de rol especial según el rol base elegido. */
 export function renderSelectRolEspecial(seleccionado = null) {
   const selector = $('usuarioRolEspecial');
   if (!selector) return;
-  const rolBase = $('usuarioRol')?.value || 'funcionario';
+  const rolBase = rolPlantillaActual();
   const actual = seleccionado ?? selector.value;
   const roles = (moduleState.rolesEspeciales || []).filter(
     (r) => r.activo !== false && r.rolBase === rolBase
@@ -642,17 +1136,52 @@ export function renderSelectRolEspecial(seleccionado = null) {
   if (!roles.some((r) => r.id === actual)) selector.value = '';
 }
 
-export function prepararModalUsuario({ usuario = null, municipios = [], estados = [] } = {}) {
+export function prepararModalUsuario({
+  usuario = null,
+  municipios = [],
+  estados = [],
+  claves = [],
+  roles = {},
+  permiteClaves = false,
+  permitePassword = false,
+  permiteRol = true,
+  permiteTerritorio = true,
+  permitePermisos = true,
+  textoTerritorioFijo = ''
+} = {}) {
   const edicion = Boolean(usuario);
+  moduleState.municipiosUsuario = municipios;
+  moduleState.catalogoEstadosUsuario = estados;
+  moduleState.rolesPropios = roles.propios || [];
+  moduleState.rolesIntegrados = roles.integrados || [];
+  moduleState.permiteRol = permiteRol;
+  moduleState.permiteTerritorio = permiteTerritorio;
+  moduleState.permitePermisos = permitePermisos;
+  moduleState.textoTerritorioFijo = textoTerritorioFijo;
 
   $('modalUsuarioTitle').textContent = edicion ? 'Editar usuario' : 'Nuevo usuario';
   $('usuarioId').value = usuario?.id || '';
   $('usuarioUsernameBox').style.display = edicion ? 'none' : 'block';
   $('usuarioUsername').value = usuario?.username || '';
   $('usuarioNombre').value = usuario?.nombre || '';
+  $('usuarioRol').disabled = !permiteRol;
   $('usuarioRol').value = usuario?.rol || 'funcionario';
+  renderRolesPropiosEnSelect(usuario?.rolPropioId || null);
+  $('usuarioRolEspecial').disabled = !permiteRol;
   renderSelectRolEspecial(usuario?.rolPersonalizadoId || null);
-  renderPermisos(usuario, usuario?.rol || 'funcionario');
+  renderPermisosCuenta(usuario);
+  $('usuarioPermisosBox')?.classList.toggle('u-oculto', !permitePermisos);
+  $('btnCrearRolEspecial')?.classList.toggle('u-oculto', !permiteRol);
+
+  // La clave solo se elige al dar de alta: define rol, territorio y permisos.
+  // Solo la administración puede generar claves.
+  const claveBox = $('usuarioClaveAccesoBox');
+  if (claveBox) claveBox.classList.toggle('u-oculto', edicion || !permiteClaves);
+  $('usuarioClaveBox')?.classList.toggle('u-oculto', !permiteClaves);
+  const claveSelect = $('usuarioClaveAcceso');
+  if (claveSelect) claveSelect.value = '';
+  renderClavesUsuario(edicion ? [] : claves);
+  actualizarPreviewClave();
 
   const asignados = usuario
     ? usuario.municipios && usuario.municipios.length
@@ -661,17 +1190,28 @@ export function prepararModalUsuario({ usuario = null, municipios = [], estados 
         ? [usuario.municipioId]
         : []
     : [];
-  renderSelectMunicipiosUsuario(municipios, asignados, estados);
-  renderSelectEstadosUsuario(municipios, usuario?.estados || [], estados);
+  moduleState.selectorTerritorio = renderTerritorioUsuario(
+    municipios,
+    { asignados, estados: usuario?.estados || [] },
+    estados,
+    { expandirEstados: rolExigeMunicipios(rolPlantillaActual()) }
+  );
 
   $('usuarioCorreo').value = usuario?.correo || '';
   $('usuarioPassword').value = '';
-  $('usuarioPasswordNota').textContent = edicion
-    ? 'Déjala vacía para conservar la contraseña actual.'
-    : 'Mínimo 8 caracteres.';
+  $('usuarioPasswordNota').textContent = permitePassword
+    ? edicion
+      ? 'Déjala vacía para conservar la contraseña actual.'
+      : 'Mínimo 8 caracteres.'
+    : 'Solo la administración cambia contraseñas. El funcionario puede solicitar el cambio desde «Mi cuenta».';
+  // Al crear siempre se pide la contraseña inicial; al editar, solo la
+  // administración puede cambiarla.
+  $('usuarioPasswordBox')?.classList.toggle('u-oculto', !permitePassword && edicion);
+  if ($('usuarioPassword')) $('usuarioPassword').required = !edicion;
 
   $('usuarioActivoBox').style.display = edicion ? 'block' : 'none';
   $('usuarioActivo').checked = usuario?.activo !== false;
+  $('usuarioActivo').disabled = !permiteRol;
   $('usuarioPuedeEscribir').checked =
     usuario?.puedeEscribir !== undefined
       ? usuario.puedeEscribir === true
@@ -680,71 +1220,101 @@ export function prepararModalUsuario({ usuario = null, municipios = [], estados 
   // Clave de acceso: por defecto se ofrece al dar de alta (es el segundo factor
   // del login del personal) y queda apagada al editar, para no inundar de
   // códigos cuando solo se cambia, por ejemplo, el nombre.
-  if ($('usuarioGenerarClave')) $('usuarioGenerarClave').checked = !edicion;
+  if ($('usuarioGenerarClave')) $('usuarioGenerarClave').checked = !edicion && permiteClaves;
   if ($('usuarioClaveUsos')) $('usuarioClaveUsos').value = '';
   if ($('usuarioClaveExpira')) $('usuarioClaveExpira').value = '';
 
   actualizarNotaMunicipioUsuario();
 }
 
+/** ¿El rol solo admite municipios? Entonces «estado completo» se expande. */
+export function rolExigeMunicipios(rol = 'funcionario') {
+  return ['funcionario', 'admin_municipal'].includes(rol);
+}
+
 /** Selectores territoriales activos del modal de usuario. */
 const moduleState = {
-  selectorMunicipios: null,
-  selectorEstados: null,
+  selectorTerritorio: null,
   selectorClaveTerritorio: null,
+  selectorAvisosClave: null,
+  claveAvisos: null,
+  municipiosClaves: [],
   resumenMunicipios: null,
   rolesEspeciales: [],
+  rolesIntegrados: [],
+  rolesPropios: [],
   claves: [],
-  filtroEstadoInicial: false
+  clavesUsuario: [],
+  filtroEstadoInicial: false,
+  passwordUsuario: null,
+  permiteRol: true,
+  permiteTerritorio: true,
+  permitePermisos: true,
+  textoTerritorioFijo: ''
 };
 
-/** Rellena el selector de municipios del alta de usuarios. */
-export function renderSelectMunicipiosUsuario(municipios = [], asignados = [], catalogoEstados = []) {
-  moduleState.selectorMunicipios = crearSelectorTerritorial({
-    contenedor: 'usuarioMunicipiosSelector',
+/**
+ * Selector territorial del alta de cuentas.
+ *
+ * Un solo componente por bloques: se escribe el estado (con autocompletado),
+ * se busca el municipio y el bloque vacío permite añadir otro estado. Cuando
+ * el rol exige municipios (funcionario, administrador municipal), «incluir el
+ * estado completo» expande el estado a todos sus municipios en vez de enviar
+ * `estados`, que esos roles no aceptan.
+ */
+export function renderTerritorioUsuario(municipios = [], { asignados = [], estados = [] } = {}, catalogoEstados = [], { expandirEstados = true } = {}) {
+  const contenedor = $('usuarioTerritorioSelector');
+  if (!contenedor) return null;
+  moduleState.selectorTerritorio = crearSelectorTerritorialPorEstado({
+    contenedor: 'usuarioTerritorioSelector',
     municipios,
     seleccionados: asignados,
-    modo: 'municipios',
-    catalogoEstados
+    estados,
+    catalogoEstados,
+    alCompletarEstado: expandirEstados ? 'municipios' : 'estados'
   });
-  return moduleState.selectorMunicipios;
+  return moduleState.selectorTerritorio;
 }
 
-/** Rellena el selector de estados del alta de usuarios. */
-export function renderSelectEstadosUsuario(municipios = [], asignados = [], catalogoEstados = []) {
-  moduleState.selectorEstados = crearSelectorTerritorial({
-    contenedor: 'usuarioEstadosSelector',
-    municipios,
-    estados: asignados,
-    modo: 'estados',
-    catalogoEstados
-  });
-  return moduleState.selectorEstados;
-}
-
-/** Explica qué territorio exige cada rol y desactiva lo que no aplica. */
+/** Explica qué territorio exige cada rol y ajusta el selector por bloques. */
 export function actualizarNotaMunicipioUsuario() {
-  const rol = $('usuarioRol')?.value || 'funcionario';
+  const rol = rolPlantillaActual();
   const nota = $('usuarioMunicipiosNota');
-  const municipiosBox = $('usuarioMunicipiosBox');
-  const estadosBox = $('usuarioEstadosBox');
+  const territorioBox = $('usuarioTerritorioBox');
   const escribirBox = $('usuarioPuedeEscribirBox');
   const escribir = $('usuarioPuedeEscribir');
+  const selectorTerritorio = $('usuarioTerritorioSelector');
+  const puedeRol = moduleState.permiteRol !== false;
+  const puedeTerritorio = moduleState.permiteTerritorio !== false;
   renderSelectRolEspecial();
 
-  const usaEstados =
-    rol === 'enlace_estatal' || rol === 'enlace_federal' || rol === 'admin_estatal' || rol === 'auditor';
-  const usaMunicipios =
-    rol === 'funcionario' || rol === 'auditor' || rol === 'soporte' || rol === 'admin_municipal' || rol === 'admin';
+  const usaEstados = ['enlace_estatal', 'enlace_federal', 'admin_estatal'].includes(rol);
+  const usaMunicipios = [
+    'funcionario',
+    'auditor',
+    'soporte',
+    'admin_municipal',
+    'admin'
+  ].includes(rol);
 
+  // Cuenta gestionada por un funcionario: el territorio lo fija el servidor.
+  if (!puedeTerritorio) {
+    territorioBox?.classList.remove('u-oculto');
+    selectorTerritorio?.classList.add('u-oculto');
+    if (nota && moduleState.textoTerritorioFijo) nota.textContent = moduleState.textoTerritorioFijo;
+    if (escribirBox) escribirBox.classList.add('u-oculto');
+    return;
+  }
+
+  selectorTerritorio?.classList.remove('u-oculto');
   if (nota) {
     nota.textContent =
       rol === 'funcionario'
-        ? 'Obligatorio: el funcionario solo ve y gestiona estos municipios.'
+        ? 'Obligatorio: el funcionario solo ve y gestiona estos municipios. Elige el estado, busca el municipio y añade otro estado si hace falta.'
         : rol === 'auditor'
           ? 'Puede asignarse por municipios o por estados (solo lectura).'
           : rol === 'admin'
-            ? 'Opcional: sin municipios, el administrador maestro ve todo el país.'
+            ? 'Opcional: sin territorio, el administrador maestro ve todo el país.'
             : rol === 'admin_municipal'
               ? 'Obligatorio: el administrador municipal solo gestiona estos municipios.'
               : rol === 'admin_estatal'
@@ -753,135 +1323,108 @@ export function actualizarNotaMunicipioUsuario() {
                   ? 'Elige los municipios o estados cuyos tickets atenderá.'
                   : 'Selecciona los estados que podrá consultar (solo lectura).';
   }
-  if (municipiosBox) municipiosBox.classList.toggle('u-oculto', !usaMunicipios);
-  if (estadosBox) estadosBox.classList.toggle('u-oculto', !usaEstados);
-  if (escribirBox) escribirBox.classList.toggle('u-oculto', !usaMunicipios);
+  if (territorioBox) territorioBox.classList.toggle('u-oculto', !usaMunicipios && !usaEstados);
+  if (escribirBox) escribirBox.classList.toggle('u-oculto', !puedeRol || !usaMunicipios);
   if (escribir && !usaMunicipios) escribir.checked = false;
 
-  // La clave se genera con los municipios de la cuenta: no aplica a los
-  // enlaces estatales/federales, que entran sin clave municipal.
-  const claveBox = $('usuarioClaveBox');
-  if (claveBox) claveBox.classList.toggle('u-oculto', !usaMunicipios);
+  // El modo de «estado completo» depende del rol: un funcionario no puede
+  // recibir `estados`, así que se expande a todos sus municipios.
+  const actuales = {
+    asignados: moduleState.selectorTerritorio?.municipios() || [],
+    estados: moduleState.selectorTerritorio?.estados() || []
+  };
+  if (usaMunicipios || usaEstados) {
+    moduleState.selectorTerritorio = renderTerritorioUsuario(
+      moduleState.municipiosUsuario || [],
+      actuales,
+      moduleState.catalogoEstadosUsuario || [],
+      { expandirEstados: rolExigeMunicipios(rol) }
+    );
+  }
 }
 
-export const PERMISOS_LISTA = [
-  'reportar',
-  'editar_propios',
-  'cambiar_estado',
-  'resolver',
-  'moderar',
-  'ver_moderacion',
-  'exportar',
-  'gestionar_usuarios',
-  'ver_usuarios',
-  'gestionar_claves',
-  'ver_auditoria',
-  'ver_incidencias_panel',
-  'ver_tipos',
-  'gestionar_tipos',
-  'ver_municipios_panel',
-  'ver_zonas',
-  'gestionar_zonas',
-  'ver_firmas',
-  'ver_monitoreo',
-  'responder_tickets',
-  'atender_tickets',
-  'configurar_notificaciones',
-  'ver_metricas',
-  'gestionar_solicitudes_informe',
-  'gestionar_legal',
-  'gestionar_configuracion',
-  'gestionar_respaldos',
-  'usar_simulador',
-  'gestionar_publicidad',
-  'gestionar_correos'
-];
+/** Casilla de un permiso concreto, con su botón de ayuda. */
+function casillaPermiso(permiso, activo, etiqueta) {
+  return `<div class="permiso-fila">
+    <label class="check-line"><input type="checkbox" data-permiso="${esc(permiso)}"${
+      activo ? ' checked' : ''
+    }><span>${esc(etiqueta || ETIQUETAS_PERMISO[permiso] || permiso)}</span></label>
+    <button type="button" class="ayuda-permiso" data-action="permisos:ayuda" data-valor="${esc(
+      permiso
+    )}" title="¿Qué hace este permiso?" aria-label="Ayuda de ${esc(
+      etiqueta || ETIQUETAS_PERMISO[permiso] || permiso
+    )}">?</button>
+  </div>`;
+}
 
-export const ETIQUETAS_PERMISO = {
-  reportar: 'Reportar incidencias',
-  editar_propios: 'Editar sus propios reportes',
-  cambiar_estado: 'Cambiar estado',
-  resolver: 'Resolver incidencias',
-  moderar: 'Moderar contenido',
-  ver_moderacion: 'Ver cola de moderación',
-  exportar: 'Exportar informes',
-  gestionar_usuarios: 'Gestionar usuarios',
-  ver_usuarios: 'Ver usuarios',
-  gestionar_claves: 'Gestionar claves',
-  ver_auditoria: 'Ver bitácora de auditoría',
-  ver_incidencias_panel: 'Ver pestaña de incidencias',
-  ver_tipos: 'Ver tipos',
-  gestionar_tipos: 'Gestionar tipos',
-  ver_municipios_panel: 'Ver municipios y fichas',
-  ver_zonas: 'Ver zonas',
-  gestionar_zonas: 'Gestionar zonas',
-  ver_firmas: 'Ver firmas y recolecciones',
-  ver_monitoreo: 'Ver monitoreo y conectados',
-  responder_tickets: 'Responder tickets',
-  atender_tickets: 'Atender panel de soporte',
-  configurar_notificaciones: 'Configurar notificaciones',
-  ver_metricas: 'Ver estadísticas y métricas',
-  gestionar_solicitudes_informe: 'Gestionar solicitudes de informe',
-  gestionar_legal: 'Gestionar documentos legales',
-  gestionar_configuracion: 'Gestionar configuración',
-  gestionar_respaldos: 'Gestionar respaldos',
-  usar_simulador: 'Usar simulador',
-  gestionar_publicidad: 'Gestionar publicidad, QR y campañas',
-  gestionar_correos: 'Gestionar correos institucionales'
-};
-
-const PERMISOS_BASE = {
-  admin: PERMISOS_LISTA,
-  admin_estatal: [
-    'reportar', 'editar_propios', 'cambiar_estado', 'resolver', 'moderar', 'ver_moderacion',
-    'exportar', 'gestionar_usuarios', 'ver_usuarios', 'gestionar_claves',
-    'ver_incidencias_panel', 'ver_tipos', 'gestionar_tipos', 'ver_municipios_panel',
-    'ver_zonas', 'gestionar_zonas', 'ver_firmas', 'ver_monitoreo', 'responder_tickets',
-    'atender_tickets', 'configurar_notificaciones', 'ver_metricas'
-  ],
-  admin_municipal: [
-    'reportar', 'editar_propios', 'cambiar_estado', 'resolver', 'moderar', 'ver_moderacion',
-    'exportar', 'gestionar_usuarios', 'ver_usuarios', 'gestionar_claves',
-    'ver_incidencias_panel', 'ver_tipos', 'gestionar_tipos', 'ver_municipios_panel',
-    'ver_zonas', 'gestionar_zonas', 'ver_firmas', 'responder_tickets',
-    'atender_tickets', 'configurar_notificaciones', 'ver_metricas'
-  ],
-  funcionario: [
-    'reportar', 'editar_propios', 'cambiar_estado', 'resolver', 'moderar', 'ver_moderacion',
-    'exportar', 'ver_usuarios', 'ver_incidencias_panel', 'ver_tipos', 'gestionar_tipos',
-    'ver_municipios_panel', 'ver_zonas', 'gestionar_zonas', 'ver_firmas',
-    'responder_tickets', 'configurar_notificaciones', 'ver_metricas'
-  ],
-  auditor: [
-    'exportar', 'ver_usuarios', 'ver_incidencias_panel', 'ver_tipos',
-    'ver_municipios_panel', 'ver_zonas', 'ver_moderacion', 'responder_tickets',
-    'configurar_notificaciones', 'ver_metricas'
-  ],
-  soporte: [
-    'responder_tickets', 'atender_tickets', 'ver_incidencias_panel',
-    'ver_moderacion', 'configurar_notificaciones', 'ver_metricas'
-  ],
-  enlace_estatal: [
-    'exportar', 'ver_incidencias_panel', 'ver_moderacion', 'responder_tickets',
-    'configurar_notificaciones', 'ver_monitoreo', 'ver_metricas'
-  ],
-  enlace_federal: [
-    'exportar', 'ver_incidencias_panel', 'ver_moderacion', 'responder_tickets',
-    'configurar_notificaciones', 'ver_monitoreo', 'ver_metricas'
-  ]
-};
+/** Pinta la matriz agrupada por módulo; los módulos CRUD muestran sus acciones. */
+function htmlPermisos(activos = new Set()) {
+  return GRUPOS_PERMISOS.map((grupo) => {
+    if (grupo.crud) {
+      const modulo = PERMISOS_CRUD.find((m) => m.clave === grupo.crud);
+      if (!modulo) return '';
+      const filas = ACCIONES_CRUD.map(([accion, etiqueta]) => {
+        const permiso = modulo.permisos[accion];
+        const texto = modulo.etiquetas?.[accion] || etiqueta;
+        return permiso ? casillaPermiso(permiso, activos.has(permiso), texto) : '';
+      }).join('');
+      return `
+        <fieldset class="permisos-grupo">
+          <legend>${esc(modulo.etiqueta)}</legend>
+          <p class="campo-nota">${esc(modulo.nota || '')}</p>
+          <div class="permisos-filas">${filas}</div>
+        </fieldset>`;
+    }
+    const filas = (grupo.permisos || [])
+      .filter((permiso) => PERMISOS_LISTA.includes(permiso))
+      .map((permiso) => casillaPermiso(permiso, activos.has(permiso)))
+      .join('');
+    if (!filas) return '';
+    return `
+      <fieldset class="permisos-grupo">
+        <legend>${esc(grupo.titulo)}</legend>
+        <div class="permisos-filas">${filas}</div>
+      </fieldset>`;
+  }).join('');
+}
 
 /** Pinta la matriz; `usuario.permisos` guarda solo las excepciones. */
 export function renderPermisos(usuario, rol = 'funcionario') {
   const contenedor = $('usuarioPermisos');
   if (!contenedor) return;
-  const base = new Set(PERMISOS_BASE[rol] || []);
-  const overrides = usuario?.permisos || {};
+  const activos = permisosEfectivosDeRol(rol, usuario?.permisos || {});
+  contenedor.innerHTML = htmlPermisos(activos);
+}
 
-  contenedor.innerHTML = PERMISOS_LISTA.map((permiso) => {
-    const activo = overrides[permiso] !== undefined ? overrides[permiso] === true : base.has(permiso);
-    return `<label class="check-line"><input type="checkbox" data-permiso="${permiso}"${activo ? ' checked' : ''}><span>${ETIQUETAS_PERMISO[permiso]}</span></label>`;
-  }).join('');
+/**
+ * Matriz de la cuenta según el rol elegido. Si es un rol propio, su matriz es
+ * la base; si es integrado, la del rol con las excepciones de la cuenta.
+ */
+export function renderPermisosCuenta(usuario = null) {
+  const contenedor = $('usuarioPermisos');
+  if (!contenedor) return;
+  const propio = rolPropioSeleccionado();
+  const activos = propio
+    ? new Set(expandirPermisos(propio.permisos || []))
+    : permisosEfectivosDeRol(rolPlantillaActual(), usuario?.permisos || {});
+  contenedor.innerHTML = htmlPermisos(activos);
+}
+
+/** Pinta la matriz de una clave con la lista exacta que concede. */
+export function renderPermisosClave(rol = 'funcionario', permisos = null) {
+  const contenedor = $('clavePermisos');
+  if (!contenedor) return;
+  const activos = Array.isArray(permisos)
+    ? new Set(expandirPermisos(permisos))
+    : new Set(permisosBaseDeRol(rol));
+  contenedor.innerHTML = htmlPermisos(activos);
+}
+
+/** Rellena la matriz del usuario con una lista de permisos (clave elegida). */
+export function renderPermisosDesdeLista(permisos = []) {
+  const contenedor = $('usuarioPermisos');
+  if (!contenedor) return;
+  contenedor.innerHTML = htmlPermisos(new Set(expandirPermisos(permisos || [])));
 }
 
 function leerPermisos() {
@@ -892,17 +1435,132 @@ function leerPermisos() {
   return salida;
 }
 
+export function leerPermisosClave() {
+  return [...document.querySelectorAll('#clavePermisos input[data-permiso]')]
+    .filter((casilla) => casilla.checked)
+    .map((casilla) => casilla.dataset.permiso);
+}
+
+/* ---------------------- clave aplicada al alta de cuenta ------------------ */
+
+function claveEstaVigente(clave = {}) {
+  if (clave.activa === false) return false;
+  if (clave.expiraEn && new Date(clave.expiraEn).getTime() <= Date.now()) return false;
+  if (
+    clave.usosMaximos !== null &&
+    clave.usosMaximos !== undefined &&
+    Number(clave.usos) >= Number(clave.usosMaximos)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Rellena el selector de claves disponibles al crear una cuenta. */
+export function renderClavesUsuario(claves = []) {
+  const selector = $('usuarioClaveAcceso');
+  if (!selector) return;
+  moduleState.clavesUsuario = claves;
+  const disponibles = (claves || []).filter(claveEstaVigente);
+  selector.innerHTML =
+    '<option value="">— Sin clave: definir rol, territorio y permisos a mano —</option>' +
+    disponibles
+      .map(
+        (clave) =>
+          `<option value="${esc(clave.id)}">${esc(clave.nombre || clave.codigo)} · ${
+            esc(clave.rolSugerido || 'sin rol')
+          } · ${esc((clave.permisos || []).length)} permiso(s)</option>`
+      )
+      .join('');
+}
+
+/** Clave seleccionada en el alta (o null). */
+export function claveUsuarioSeleccionada() {
+  const id = $('usuarioClaveAcceso')?.value || '';
+  if (!id) return null;
+  return (moduleState.clavesUsuario || []).find((clave) => clave.id === id) || null;
+}
+
+/**
+ * Copia a la cuenta el rol, el territorio y los permisos de la clave.
+ * El servidor vuelve a imponerlos al guardar; esto solo evita que el
+ * administrador tenga que repetirlos a mano.
+ */
+export function limpiarClaveFormulario() {
+  const selectorRol = $('usuarioRol');
+  if (selectorRol) selectorRol.disabled = false;
+  moduleState.selectorTerritorio?.limpiar();
+  renderPermisosCuenta(null);
+  actualizarPreviewClave();
+}
+
+/** Texto de vista previa bajo el selector de clave. */
+export function actualizarPreviewClave() {
+  const nota = $('usuarioClavePreview');
+  if (!nota) return;
+  const clave = claveUsuarioSeleccionada();
+  if (!clave) {
+    nota.textContent =
+      'Sin clave: la cuenta se configura a mano con el rol, el territorio y la matriz de permisos.';
+    return;
+  }
+  const territorio = (clave.estados || []).length
+    ? `${(clave.estados || []).length} estado(s)`
+    : `${(clave.municipios || []).length} municipio(s)`;
+  nota.textContent = `Clave «${clave.nombre || clave.codigo}»: rol ${
+    clave.rolSugerido || 'sin rol'
+  }, ${territorio} y ${(clave.permisos || []).length} permiso(s).`;
+}
+
+export function aplicarClaveFormulario(clave = null) {
+  if (!clave) return;
+  const selectorRol = $('usuarioRol');
+  if (selectorRol && clave.rolSugerido) {
+    const opcion = [...selectorRol.options].find((o) => o.value === clave.rolSugerido);
+    if (opcion) selectorRol.value = clave.rolSugerido;
+  }
+  // Con clave, el rol y los permisos son los de la clave: se muestran
+  // bloqueados para que no parezca que se pueden cambiar en este formulario.
+  if (selectorRol) selectorRol.disabled = true;
+  actualizarNotaMunicipioUsuario();
+
+  if ((clave.estados || []).length) {
+    moduleState.selectorTerritorio?.fijarMunicipios([]);
+    moduleState.selectorTerritorio?.fijarEstados(clave.estados);
+  } else {
+    moduleState.selectorTerritorio?.fijarMunicipios(clave.municipios || []);
+    moduleState.selectorTerritorio?.fijarEstados([]);
+  }
+
+  renderPermisosDesdeLista(
+    Array.isArray(clave.permisos)
+      ? clave.permisos
+      : permisosBaseDeRol(clave.rolSugerido || 'funcionario')
+  );
+  document
+    .querySelectorAll('#usuarioPermisos input[data-permiso]')
+    .forEach((casilla) => {
+      casilla.disabled = true;
+    });
+  actualizarPreviewClave();
+}
+
 export function valoresUsuarioForm() {
-  const seleccion = (id) =>
-    [...($(id)?.selectedOptions || [])].map((opcion) => opcion.value);
+  const valorRol = $('usuarioRol')?.value || 'funcionario';
+  const propio = valorRol.startsWith('propio:')
+    ? (moduleState.rolesPropios || []).find((r) => r.id === valorRol.slice('propio:'.length))
+    : null;
   const usos = $('usuarioClaveUsos')?.value || '';
+  const id = $('usuarioId').value.trim() || null;
   return {
-    id: $('usuarioId').value.trim() || null,
+    id,
+    claveId: id ? null : $('usuarioClaveAcceso')?.value || null,
     username: $('usuarioUsername').value.trim(),
     nombre: $('usuarioNombre').value.trim(),
-    rol: $('usuarioRol').value,
-    municipios: moduleState.selectorMunicipios?.municipios() ?? seleccion('usuarioMunicipios'),
-    estados: moduleState.selectorEstados?.estados() ?? seleccion('usuarioEstados'),
+    rol: propio?.rolPlantilla || valorRol,
+    rolPropioId: propio?.id || null,
+    municipios: moduleState.selectorTerritorio?.municipios() ?? [],
+    estados: moduleState.selectorTerritorio?.estados() ?? [],
     puedeEscribir: $('usuarioPuedeEscribir').checked,
     rolPersonalizadoId: $('usuarioRolEspecial')?.value || null,
     permisos: leerPermisos(),
@@ -934,10 +1592,21 @@ export function clavesCargadas() {
   return moduleState.claves || [];
 }
 
-export function renderClaves(claves = [], municipios = []) {
+/** Agrega la clave recién creada al listado sin esperar la recarga completa. */
+export function agregarClaveLista(clave) {
+  if (!clave?.id) return;
+  moduleState.claves = [
+    clave,
+    ...(moduleState.claves || []).filter((c) => c.id !== clave.id)
+  ];
+  renderClaves(moduleState.claves, moduleState.municipiosClaves || []);
+}
+
+export function renderClaves(claves = [], municipios = [], { puedeEliminar = true } = {}) {
   const contenedor = $('clavesLista');
   if (!contenedor) return;
   moduleState.claves = claves;
+  moduleState.municipiosClaves = municipios;
   const texto = normalizarBusqueda($('clavesBuscar')?.value);
   const visibles = texto
     ? claves.filter((c) =>
@@ -1002,7 +1671,11 @@ export function renderClaves(claves = [], municipios = []) {
               </td>
               <td>
                 <strong>${esc(c.nombre)}</strong>
-                <div class="campo-nota">${esc(c.rolSugerido || 'Sin rol sugerido')}</div>
+                <div class="campo-nota">${esc(c.rolSugerido || 'Sin rol sugerido')}${
+                  Array.isArray(c.permisos)
+                    ? ` · ${c.permisos.length} permiso(s)`
+                    : ' · sin recorte de permisos'
+                }</div>
               </td>
               <td class="u-fs-11px">${esc(territorio || '—')}</td>
               <td class="u-fs-11px">${
@@ -1017,9 +1690,13 @@ export function renderClaves(claves = [], municipios = []) {
               <td>${c.expiraEn ? fmtFechaCorta(c.expiraEn) : '—'}</td>
               <td><span class="inc-badge badge-${badge}">${estado}</span></td>
               <td class="u-nowrap">
-                <button class="btn btn-sm btn-outline" data-action="claves:eliminar" data-id="${esc(c.id)}" title="Eliminar clave y cerrar sus sesiones">
-                  <i class="bi bi-trash"></i> Eliminar
-                </button>
+                ${
+                  puedeEliminar
+                    ? `<button class="btn btn-sm btn-outline" data-action="claves:eliminar" data-id="${esc(c.id)}" title="Eliminar clave y cerrar sus sesiones">
+                         <i class="bi bi-trash"></i> Eliminar
+                       </button>`
+                    : ''
+                }
               </td>
             </tr>`;
             })
@@ -1051,11 +1728,77 @@ export function claveGeneradaTexto() {
   return $('claveGeneradaCodigo')?.textContent?.trim() || '';
 }
 
+/* ------------------- contraseña consultable (V2.11) --------------------- */
+
+/** Pinta el modal de contraseña. El texto queda difuminado hasta pulsar «Mostrar». */
+export function mostrarPasswordUsuario({ usuario = {}, password = '', generada = false } = {}) {
+  moduleState.passwordUsuario = { usuario, password };
+  const nombre = $('passwordUsuarioNombre');
+  if (nombre) nombre.textContent = `la cuenta de ${usuario.nombre || usuario.username || ''}`;
+  const texto = $('passwordUsuarioTexto');
+  if (texto) {
+    texto.textContent = password || '—';
+    texto.classList.add('password-oculta');
+    texto.dataset.action = 'password:alternar';
+  }
+  const etiqueta = $('passwordUsuarioVerTexto');
+  if (etiqueta) etiqueta.textContent = 'Mostrar';
+  const nota = $('passwordUsuarioNota');
+  if (nota) {
+    nota.textContent = generada
+      ? 'Esta contraseña temporal se generó ahora. Entrégala en mano: también queda guardada cifrada y su consulta se audita.'
+      : 'La consulta quedó registrada en auditoría. La contraseña se guarda cifrada; el acceso se sigue validando con bcrypt.';
+  }
+}
+
+/** Alterna el difuminado del texto de la contraseña. */
+export function alternarPasswordVisible(visible = null) {
+  const texto = $('passwordUsuarioTexto');
+  if (!texto) return false;
+  const mostrar = visible === null ? texto.classList.contains('password-oculta') : visible;
+  texto.classList.toggle('password-oculta', !mostrar);
+  const etiqueta = $('passwordUsuarioVerTexto');
+  if (etiqueta) etiqueta.textContent = mostrar ? 'Ocultar' : 'Mostrar';
+  return mostrar;
+}
+
+/** Contraseña en claro del modal (para copiarla). */
+export function passwordVisibleTexto() {
+  const texto = $('passwordUsuarioTexto');
+  if (!texto || texto.classList.contains('password-oculta')) return '';
+  return texto.textContent?.trim() || '';
+}
+
+/** Cuenta que se está consultando en el modal de contraseña. */
+export function passwordUsuarioActual() {
+  return moduleState.passwordUsuario?.usuario || null;
+}
+
+/* ----------------------- ayuda de cada permiso ------------------------- */
+
+/** Pinta la explicación de un permiso en el modal de ayuda. */
+export function renderAyudaPermiso(permiso) {
+  const titulo = $('ayudaPermisoTitulo');
+  const contenido = $('ayudaPermisoContenido');
+  if (!titulo || !contenido) return;
+  const ayuda = PERMISOS_AYUDA[permiso] || {};
+  titulo.textContent = ayuda.etiqueta || ETIQUETAS_PERMISO[permiso] || permiso;
+  contenido.innerHTML = `
+    <p class="u-lh-15">${esc(ayuda.quePermite || 'Sin descripción disponible.')}</p>
+    ${ayuda.queBloquea ? `<p class="campo-nota"><strong>Qué bloquea:</strong> ${esc(ayuda.queBloquea)}</p>` : ''}
+    ${ayuda.ejemplo ? `<p class="campo-nota"><strong>Ejemplo:</strong> ${esc(ayuda.ejemplo)}</p>` : ''}
+    ${ayuda.riesgo ? `<p class="campo-nota"><strong>Riesgo:</strong> ${esc(ayuda.riesgo)}</p>` : ''}
+    <p class="campo-nota">Clave técnica: <code>${esc(permiso)}</code>${
+      ayuda.modulo ? ` · Guía: <strong>${esc(ayuda.modulo)}</strong>` : ''
+    }</p>`;
+}
+
 export function prepararModalClave(municipios = [], estados = []) {
   $('claveNombre').value = '';
   $('claveRol').value = 'funcionario';
   $('claveUsos').value = '';
   $('claveExpira').value = '';
+  renderPermisosClave('funcionario');
   if (!moduleState.selectorClaveTerritorio) {
     moduleState.selectorClaveTerritorio = crearSelectorTerritorialPorEstado({
       contenedor: 'claveTerritorio',
@@ -1073,12 +1816,109 @@ export function valoresClaveForm() {
   return {
     nombre: $('claveNombre').value.trim(),
     rolSugerido: $('claveRol').value,
+    // La matriz de la clave define qué podrá hacer quien entre con ella.
+    permisos: leerPermisosClave(),
     municipios,
     estados,
     usosMaximos: $('claveUsos').value ? Number($('claveUsos').value) : null,
     expiraEn: $('claveExpira').value || null
   };
 }
+
+/* --------------------------- avisos por clave --------------------------- */
+
+function resumenAvisosClave(clave = {}) {
+  const notificaciones = clave.notificaciones || { activo: true, municipios: [] };
+  if (notificaciones.activo === false) return 'Revocados';
+  const total = (notificaciones.municipios || []).length;
+  return total ? `${total} municipio(s)` : 'Todo el territorio';
+}
+
+export function renderAvisosClave(claves = [], municipios = []) {
+  const contenedor = $('avisosClaveLista');
+  if (!contenedor) return;
+  moduleState.claves = claves;
+  moduleState.municipiosClaves = municipios;
+  const texto = normalizarBusqueda($('avisosClaveBuscar')?.value);
+  const visibles = texto
+    ? claves.filter((clave) =>
+        normalizarBusqueda(
+          `${clave.nombre} ${clave.codigo} ${(clave.estados || []).join(' ')} ${(clave.municipios || [])
+            .map((id) => nombreMunicipio(municipios, id))
+            .join(' ')}`
+        ).includes(texto)
+      )
+    : claves;
+  if (!visibles.length) {
+    contenedor.innerHTML =
+      '<p class="u-fs-12px u-suave">No hay claves que coincidan. Genera una en «Claves de acceso».</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Clave</th><th>Territorio de la clave</th><th>Avisos</th><th>Alcance de avisos</th><th></th></tr></thead>
+        <tbody>
+          ${visibles
+            .map((clave) => {
+              const notificaciones = clave.notificaciones || { activo: true, municipios: [] };
+              const activos = notificaciones.activo !== false;
+              const territorios = (clave.estados || []).length
+                ? clave.estados.join(', ')
+                : (clave.municipios || [])
+                    .map((id) => nombreMunicipio(municipios, id))
+                    .slice(0, 4)
+                    .join(', ') + ((clave.municipios || []).length > 4 ? '…' : '');
+              return `
+            <tr>
+              <td><code class="u-fs-11px">${esc(clave.codigo)}</code><div class="campo-nota">${esc(clave.nombre)}</div></td>
+              <td class="u-fs-11px">${esc(territorios || '—')}</td>
+              <td><span class="inc-badge badge-${activos ? 'verde' : 'rojo'}">${activos ? 'Activos' : 'Revocados'}</span></td>
+              <td class="u-fs-11px">${esc(resumenAvisosClave(clave))}</td>
+              <td class="u-acciones-tabla">
+                <button class="btn btn-outline btn-sm" data-action="avisosClave:abrir" data-id="${esc(clave.id)}" title="Configurar avisos"><i class="bi bi-sliders"></i> Configurar</button>
+                ${
+                  activos
+                    ? `<button class="btn btn-danger btn-sm" data-action="avisosClave:revocar" data-id="${esc(clave.id)}" title="Revocar avisos sin invalidar la clave"><i class="bi bi-bell-slash"></i> Revocar</button>`
+                    : `<button class="btn btn-success btn-sm" data-action="avisosClave:reactivar" data-id="${esc(clave.id)}" title="Reactivar avisos"><i class="bi bi-bell"></i> Reactivar</button>`
+                }
+              </td>
+            </tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+export function prepararModalAvisosClave(clave = {}, municipios = []) {
+  moduleState.claveAvisos = clave;
+  $('avisosClaveId').value = clave.id || '';
+  const titulo = $('avisosClaveTitulo');
+  if (titulo) titulo.textContent = `Avisos · ${clave.nombre || clave.codigo || 'clave'}`;
+  const nota = $('avisosClaveNota');
+  if (nota) {
+    nota.textContent = `${clave.codigo || ''} · ${clave.nombre || ''}. Elige los municipios donde esta clave puede recibir notificaciones.`;
+  }
+  const activo = $('avisosClaveActivo');
+  if (activo) activo.checked = clave.notificaciones?.activo !== false;
+  const ids = new Set((clave.municipios || []).map(String));
+  const catalogo = municipios.filter((m) => ids.has(String(m.id)));
+  moduleState.selectorAvisosClave = crearSelectorTerritorial({
+    contenedor: 'avisosClaveTerritorio',
+    municipios: catalogo,
+    seleccionados: clave.notificaciones?.municipios || [],
+    modo: 'municipios'
+  });
+}
+
+export function valoresAvisosClave() {
+  return {
+    activo: $('avisosClaveActivo')?.checked !== false,
+    municipios: moduleState.selectorAvisosClave?.municipios() || []
+  };
+}
+
 
 /* ----------------------------- sesiones ----------------------------- */
 

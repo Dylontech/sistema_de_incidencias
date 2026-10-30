@@ -5,6 +5,9 @@ import { intentar } from '../core/errores.js';
 import { esc, fmtFechaCorta } from '../core/utils.js';
 import { sesion } from '../core/session.js';
 import { permisosService } from '../services/permisos.service.js';
+import { passwordService } from '../services/password.service.js';
+import { bajaService } from '../services/baja.service.js';
+import { altaService } from '../services/alta.service.js';
 import { authService } from '../services/auth.service.js';
 import { PERMISOS_LISTA, ETIQUETAS_PERMISO } from '../views/admin.view.js';
 
@@ -40,9 +43,157 @@ async function pintarSolicitudes() {
     </div>`;
 }
 
+/** Estado de las solicitudes de cambio de contraseña. */
+async function pintarSolicitudesPassword() {
+  const contenedor = document.getElementById('perfilSolicitudesPassword');
+  if (!contenedor) return;
+  if (!sesion.esEmpleado()) {
+    contenedor.innerHTML = '';
+    return;
+  }
+  let solicitudes = [];
+  try {
+    ({ solicitudes } = await passwordService.mias());
+  } catch {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
+    return;
+  }
+  if (!solicitudes.length) {
+    contenedor.innerHTML = '<p class="campo-nota">Sin solicitudes de contraseña.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta</th><th>Motivo</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr>
+                <td>${esc(s.nombre || s.username)}${
+                  s.solicitadoPor && s.solicitadoPor !== s.username
+                    ? '<div class="campo-nota">La pediste tú</div>'
+                    : ''
+                }</td>
+                <td>${esc(s.motivo)}${
+                  s.respuesta ? `<div class="campo-nota">Respuesta: ${esc(s.respuesta)}</div>` : ''
+                }${
+                  s.estado === 'resuelta'
+                    ? '<div class="campo-nota">La contraseña nueva llegó a tu campana de avisos.</div>'
+                    : ''
+                }</td>
+                <td><span class="inc-badge badge-${
+                  s.estado === 'resuelta' ? 'verde' : s.estado === 'rechazada' ? 'rojo' : 'amarillo'
+                }">${esc(s.estado)}</span></td>
+                <td>${fmtFechaCorta(s.creadoEn)}</td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Estado de las solicitudes de baja que hizo o recibió el actor. */
+async function pintarSolicitudesBaja() {
+  const contenedor = document.getElementById('perfilSolicitudesBaja');
+  if (!contenedor) return;
+  if (!sesion.esEmpleado()) {
+    contenedor.innerHTML = '';
+    return;
+  }
+  let solicitudes = [];
+  try {
+    ({ solicitudes } = await bajaService.mias());
+  } catch {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
+    return;
+  }
+  if (!solicitudes.length) {
+    contenedor.innerHTML = '<p class="campo-nota">Sin solicitudes de baja.</p>';
+    return;
+  }
+  const propio = String(sesion.usuario?.id || '');
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta</th><th>Motivo</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr>
+                <td>${esc(s.nombre || s.username)}${
+                  String(s.usuarioId) !== propio
+                    ? '<div class="campo-nota">La pediste tú</div>'
+                    : ''
+                }</td>
+                <td>${esc(s.motivo)}${
+                  s.respuesta ? `<div class="campo-nota">Respuesta: ${esc(s.respuesta)}</div>` : ''
+                }</td>
+                <td><span class="inc-badge badge-${
+                  s.estado === 'aprobada' ? 'verde' : s.estado === 'rechazada' ? 'rojo' : 'amarillo'
+                }">${esc(s.estado)}</span></td>
+                <td>${fmtFechaCorta(s.creadoEn)}</td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/** Estado de las solicitudes de alta que pidió el actor. */
+async function pintarSolicitudesAlta() {
+  const contenedor = document.getElementById('perfilSolicitudesAlta');
+  if (!contenedor) return;
+  if (!sesion.esEmpleado()) {
+    contenedor.innerHTML = '';
+    return;
+  }
+  let solicitudes = [];
+  try {
+    ({ solicitudes } = await altaService.mias());
+  } catch {
+    contenedor.innerHTML = '<p class="campo-nota">No se pudieron cargar las solicitudes.</p>';
+    return;
+  }
+  if (!solicitudes.length) {
+    contenedor.innerHTML = '<p class="campo-nota">Sin solicitudes de alta.</p>';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta</th><th>Contacto</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr>
+                <td><strong>${esc(s.nombre)}</strong><div class="campo-nota">${esc(s.username)}</div></td>
+                <td>${esc(s.correo || '—')}${
+                  s.telefono ? `<div class="campo-nota">${esc(s.telefono)}</div>` : ''
+                }</td>
+                <td><span class="inc-badge badge-${
+                  s.estado === 'aprobada' ? 'verde' : s.estado === 'rechazada' ? 'rojo' : 'amarillo'
+                }">${esc(s.estado)}</span>${
+                  s.estado === 'aprobada'
+                    ? '<div class="campo-nota">La contraseña temporal llegó a tu campana.</div>'
+                    : ''
+                }</td>
+                <td>${fmtFechaCorta(s.creadoEn)}</td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 function pintarFormulario() {
   const resumen = document.getElementById('perfilResumen');
   const actuales = permisosActuales();
+  const esPersonal = sesion.esEmpleado();
+  document.getElementById('perfilPasswordBox')?.classList.toggle('u-oculto', !esPersonal);
   if (resumen) {
     const usuario = sesion.usuario || {};
     const acceso =
@@ -61,7 +212,6 @@ function pintarFormulario() {
   }
   const contenedor = document.getElementById('perfilPermisos');
   if (!contenedor) return;
-  const esPersonal = sesion.esEmpleado();
   if (!esPersonal) {
     contenedor.innerHTML =
       '<p class="campo-nota">Las solicitudes de permisos son solo para cuentas del personal.</p>';
@@ -94,6 +244,9 @@ export function registrar() {
         }
         pintarFormulario();
         await pintarSolicitudes();
+        await pintarSolicitudesPassword();
+        await pintarSolicitudesBaja();
+        await pintarSolicitudesAlta();
         abrirModal('modalPerfil', { nested: true });
       }),
 
@@ -108,6 +261,18 @@ export function registrar() {
         document.getElementById('perfilMotivo').value = '';
         await pintarSolicitudes();
         toast('Solicitud enviada al administrador', 'ok');
+      }),
+
+    'perfil:solicitarPassword': () =>
+      intentar(async () => {
+        const motivo = document.getElementById('perfilMotivoPassword')?.value || '';
+        if (motivo.trim().length < 10) {
+          return toast('Explica en al menos 10 caracteres por qué necesitas el cambio', 'err');
+        }
+        await passwordService.crear({ motivo });
+        document.getElementById('perfilMotivoPassword').value = '';
+        await pintarSolicitudesPassword();
+        toast('Solicitud de contraseña enviada al administrador', 'ok');
       })
   });
 }

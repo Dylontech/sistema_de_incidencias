@@ -21,5 +21,10 @@ export const informes = asyncHandler(async (req, res) => {
 });
 
 export const exportacion = asyncHandler(async (req, res) => {
-  res.json(await stats.exportacion(req.repositorio, req.usuario, req.query.municipio || null));
+  res.json(
+    await stats.exportacion(req.repositorio, req.usuario, {
+      municipios: req.query.municipios || req.query.municipio || null,
+      estados: req.query.estados || req.query.estado || null
+    })
+  );
 });

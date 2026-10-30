@@ -2,7 +2,7 @@
 
 > Documento vivo. **Cada cambio en esquema, rutas, servicios, roles, permisos, configuración, eventos o flujos de interfaz debe actualizar este archivo antes de considerarse terminado.**
 >
-> Última actualización: 2026-10-29 · Versión del documento: 2.9.4 · Estado: V2.9.4 implementada y verificada; suite JSON 325/325.
+> Última actualización: 2026-10-30 · Versión del documento: 2.11.0 · Estado: V2.11.0 implementada y verificada; suite JSON 345/345.
 
 ## 1. Qué es este sistema
 
@@ -22,6 +22,11 @@ Aplicación web para reportar, dar seguimiento y moderar incidencias urbanas y v
 - V2.5: paginación de informes con Paged.js, diseño configurable de logo institucional, márgenes y pie, y tutoriales con secuencia real de apertura/cierre de modales; tickets e informes quedan restringidos a cuentas registradas.
 - V2.6: informes y tickets pasan de páginas independientes a modales de la vista principal; las rutas antiguas redirigen con enlaces profundos. El formulario de informe usa estado→municipios y enlace directo al aviso de privacidad. La bienvenida del tutorial se muestra una sola vez por dispositivo y queda disponible en la enciclopedia.
 - V2.7: prioridad de tickets definida solo por soporte/admin; informe con varios estados y municipios; aviso de privacidad en modal reutilizable; aceptación de términos/privacidad versionada y exigida también en servidor; marcador azul distintivo de «mi ubicación».
+- V2.10: permisos CRUD separados (ver/crear/editar/eliminar) para usuarios, claves, tipos, solicitudes de acceso y avisos por clave; las claves de acceso llevan su propia matriz de permisos y territorio, y ese alcance se aplica a todas las acciones de la sesión. El alta de personal puede partir de una clave y el correo repetido responde 409.
+- V2.11: los roles integrados tienen matriz editable en la tabla `roles` (con «Restablecer a fábrica») y el administrador maestro puede crear roles propios que heredan una plantilla. Las contraseñas se guardan también cifradas (AES-256-GCM) para consulta y restablecimiento auditados; el cambio de contraseña se solicita al administrador. Las estadísticas rechazan con 403 el territorio ajeno y el selector solo ofrece el ámbito propio. Tipografía más grande y ayuda de cada permiso con guías simuladas en la enciclopedia.
+- V2.11.1: sin tema claro/oscuro; un funcionario solo edita el nombre de otras cuentas y las bajas se **solicitan** (`solicitudes_baja`) para que las resuelva la administración.
+- V2.11.2: los avisos de solicitudes abren la cuenta y su acción en el panel; las contraseñas restablecidas se entregan al solicitante por la campana.
+- V2.11.3: las cuentas dadas de baja se pueden **reactivar**; el personal **solicita** las altas (`solicitudes_usuario`) con nombre, usuario, correo y teléfono en lugar de crearlas; Municipios muestra solo la ficha del funcionario de un municipio y el texto del panel es más grande.
 
 ## 2. Arranque rápido
 
@@ -133,6 +138,22 @@ V2.9.3 (cobertura nacional y carga única): `/api/municipios` y `/api/publico/mu
 
 V2.9.4 (claves por estado, sesiones y auditoría): el modal de claves usa el mismo selector territorial por bloques que los informes: se elige un estado con escritura, se buscan sus municipios y «Incluir el estado completo» envía el estado en `estados`. El servidor expande los estados a sus municipios, guarda `clave_acceso_estados` y valida que la entidad tenga catálogo. La lista de claves muestra código, territorio, usuarios vinculados, sesiones activas, usos, vencimiento y estado, y permite eliminar la clave; al eliminarla se cierran sus sesiones (`sesiones_usuario.clave_id`) y el middleware rechaza los tokens en la siguiente petición. El monitoreo de sesiones indica la clave de cada sesión. La pestaña «Auditoría» (`ver_auditoria`) lista cada petición que modifica datos con fecha, actor, rol, permisos, acción, entidad, resultado, clave e IP hash; el cuerpo se sanea y nunca guarda contraseñas, tokens ni claves. La pestaña de estadísticas recrea su selector al abrirse para tomar el catálogo actual (las 32 entidades) y no quedarse con el de la primera carga. El catálogo nacional del INEGI quedó importado con 2 475 municipios y 50 763 comunidades de las 32 entidades; `scripts/sincronizar-catalogo.mjs` los lleva a MySQL sin borrar usuarios ni incidencias. El armazón offline pasa a `incidencias-shell-v2.9.4`.
 
+V2.9.5 (avisos por clave, resumen de solicitudes y panel adaptable): las notificaciones de `solicitud_informe_creada`, `solicitud_informe_enviada` y `solicitud_informe_error` enlazan a `/?admin=solicitudes-informe&solicitud=<id>`; el clic abre la pestaña y el modal con el resumen completo (solicitante, territorio, fechas, tipos, formato, mensaje, error y acciones). La nueva pestaña «Avisos por clave» (`gestionar_avisos_clave`) permite elegir los municipios donde cada clave recibe avisos; el servidor los intersecta con el territorio de la clave y con la sesión más reciente que la usó. Revocar los avisos no invalida la clave para iniciar sesión. El panel de control tiene botones A−/A/A+ que comparten la preferencia global de texto y un control para hacerlo más grande o pequeño, además de redimensionado nativo. La generación de claves usa un candado contra dobles clics y pinta la clave nueva de inmediato. Publicidad y campañas permiten expandir/contraer secciones y redimensionarlas; la etiqueta del QR se acortó y el bloque QR usa una cuadrícula adaptable. Las vistas se ajustan a móvil, laptop, monitores grandes y TV. El armazón offline pasa a `incidencias-shell-v2.9.5-r2`; la creación y validación de claves usan `municipiosLigeros()` para no cargar los polígonos del catálogo.
+
+V2.10 (permisos CRUD y clave en el alta): `frontend/js/data/permisos.js` centraliza la matriz, las etiquetas y los grupos CRUD; el modal de usuario y el de claves pintan una tarjeta por módulo (Usuarios, Claves, Tipos, Solicitudes de acceso, Avisos por clave) con casillas Ver/Crear/Editar/Eliminar. Al abrir el alta de una cuenta, el selector «Clave de acceso» lista las claves vigentes; al elegir una se rellenan el rol, los selectores territoriales y la matriz de permisos como vista previa. La tabla de usuarios muestra los botones de editar y desactivar solo con `editar_usuarios`/`eliminar_usuarios`, y la de claves muestra el número de permisos y oculta «Eliminar» sin `eliminar_claves`. Las pestañas Claves, Avisos por clave y Solicitudes usan `ver_claves`, `ver_avisos_clave` y `ver_solicitudes_acceso`; las rutas repiten la comprobación con los permisos CRUD concretos. El armazón offline pasa a `incidencias-shell-v2.10.0` y precarga `js/data/permisos.js`.
+
+V2.11 (roles propios, contraseñas y tema): el alta de cuentas usa `crearSelectorTerritorialPorEstado` con `alCompletarEstado:'municipios'` para los roles que solo aceptan municipios: se escribe el estado, se busca el municipio y el bloque vacío permite añadir otro estado. El selector de clave muestra un ejemplo práctico y una vista previa de lo que concede. Junto al rol especial hay un botón «Crear rol» que abre `#modalRolesEspeciales` encima del alta (`nested`), guarda el rol propio y ofrece «Aplicar a esta cuenta»; el formulario de usuario se conserva detrás. `#modalRolesEspeciales` pasa a «Roles y permisos» con tres listas (roles del sistema editables + «Restablecer a fábrica», roles propios y roles especiales). La tabla de usuarios añade «Ver contraseña» (`modalPasswordUsuario`, texto difuminado con `.password-oculta`, copiar y restablecer) solo con `revelar_password_usuarios`; el bloque de solicitudes de permisos y el de solicitudes de contraseña se ocultan sin su permiso. «Mi cuenta» permite solicitar el cambio de contraseña con motivo. Cada casilla de la matriz tiene un botón «?» que abre `modalAyudaPermiso` con la explicación de `js/data/permisos-ayuda.js`. Tipografía base de 15px y tablas de 13px. El armazón offline pasa a `incidencias-shell-v2.11.0`.
+
+V2.11.1 (sin tema, funcionario acotado y bajas): se retira por completo el tema claro/oscuro (`tema.js`, `tema-publico.js`, `tema-oscuro.css`, controles y `data-theme`); la interfaz queda en tema claro fijo. Un funcionario con `editar_usuarios` **solo cambia el nombre completo**: el servidor rechaza con 403 rol, rol propio, rol especial, municipios, estados, escritura, estado, correo, permisos y contraseña. Al crear cuentas, el servidor impone `rol='funcionario'` y el territorio del propio funcionario, e ignora los municipios enviados; `claveId`, `rolPropioId`, `rolPersonalizadoId` y `permisos` responden 403. La baja directa también responde 403: se **solicita** (`POST /api/baja/solicitudes`) y la administración la resuelve en la pestaña Usuarios (al aprobar se aplica la baja lógica). El selector de estadísticas usa `alcance.modo` (`todos|estados|municipios`): un funcionario municipal ve `crearSelectorTerritorial` en modo `municipios`, sin «Añadir un estado» ni «Todos los estados». En móvil, `.admin-panel .filter-row > *` recupera `flex: 0 0 auto`, que era la causa de los huecos gigantes en Publicidad y Campañas. El armazón offline pasa a `incidencias-shell-v2.11.1`.
+
+V2.11.2 (avisos de baja y contraseña con entrega): las filas de la tabla de usuarios llevan `data-usuario` y las de las bandejas `data-solicitud`; `admin.controller.enfocarSolicitud()` abre la pestaña Usuarios y resalta (`tr.fila-destacada`) la cuenta y la solicitud del aviso, con sus botones de aprobar/rechazar a la vista. `navegarAlOrigen()` reconoce `/?panel=usuarios&baja=<id>&usuario=<id>` y `...&password=<id>&usuario=<id>`: la administración va al panel y cualquier otra cuenta abre «Mi cuenta», que ahora lista también «Mis solicitudes de baja». La tabla de usuarios añade «Solicitar cambio de contraseña» (`#modalSolicitudPassword`) para quien no es administrador y tiene `editar_usuarios`. Al aprobar, la contraseña temporal se muestra al administrador y se entrega al solicitante por la campana; el titular recibe un aviso sin la clave. El armazón offline pasa a `incidencias-shell-v2.11.2`.
+
+V2.11.3 (reactivar cuentas, solicitud de alta y texto más grande): la pestaña Usuarios muestra «Solicitar alta de usuario» (`#modalSolicitudAlta`) en lugar de «Nuevo usuario» cuando la sesión no administra; la bandeja `#solicitudesAltaBox` resuelve las peticiones y al aprobar abre `modalPasswordUsuario` con la temporal que también viaja al solicitante por `alta_resuelta`. Las filas inactivas muestran «Reactivar» (`admin:usuarioReactivar` → `POST /api/usuarios/:id/reactivar`). En Municipios, `renderMunicipios` recibe/deriva `municipal` y oculta `#municipioActivoBox` y `#municipiosFiltroBox`, dejando solo la fila del municipio propio con su «Ficha». «Editar permisos» de un rol del sistema funciona porque `rolSistemaPorId`/`rolPropioPorId` comparan ids como texto; «Limpiar» deja el formulario en rol propio y habilita la plantilla. La tipografía sube a 16 px base (campos y botones 15, tablas 14, notas 13). El armazón offline pasa a `incidencias-shell-v2.11.3`.
+
+**Roles del sistema editables (V2.11):** la matriz de cada rol integrado se guarda en la tabla `roles` y `permisosDe()` la usa antes que `PERMISOS_POR_ROL`. «Restablecer a fábrica» vuelve a la constante. Los roles propios (`tipo='propio'`) heredan la plantilla guardada en `usuarios.rol` pero **sustituyen** su matriz de permisos; se asignan con `usuarios.rol_propio_id`. Solo el administrador maestro gestiona roles (`/api/roles*`).
+
+**Restricciones del funcionario (V2.11):** quien no es administrador solo crea y edita cuentas con plantilla `funcionario` dentro de sus municipios; no puede cambiar permisos (`exigirPuedeEditarPermisos`), ni contraseñas (`exigirPuedeCambiarPassword`), ni generar claves (`claves.crear/revocar/eliminar` exigen `esAlgunaAdmin` y `generarClave` responde 403). La contraseña inicial sí se fija al crear la cuenta. Nadie concede permisos que no tiene (`permisosOtorgables`), salvo el maestro.
+
 ## 4. Roles y permisos
 
 Roles: `anonimo`, `ciudadano`, `funcionario`, `auditor`, `enlace_estatal`, `enlace_federal`, `soporte`, `admin_municipal`, `admin_estatal`, `admin`.
@@ -147,13 +168,34 @@ Grupos:
 
 Permisos base:
 
-`reportar`, `editar_propios`, `cambiar_estado`, `resolver`, `moderar`, `exportar`, `gestionar_usuarios`, `gestionar_claves`, `ver_monitoreo`, `responder_tickets`, `atender_tickets`, `configurar_notificaciones`, `ver_metricas`, `ver_auditoria`.
+`reportar`, `editar_propios`, `cambiar_estado`, `resolver`, `moderar`, `exportar`, `gestionar_usuarios`, `gestionar_claves`, `gestionar_avisos_clave`, `ver_monitoreo`, `responder_tickets`, `atender_tickets`, `configurar_notificaciones`, `ver_metricas`, `ver_auditoria`.
 
-Permisos por sección del panel (V2.8): `ver_moderacion`, `ver_usuarios`, `ver_incidencias_panel`, `ver_tipos`, `gestionar_tipos`, `ver_municipios_panel`, `ver_zonas`, `gestionar_zonas`, `ver_firmas`, `gestionar_solicitudes_informe`, `gestionar_legal`, `gestionar_configuracion`, `gestionar_respaldos`, `usar_simulador`, `gestionar_publicidad`, `gestionar_correos` y `ver_auditoria` (V2.9.4). La pestaña `admin:tab` lleva `data-permiso`, `PERMISO_POR_TAB` bloquea la apertura y el router correspondiente repite la comprobación en el servidor.
+Permisos por sección del panel (V2.8): `ver_moderacion`, `ver_usuarios`, `ver_incidencias_panel`, `ver_tipos`, `gestionar_tipos`, `ver_municipios_panel`, `ver_zonas`, `gestionar_zonas`, `ver_firmas`, `gestionar_solicitudes_informe`, `gestionar_legal`, `gestionar_configuracion`, `gestionar_respaldos`, `usar_simulador`, `gestionar_publicidad`, `gestionar_correos`, `ver_auditoria` (V2.9.4) y `gestionar_avisos_clave` (V2.9.5). La pestaña `admin:tab` lleva `data-permiso`, `PERMISO_POR_TAB` bloquea la apertura y el router correspondiente repite la comprobación en el servidor.
+
+Permisos CRUD (V2.10):
+
+- Usuarios: `ver_usuarios`, `crear_usuarios`, `editar_usuarios`, `eliminar_usuarios` (baja lógica).
+- Claves: `ver_claves`, `crear_claves`, `editar_claves` (revocar), `eliminar_claves`.
+- Tipos: `ver_tipos`, `crear_tipos`, `eliminar_tipos` (el catálogo no tiene edición; `editar_tipos` queda reservado y no se muestra en la matriz).
+- Solicitudes de acceso: `ver_solicitudes_acceso`, `aprobar_solicitudes_acceso`, `rechazar_solicitudes_acceso`.
+- Avisos por clave: `ver_avisos_clave`, `editar_avisos_clave`.
+
+Permisos V2.11:
+
+- `ver_solicitudes_permisos`, `aprobar_solicitudes_permisos`, `rechazar_solicitudes_permisos` y el paraguas `gestionar_solicitudes_permisos`: resuelven las peticiones de permisos del personal. Sustituyen al `requiereAlgunaAdmin` de las rutas.
+- `revelar_password_usuarios`: permite consultar la contraseña cifrada y restablecerla. Lo tienen `admin`, `admin_estatal` y `admin_municipal`; el resto del personal debe solicitarlo desde «Mi cuenta».
+
+`gestionar_usuarios`, `gestionar_claves`, `gestionar_tipos` y `gestionar_avisos_clave` se conservan como permisos paraguas: `permisosDe()` los expande a sus permisos CRUD, de modo que las cuentas y roles anteriores mantienen exactamente las mismas capacidades. Un `false` explícito en un permiso concreto manda sobre la matriz del rol.
+
+Claves que autorizan (V2.10): cada clave guarda `permisos` (lista expandida) y su territorio. Al iniciar sesión con una clave, la sesión adopta ese territorio y esa lista; el middleware `autenticar` vuelve a aplicar el recorte en cada petición, así que una clave revocada, vencida o con menos permisos surte efecto de inmediato. Por ejemplo, una clave de Maravatío con solo `ver_usuarios` permite listar únicamente las cuentas de Maravatío y rechaza crear/editar/eliminar. Si la clave no declara permisos (claves anteriores), se conservan los de la cuenta.
+
+El alta de personal acepta `claveId`: el servidor toma de la clave el rol, el territorio y los permisos, ignorando los valores manuales del formulario. En el panel, elegir una clave rellena el rol, los selectores territoriales y la matriz de permisos como vista previa.
 
 `atender_tickets` es el permiso que abre el panel de soporte; `responder_tickets` se conserva para responder sin abrir la cola completa. Por defecto solo `soporte` y los tres roles admin tienen `atender_tickets`; un funcionario puede recibirlo como excepción.
 
 `ver_auditoria` (V2.9.4) abre la bitácora de acciones; por defecto solo lo tiene `admin`. Los administradores territoriales y el resto del personal pueden recibirlo como excepción, y la ruta vuelve a comprobarlo en el servidor.
+
+`ver_avisos_clave` (V2.10) abre la pestaña «Avisos por clave»; `editar_avisos_clave` permite configurar y revocar sus municipios. El paraguas `gestionar_avisos_clave` (V2.9.5) concede ambos. Lo tienen `admin`, `admin_estatal` y `admin_municipal`; el alcance de la clave limita qué municipios puede elegir cada administrador.
 
 Reglas clave:
 
@@ -173,12 +215,23 @@ Roles especiales (V2.3):
 - `usuarios.rol_personalizado_id` asigna el rol; `permisosDe()` combina rol base + rol especial + excepciones de la cuenta.
 - El administrador maestro crea/edita/elimina roles; solo aparecen los compatibles con el rol base elegido.
 - `solicitudes_permisos` permite que el personal pida permisos extra; el administrador de su ámbito aprueba o rechaza y el permiso se guarda como excepción de la cuenta.
-- Con `gestionar_usuarios` aprobado, un funcionario o soporte puede crear/editar cuentas de su ámbito mediante `requierePermiso`; nunca puede crear ni editar administradores.
+- Con `gestionar_usuarios` o un permiso CRUD de usuarios (`crear_usuarios`, `editar_usuarios`, `eliminar_usuarios`) aprobado, un funcionario o soporte puede gestionar cuentas de su ámbito mediante `requierePermiso`; nunca puede crear ni editar administradores.
+- V2.11.1: fuera de la administración, el único campo editable es `nombre`; `rol`, `rolPropioId`, `rolPersonalizadoId`, `municipios`, `estados`, `puedeEscribir`, `activo`, `correo`, `permisos` y `password` responden **403**. Al crear solo se acepta `rol='funcionario'`, el territorio lo impone el servidor y la baja directa responde 403: se **solicita** (`solicitudes_baja`) y la resuelve la administración.
+- V2.11.2: el funcionario tampoco cambia contraseñas, pero con `editar_usuarios` puede **solicitar** el restablecimiento de otra cuenta de su ámbito (`POST /api/password/solicitudes` con `usuarioId`). La administración la resuelve y la nueva contraseña llega al solicitante por la campana; el titular recibe un aviso. La resolución queda en auditoría sin guardar la clave.
+- V2.11.3: **crear cuentas es solo de la administración**. Con `crear_usuarios` un funcionario envía una **solicitud de alta** (`solicitudes_usuario`) con nombre, usuario, correo, teléfono y notas; no elige rol, territorio, permisos ni contraseña. Al aprobarla nace como funcionario en los municipios del solicitante y la contraseña temporal se entrega a quien la pidió. Reactivar una cuenta dada de baja también es de la administración (`POST /api/usuarios/:id/reactivar`).
 - Los cambios de permisos se recargan en cada petición (middleware `autenticar`); «Mi cuenta» refresca la sesión para mostrar los permisos aprobados.
+
+Roles propios (V2.11):
+
+- `roles` guarda la matriz de los siete roles integrados del personal (sin `admin`, que siempre tiene todo). Editarla cambia lo que pueden hacer las cuentas de ese rol en su siguiente petición; «Restablecer a fábrica» vuelve a `PERMISOS_POR_ROL`.
+- Un rol propio declara `etiqueta`, `rol_plantilla` (funcionario, auditor, enlace estatal/federal o soporte), `territorio`, `permisos` y `activo`. Su matriz **sustituye** la de la plantilla, no se suma.
+- `usuarios.rol_propio_id` asigna el rol propio; `usuarios.rol` sigue siendo la plantilla para todos los guards (alcance, escritura, panel). Los roles propios basados en administración no se permiten.
+- Solo el administrador maestro gestiona `/api/roles*`; los roles integrados no se eliminan ni se desactivan.
+- Un rol propio con cuentas asignadas no se puede eliminar (409): primero hay que cambiarles el rol.
 
 ## 5. Modelo de datos
 
-Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracion.js`, `20261025_configuracion_actor.js`, `20261026_simulacion_contexto.js`, `20261027_mejoras_v23.js`, `20261028_aceptaciones_legales.js`, `20261028_claves_estados_sesiones_auditoria.js`, `20261030_publicidad_avanzada.js`, `20261031_adjuntos.js`, `20261101_acceso_por_nombre.js` y `20261102_correo_unico.js`.
+Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracion.js`, `20261025_configuracion_actor.js`, `20261026_simulacion_contexto.js`, `20261027_mejoras_v23.js`, `20261028_aceptaciones_legales.js`, `20261028_claves_estados_sesiones_auditoria.js`, `20261029_avisos_por_clave.js`, `20261030_publicidad_avanzada.js`, `20261031_adjuntos.js`, `20261101_acceso_por_nombre.js`, `20261102_correo_unico.js`, `20261103_permisos_clave.js`, `20261104_roles_permisos.js`, `20261105_password_cifrada.js`, `20261106_solicitudes_permisos_estados.js`, `20261107_roles_permisos_v211.js`, `20261108_solicitudes_baja.js`, `20261109_solicitudes_password_solicitante.js` y `20261110_solicitudes_usuario.js`.
 
 ### Catálogos
 - `municipios` (id INEGI, nombre, estado, polígono, centro, zoom).
@@ -188,10 +241,16 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 ### Cuentas y alcance
 - `usuarios` (rol, correo, pseudónimo, permisos, suspensión, `rol_personalizado_id` V2.3). En V2.9 el `nombre` del ciudadano es su credencial de acceso (único, sin distinguir mayúsculas ni acentos). El `correo` es el canal de avisos y vuelve a ser único en V2.9.1 (`20261102_correo_unico.js`).
 - `usuario_municipios`, `usuario_estados` (alcance N:M).
-- `claves_acceso` (V2.3: `correo_contacto`, `correo_institucional_id`), `clave_acceso_municipios`, `clave_acceso_estados` (V2.9.4: estados completos), `clave_acceso_usos`.
+- `claves_acceso` (V2.3: `correo_contacto`, `correo_institucional_id`; V2.9.5: `notificaciones_activas`; V2.10: `permisos` JSON con la lista expandida o `NULL` = sin recorte), `clave_acceso_municipios`, `clave_acceso_estados` (V2.9.4: estados completos), `clave_notificacion_municipios` (V2.9.5: alcance de avisos, subconjunto de la clave), `clave_acceso_usos`.
 - `sesiones_usuario` (V2.9.4: `clave_id` identifica la clave con la que se abrió la sesión; `cerrada_en` y `motivo_cierre` permiten revocarla), `solicitudes_acceso`.
 - `auditoria` (V2.9.4: actor, `user_key`, rol, `clave_id`, método, ruta, estado HTTP, acción, entidad, detalle JSON saneado, IP hash, user agent y fecha).
-- `roles_personalizados` y `solicitudes_permisos` (V2.3).
+- `roles_personalizados` y `solicitudes_permisos` (V2.3); V2.11 añade `solicitudes_permisos.estados` (destino de las cuentas sin municipio).
+- `roles` (V2.11): matriz de permisos de los roles integrados (`tipo='integrado'`, clave = rol del ENUM) y roles propios (`tipo='propio'`, `rol_plantilla`, `territorio`, `activo`, `orden`). `usuarios.rol_propio_id` asigna un rol propio sin cambiar el ENUM.
+- `usuarios.password_cifrada` (V2.11): copia AES-256-GCM de la contraseña para consulta y restablecimiento auditados. Las cuentas anteriores quedan en `NULL`.
+- `solicitudes_password` (V2.11): peticiones de cambio de contraseña del personal (`motivo`, `estado`, `resuelto_por/en`, `respuesta`). V2.11.2 añade `solicitado_por_id` y `solicitado_por` para distinguir al titular de quien pidió el cambio en su nombre.
+- `solicitudes_baja` (V2.11.1): peticiones para dar de baja una cuenta (`usuario_id` FK `CASCADE`, `username`, `nombre`, `solicitado_por_id`, `solicitado_por`, `motivo`, `estado` `pendiente|aprobada|rechazada`, `resuelto_por`, `resuelto_en`, `respuesta`, `creado_en`). Una pendiente por cuenta; al aprobar se aplica la baja lógica (`usuarios.activo = 0`).
+- `solicitudes_usuario` (V2.11.3): peticiones de alta de cuentas del personal (`username`, `nombre`, `correo`, `telefono`, `notas`, `municipios`, `estado`, `solicitado_por_id`, `solicitado_por`, `resuelto_por`, `resuelto_en`, `respuesta`, `creado_en`). Al aprobar se crea la cuenta como funcionario en esos municipios con contraseña temporal.
+- `usuarios.telefono` (V2.11.3): teléfono de contacto opcional; no se usa para entrar.
 - `municipios_informacion` (ficha municipal con estado `borrador|pendiente|aprobado|rechazado`, autor de la propuesta y aprobador).
 
 ### Incidencias
@@ -260,8 +319,13 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 - `GET /api/stats/panel` y `/api/stats/informes` aceptan `municipios` y `estados` (listas separadas por coma); devuelven `comparativo`, `comparativoEstados` y `tiempos` (promedio, mediana, mín/máx y detalle por incidencia).
 - `GET /api/municipios` devuelve el catálogo visible y `estados` con las 32 entidades federativas; `GET /api/municipios/ubicacion?lat=&lng=` detecta el municipio de la geolocalización.
 - `GET /api/municipios/:id/ficha` y `PUT /api/municipios/:id/ficha` (funcionario propone, admin guarda aprobado); `POST /api/municipios/:id/ficha/aprobar|rechazar` (solo administración).
-- `GET/POST /api/permisos/solicitudes`, `GET /api/permisos/solicitudes/mias`, `POST /api/permisos/solicitudes/:id/aprobar|rechazar`; `GET /api/roles-especiales`, `POST/PATCH/DELETE /api/roles-especiales` (solo admin maestro).
-- `POST/PATCH /api/usuarios` exigen `gestionar_usuarios`; un funcionario con ese permiso aprobado solo gestiona cuentas no administrativas de su ámbito.
+- `GET/POST /api/permisos/solicitudes`, `GET /api/permisos/solicitudes/mias`, `POST /api/permisos/solicitudes/:id/aprobar|rechazar`; `GET /api/roles-especiales`, `POST/PATCH/DELETE /api/roles-especiales` (solo admin maestro). V2.11: las rutas de solicitudes exigen `ver/aprobar/rechazar_solicitudes_permisos` (o `gestionar_solicitudes_permisos`) y el servicio comprueba alcance y no escalada.
+- Roles V2.11 (solo admin maestro): `GET /api/roles`, `GET /api/roles/catalogo`, `POST /api/roles`, `PATCH /api/roles/:id`, `POST /api/roles/:id/restablecer`, `DELETE /api/roles/:id`.
+- Contraseñas V2.11: `GET /api/usuarios/:id/password` (revelado auditado, `Cache-Control: no-store`) y `POST /api/usuarios/:id/password/restablecer`; `GET/POST /api/password/solicitudes[/mias]` y `POST /api/password/solicitudes/:id/aprobar|rechazar`.
+- V2.11.2: `POST /api/password/solicitudes` acepta `usuarioId` para que un funcionario con `editar_usuarios` pida el cambio de otra cuenta de su ámbito. Al aprobar, la contraseña temporal se devuelve al panel **y** se entrega al solicitante por aviso (`solicitud_password_resuelta`); si el solicitante no es el titular, este recibe un aviso sin la clave. Aprobar y rechazar dejan `solicitud_password_aprobada` / `solicitud_password_rechazada` en auditoría, sin guardar la contraseña.
+- Bajas V2.11.1: `GET/POST /api/baja/solicitudes` (bandeja filtrada por alcance y `estado`; alta con `usuarioId` y `motivo`), `GET /api/baja/solicitudes/mias` y `POST /api/baja/solicitudes/:id/aprobar|rechazar`.
+- V2.11.3: `POST /api/usuarios/:id/reactivar` devuelve la cuenta a activa y audita `usuario_reactivado`. `POST /api/usuarios` ya solo lo permite la administración. Altas solicitadas: `GET/POST /api/alta/solicitudes`, `GET /api/alta/solicitudes/mias` y `POST /api/alta/solicitudes/:id/aprobar|rechazar`; aprobar crea la cuenta y devuelve la contraseña temporal una vez.
+- `GET /api/usuarios` exige `ver_usuarios`; `POST /api/usuarios` exige `crear_usuarios`; `PATCH /api/usuarios/:id` exige `editar_usuarios`; `DELETE /api/usuarios/:id` exige `eliminar_usuarios` y hace baja lógica (`activo=false`). Un funcionario con esos permisos (o el paraguas `gestionar_usuarios`) solo gestiona cuentas no administrativas de su ámbito. El alta acepta `claveId`: rol, territorio y permisos se toman de la clave. Un correo repetido responde 409 con un mensaje entendible, también si el choque ocurre al editar.
 - Bandeja de contacto/sugerencias, mensajería.
 - Contacto directo: `GET /api/contacto/funcionarios?municipioId=`, `POST /api/contacto/funcionarios`, `GET /api/contacto/mios`, `GET /api/contacto/directo`, `GET /api/contacto/directo/:id`, `POST /api/contacto/directo/:id/mensajes`.
 - Tickets: cola, respuesta, estado, prioridad, asignación, reglas.
@@ -270,7 +334,9 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 
 ### Admin maestro
 - Usuarios, claves, sesiones, municipios, zonas, tipos.
-- Claves V2.9.4: `GET/POST /api/admin/claves` (el alta acepta `municipios`, `estados`, `rolSugerido`, `usosMaximos` y `expiraEn`), `POST /api/admin/claves/:id/revocar`, `DELETE /api/admin/claves/:id`. La lista incluye `usuariosVinculados`, `sesionesActivas` y `sesiones`; al revocar o eliminar se cierran las sesiones de la clave y se corta su SSE.
+- Claves V2.9.4/V2.10: `GET /api/admin/claves` exige `ver_claves` (o `ver_avisos_clave` para la pestaña de avisos); `POST /api/admin/claves` exige `crear_claves` y acepta `municipios`, `estados`, `rolSugerido`, `permisos` (lista CRUD), `usosMaximos` y `expiraEn`; `POST /api/admin/claves/:id/revocar` exige `editar_claves`; `DELETE /api/admin/claves/:id` exige `eliminar_claves`. La lista incluye `usuariosVinculados`, `sesionesActivas`, `sesiones`, `permisos` y territorio; al revocar o eliminar se cierran las sesiones de la clave y se corta su SSE.
+- Avisos por clave V2.9.5/V2.10: `PUT /api/admin/claves/:id/notificaciones` acepta `{ activo, municipios }`; `POST .../notificaciones/revocar` y `POST .../notificaciones/reactivar` cambian solo el permiso de avisos. Exigen `editar_avisos_clave` (o el paraguas `gestionar_avisos_clave`); el alcance debe ser un subconjunto del territorio de la clave.
+- Solicitudes de acceso V2.10: `GET /api/admin/solicitudes-acceso` exige `ver_solicitudes_acceso`; `POST .../:id/aprobar` exige `aprobar_solicitudes_acceso`; `POST .../:id/rechazar` exige `rechazar_solicitudes_acceso`. El paraguas `gestionar_usuarios` sigue concediendo las tres.
 - Sesiones V2.9.4: `GET /api/admin/sesiones` devuelve `claveId`, `claveCodigo` y `claveNombre`; `DELETE /api/admin/sesiones/:id` sigue revocando por `jti`.
 - Auditoría V2.9.4: `GET /api/admin/auditoria?username=&accion=&desde=&hasta=&limite=` exige `ver_auditoria` y devuelve las acciones que modifican datos (POST/PUT/PATCH/DELETE) saneadas.
 - Configuración global de notificaciones y campañas.
@@ -297,10 +363,13 @@ Eventos V2.2 implementados: `firma_agregada`, `meta_firmas_alcanzada`, `recolecc
 
 Eventos V2.3: `ficha_municipio_pendiente`, `ficha_municipio_aprobada`, `ficha_municipio_rechazada`, `permiso_solicitado` y `permiso_resuelto`.
 
+Eventos V2.11: `solicitud_password_creada` (avisa a los administradores) y `solicitud_password_resuelta` (avisa al solicitante). Eventos V2.11.1: `baja_solicitada` (avisa a la administración del ámbito) y `baja_resuelta` (avisa a quien la pidió). En V2.11.2 los avisos de solicitudes llevan `url` con `panel=usuarios`, el id de la solicitud (`baja`/`password`) y el `usuario` afectado; `solicitud_password_resuelta` incluye la contraseña temporal para quien la pidió y `baja_resuelta` informa que la baja se cumplió y quedó en auditoría. En V2.11.3 se suman `alta_solicitada` (avisa a la administración) y `alta_resuelta` (entrega al solicitante el usuario y la contraseña temporal de la cuenta creada); sus enlaces usan `panel=usuarios&alta=<id>`.
+
 Reglas:
 - `emitir(repositorio, datos)` es el punto único.
 - Si el evento está desactivado en `configuracion_notificaciones`, no se emite.
 - Se aplican roles, alcance y preferencias por usuario.
+- V2.9.5: si la cuenta tiene una sesión abierta con clave, el aviso también debe caer dentro de los municipios permitidos para esa clave (`clave_notificacion_municipios`). Revocar los avisos de la clave no cierra la sesión ni invalida la clave.
 - `claveDedupe` evita duplicados por usuario.
 - SSE solo se emite si se creó una fila nueva.
 - En modo simulación no se envía correo ni SSE real.
@@ -326,6 +395,9 @@ Variables V2.7:
 - `TERMINOS_EXIGIR` (true): activa el middleware de consentimiento; `false` solo para depuración local.
 - `TERMINOS_EXIGIR_EN_PRUEBAS` (false): activa el bloqueo en `NODE_ENV=test` para el test dedicado.
 
+Variables V2.11:
+- `PASSWORD_LLAVE` (vacía en desarrollo): llave de 32 bytes para AES-256-GCM. **Obligatoria en producción** (`problemasDeConfiguracion()` la exige). Sin ella se deriva del secreto JWT en desarrollo. Cambiarla invalida las copias ya cifradas: el panel ofrecerá restablecerlas.
+
 ## 9. Seguridad y CSP
 
 - CSP estricta: `default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `style-src-attr 'none'`, `script-src-attr 'none'`.
@@ -342,6 +414,7 @@ Variables V2.7:
 - Sesiones JWT Bearer, sin cookies; el token se revoca por `jti` en `sesiones_usuario`.
 - Consentimiento V2.7: `aceptaciones_legales` + middleware `terminos.js`. Las escrituras sin aceptación vigente responden 428; las lecturas y `/api/legal/*` quedan abiertas para poder aceptar. En pruebas se omite salvo `TERMINOS_EXIGIR_EN_PRUEBAS=true`.
 - El HTML legal se pinta con el saneado del servidor (`sanitizarHtml`) y no usa estilos inline.
+- V2.11: `usuarios.password_hash` (bcrypt) sigue siendo la única fuente para verificar el acceso; `usuarios.password_cifrada` es una copia AES-256-GCM para consulta/restablecimiento. El revelado exige `revelar_password_usuarios`, respeta el alcance (nunca cuentas de administración salvo el maestro) y escribe `consulta_password` en auditoría sin guardar la contraseña. `GET /api/usuarios/:id/password` responde `Cache-Control: no-store`.
 - El estudio de publicidad pinta SVG en `data:` y exporta PNG/SVG/CSV con `Blob`; los colores dinámicos y la vista previa de correo usan CSSOM (`data-e`), nunca atributos `style`.
 
 ## 10. Pruebas
@@ -369,6 +442,9 @@ Variables V2.7:
 - Pruebas V2.9.2: `v2-ui.test.js` cubre los helpers `estadosDelCatalogo`/`construirBloques` del selector de informes, el contrato del modal y su demo, y la precarga del módulo en `sw.js`; `sin-estilos-inline.test.js` y `sintaxis-frontend.test.js` cubren el archivo nuevo. Suite JSON: 320/320.
 - Pruebas V2.9.3: `auth.test.js` valida las 32 entidades en `/api/municipios`; `v2-ui.test.js` cubre `catalogoEstados`/`construirBloques` y el contrato de un solo spinner (splash → overlay). Suite JSON: 321/321.
 - Pruebas V2.9.4: `v294-claves-auditoria.test.js` crea una clave con `estados`, comprueba que se expande a municipios, que la sesión queda vinculada a la clave, que eliminarla cierra la sesión y que la auditoría registra actor, resultado, entidad y permisos. Suite JSON: 325/325.
+- Pruebas V2.9.5: `avisos-clave.test.js` comprueba el alcance de avisos por municipio, la revocación sin invalidar la clave y la reactivación; `solicitudes.test.js` valida que el aviso enlaza al resumen concreto; `v2-ui.test.js` cubre el modal de detalle, la pestaña de avisos, los controles de tamaño, las secciones redimensionables y la etiqueta corta del QR. Suite JSON: 329/329.
+- Pruebas V2.10: `v210-permisos-clave.test.js` cubre correo repetido al crear/editar (409), claves con solo `ver_usuarios` (listar sí, crear no), claves con solo `crear_usuarios` (crear sí, listar no), reducción del territorio del listado, alta de cuenta desde clave y baja lógica. `v2-ui.test.js` y `permisos-panel.test.js` validan las pestañas con los permisos de consulta. Suite JSON: 336/336.
+- Pruebas V2.11: `v211-roles-alcance.test.js` (8/8) cubre la matriz editable de un rol integrado y su restablecimiento, el rol propio con plantilla, los límites del funcionario (permisos, contraseñas, claves y rol destino), el 403 de estadísticas con territorio ajeno, el catálogo `alcance` y `colindantes`, la consulta de contraseña auditada, el restablecimiento y la solicitud de contraseña. Suite JSON: 345/345.
 
 ## 11. Migraciones y datos
 
@@ -382,6 +458,12 @@ Variables V2.7:
 - V2.9.1 añade `20261102_correo_unico.js`: restaura el índice único de `usuarios.correo` (el correo es el canal de avisos). Si hay correos repetidos, la migración se detiene y los lista para corregirlos a mano; no modifica datos.
 - V2.9.4 añade `20261028_claves_estados_sesiones_auditoria.js`: tabla `clave_acceso_estados`, columna `sesiones_usuario.clave_id` con índice y tabla `auditoria` con índices por fecha, usuario y clave. No borra datos; ejecutar `npm run migrate` con respaldo previo.
 - Catálogo nacional V2.9.4: `npm run importar-inegi` genera `src/config/seed-data/municipios.json` (2 475 municipios) y `zonas.json` (50 763 comunidades); `npm run sincronizar-catalogo` los inserta o actualiza en MySQL sin borrar usuarios, incidencias, claves ni sesiones. `-- --seco` muestra el conteo sin escribir. `npm run seed` sigue siendo destructivo y no debe usarse sobre datos reales.
+- V2.9.5 añade `20261029_avisos_por_clave.js`: columna `claves_acceso.notificaciones_activas` y tabla `clave_notificacion_municipios` con FK a claves y municipios. No modifica datos existentes; las claves actuales quedan con avisos activos y alcance total de su territorio. Ejecutar `npm run migrate` con respaldo previo.
+- V2.10 añade `20261103_permisos_clave.js`: columna `claves_acceso.permisos` (TEXT/JSON, nullable). Las claves existentes quedan con `NULL`, que significa «sin recorte» y conserva el comportamiento anterior. No modifica usuarios ni datos de territorio. Ejecutar `npm run migrate` con respaldo previo. La validación de arranque de MySQL incluye ya `claves_acceso.permisos` en `COLUMNAS`.
+- V2.11 añade cuatro migraciones: `20261104_roles_permisos.js` (tabla `roles` sembrada con los integrados desde `src/config/roles.js` y columna `usuarios.rol_propio_id`), `20261105_password_cifrada.js` (`usuarios.password_cifrada` y tabla `solicitudes_password`), `20261106_solicitudes_permisos_estados.js` (`solicitudes_permisos.estados`) y `20261107_roles_permisos_v211.js` (añade `gestionar_solicitudes_permisos` y `revelar_password_usuarios` a `admin_municipal`/`admin_estatal` si faltan). No modifican datos existentes salvo el sembrado idempotente de roles, que no pisa matrices ya editadas. Ejecutar `npm run migrate` con respaldo previo; la validación de `TABLAS`/`COLUMNAS` incluye ya `roles`, `solicitudes_password` y las columnas nuevas.
+- V2.11.1 añade `20261108_solicitudes_baja.js`: tabla `solicitudes_baja` con FK `usuario_id → usuarios.id` (`ON DELETE CASCADE`, misma colación `colacionDeUsuarios`) e índices por `estado` y `usuario_id`. No modifica datos existentes y ya está registrada en `TABLAS`/`COLUMNAS`. Ejecutar `npm run migrate` con respaldo previo.
+- V2.11.2 añade `20261109_solicitudes_password_solicitante.js`: columnas `solicitado_por_id` y `solicitado_por` (nullable) en `solicitudes_password` e índice por solicitante. Las solicitudes anteriores quedan como «las pidió el titular». `COLUMNAS` ya las valida al arrancar. Ejecutar `npm run migrate` con respaldo previo.
+- V2.11.3 añade `20261110_solicitudes_usuario.js`: tabla `solicitudes_usuario` y columna nullable `usuarios.telefono`. No modifica datos existentes; `TABLAS` y `COLUMNAS` ya las validan al arrancar. Ejecutar `npm run migrate` con respaldo previo.
 - `npm run seed` es **destructivo**; solo en base demo.
 - `npm run datos-nuevos` carga datos V2.2 de demostración (firmas, legal, correos, publicaciones y respaldo).
 - `npm run verificar-funciones` ejecuta 25 flujos reales contra la base configurada (incluye geolocalización, fichas, estadísticas, roles, permisos, simulación y reversión).
@@ -405,6 +487,65 @@ Al cambiar cualquiera de estos elementos, actualizar la sección correspondiente
 Un cambio no se considera terminado si este archivo no refleja el estado real.
 
 ## 13. Changelog
+
+### 2026-10-30 — V2.11.3 (reactivar cuentas, solicitud de alta y texto más grande)
+
+- **Reactivar cuentas dadas de baja**: `POST /api/usuarios/:id/reactivar` devuelve `activo=true` a una cuenta del personal conservando su historial y su territorio. Solo la administración (y el maestro para administradores) puede hacerlo; el funcionario recibe 403. La acción queda en auditoría como `usuario_reactivado` y la tabla de usuarios muestra el botón con icono de deshacer en las filas inactivas.
+- **El funcionario ya no crea cuentas**: `POST /api/usuarios` responde 403 fuera de la administración. El botón «Nuevo usuario» se sustituye por «Solicitar alta de usuario» (`#modalSolicitudAlta`), que pide nombre completo, usuario de acceso, correo, teléfono y notas. La administración la revisa en la bandeja «Solicitudes de alta» de la pestaña Usuarios y, al aprobarla, se crea la cuenta como funcionario en los municipios del solicitante con una contraseña temporal que se le entrega por la campana (`alta_resuelta`). Tabla `solicitudes_usuario`, endpoints `POST/GET /api/alta/solicitudes`, `GET /api/alta/solicitudes/mias` y `POST .../aprobar|rechazar`, auditoría `alta_solicitada|aprobada|rechazada`. «Mi cuenta» lista «Mis solicitudes de alta».
+- **Municipios en modo municipal**: si la sesión solo gestiona un municipio, la pestaña Municipios oculta el selector de municipio activo y el buscador/filtro nacional (`#municipioActivoBox`, `#municipiosFiltroBox`) y muestra únicamente la fila de su municipio con el botón «Ficha», sin columna «Ir a». `renderMunicipios` deduce el modo de `store.estado.alcance.modo` y del tamaño del catálogo.
+- **Roles y permisos**: «Editar permisos» de un rol del sistema vuelve a funcionar (los ids numéricos se comparan como texto en `rolSistemaPorId`/`rolPropioPorId`), el formulario se desplaza a la vista al editar y «Limpiar» deja de quedarse en modo integrado, de modo que la plantilla (rol base) vuelve a estar habilitada; se añade una nota cuando el rol del sistema no permite cambiarla.
+- **Texto más grande**: base 16 px, etiquetas 13.5 px, campos y botones 15 px, `.btn-sm` 14 px, tablas 14 px con encabezados de 13 px, `.campo-nota` y utilidades `u-fs-*` un escalón por encima, pestañas del panel 14.5 px y `.titulo-seccion` 15 px.
+- `usuarios.telefono` guarda el teléfono de contacto (opcional) y se muestra en la tabla; `crear`/`actualizar` lo aceptan y el funcionario no puede modificarlo.
+- La página pública `/acerca` añade la sección «Quiénes lo hicieron» con **Dylon Gabriel Mandujano Gonzalez** (DylonTech) y **Diego Alexander Beltrán Moreno**, ambos ingenieros en sistemas y desarrollo web con contribución equitativa, y actualiza contacto, firma y versión (2.11.3).
+- Pruebas: bloque «V2.11.3: solicitud de alta y reactivación de cuentas» (3/3) en `v211-roles-alcance.test.js`, contratos de UI en `v2-ui.test.js` y pruebas de claves/permisos actualizadas al nuevo flujo; suite completa 358/358. Migración `20261110_solicitudes_usuario.js`. El armazón offline pasa a `incidencias-shell-v2.11.3`.
+
+### 2026-10-30 — V2.11.2 (avisos de baja y contraseña con entrega)
+
+- Los avisos de **solicitudes de baja y de contraseña** guardan `url` con `panel=usuarios`, el id de la solicitud y el `usuario` afectado. Al pulsarlos, la administración llega a la pestaña Usuarios con la **fila de la cuenta y la fila de la solicitud resaltadas** (`tr.fila-destacada`), de modo que los botones de aprobar/rechazar quedan a la vista; quien no administra abre «Mi cuenta» y ve el estado de su solicitud.
+- `baja_resuelta` avisa al solicitante de que la baja **se cumplió** y quedó registrada en auditoría. Aprobar y rechazar escriben además las acciones `baja_aprobada` / `baja_rechazada` con la cuenta afectada (helper `utils/auditoria.js`).
+- **Solicitud de cambio de contraseña para otra cuenta**: la tabla de usuarios incorpora el botón «Solicitar cambio de contraseña» (`#modalSolicitudPassword`) para quien no es administrador y tiene `editar_usuarios`; `POST /api/password/solicitudes` acepta `usuarioId` y valida alcance, rol y estado. Al aprobar, la contraseña temporal se muestra al administrador y se **entrega al solicitante por la campana**; el titular recibe un aviso sin la clave. Las acciones `solicitud_password_aprobada` / `solicitud_password_rechazada` quedan en auditoría sin guardar la contraseña.
+- «Mi cuenta» añade «Mis solicitudes de baja» y muestra en las de contraseña quién las pidió y el aviso de que la nueva llegó a la campana. El armazón offline pasa a `incidencias-shell-v2.11.2`.
+- Pruebas: bloque «V2.11.2: avisos de baja y contraseña con entrega» (3/3) en `v211-roles-alcance.test.js`, más contratos de UI en `v2-ui.test.js`; suite completa 354/354. Migración `20261109_solicitudes_password_solicitante.js`.
+
+### 2026-10-30 — V2.11.0 (roles propios, contraseñas auditadas y alcance real)
+
+- Los **roles del sistema** pasan a tener su matriz de permisos en la tabla `roles`, editable desde «Roles y permisos» y con «Restablecer a fábrica». El administrador maestro puede crear **roles propios** que heredan una plantilla (`funcionario`, `auditor`, `enlace`, `soporte`) con su propia matriz y su propio territorio; `usuarios.rol` sigue siendo el ENUM de la plantilla y los guards existentes no cambian.
+- El alta de cuentas usa el selector territorial por bloques: estado con escritura y autocompletado → municipio con buscador → «Añadir otro estado». Para los roles que solo aceptan municipios, «Seleccionar todos los municipios» expande el estado en lugar de enviar `estados`.
+- La clave de acceso muestra un **ejemplo práctico** y una vista previa de lo que concede. Junto al rol especial hay un acceso directo a crear un rol: al guardarlo se puede **aplicar a la cuenta** y volver al formulario con los datos intactos.
+- **Estadísticas con alcance real**: `/api/stats/panel`, `/api/stats/informes` y `/api/exportacion` validan `municipios`/`estados` contra `alcanceDe()` y responden **403** si el territorio está fuera; antes devolvían 200 con ceros. `/api/municipios` añade `alcance: { todos, estados, municipios }` y `GET /api/municipios/:id/colindantes` valida el ámbito.
+- El **funcionario** ya no puede cambiar permisos ni contraseñas de otras cuentas, ni generar claves, ni crear cuentas que no sean de plantilla `funcionario` dentro de sus municipios. La contraseña inicial sí se fija al crear. Nadie concede permisos que no tiene salvo el maestro.
+- **Solicitudes de permisos** con permisos propios (`ver/aprobar/rechazar_solicitudes_permisos`) y alcance por estados corregido; la bandeja solo aparece con el permiso.
+- **Contraseñas consultables**: se guarda una copia AES-256-GCM (`PASSWORD_LLAVE`) junto al hash bcrypt. `GET /api/usuarios/:id/password` la revela a la administración dentro de su ámbito y escribe `consulta_password` en auditoría; `POST .../password/restablecer` genera una temporal. El personal **solicita** el cambio desde «Mi cuenta» (`solicitudes_password`).
+- **Tipografía** base de 15px con tablas de 13px; el control A−/A+ se conserva.
+- **Ayuda de permisos**: `js/data/permisos-ayuda.js` explica cada permiso (qué permite, qué bloquea, ejemplo y riesgo) en `modalAyudaPermiso`, y la enciclopedia incorpora 13 guías simuladas (10 módulos de permisos + roles, contraseñas y solicitudes) con categoría «Permisos».
+- Pruebas: `v211-roles-alcance.test.js` (8/8); suite JSON 345/345. Migraciones `20261104_roles_permisos.js`, `20261105_password_cifrada.js`, `20261106_solicitudes_permisos_estados.js` y `20261107_roles_permisos_v211.js`.
+
+### 2026-10-30 — V2.11.1 (tema retirado, funcionario acotado, bajas y móvil)
+
+- Se **elimina el tema claro/oscuro/automático**: se borran `js/core/tema.js`, `js/core/tema-publico.js`, `css/tema-oscuro.css`, los controles de apariencia y `data-theme`; la interfaz queda en claro fijo. Los estilos de los componentes que vivían en el tema oscuro pasan al final de `extensiones.css`. El armazón offline sube a `incidencias-shell-v2.11.1`.
+- **Un funcionario solo cambia el nombre completo.** Con `editar_usuarios` puede editar `nombre`; cualquier otro campo (`rol`, `rolPropioId`, `rolPersonalizadoId`, `municipios`, `estados`, `puedeEscribir`, `activo`, `correo`, `permisos`, `password`) responde **403**, igual que `DELETE /api/usuarios/:id`. Al crear, el servidor impone `rol='funcionario'` y el territorio del actor e ignora `municipios`; los demás roles y los campos `claveId`/`rolPropioId`/`rolPersonalizadoId`/`permisos` responden 403.
+- **Solicitudes de baja** (`solicitudes_baja`): el personal solicita la baja de otra cuenta de su ámbito con `editar_usuarios` o `eliminar_usuarios`; la administración las resuelve en la pestaña Usuarios (`#solicitudesBajaBox`). Al aprobar se ejecuta la baja lógica y se notifica `baja_resuelta`; al crearse, `baja_solicitada`.
+- **Estadísticas**: `/api/municipios` devuelve `alcance: { todos, modo, estados, municipios }`. Con `modo='municipios'` el selector se construye sin «Añadir un estado» ni «Todos los estados» y su filtro de entidades solo lista los estados del propio catálogo visible (antes ofrecía las 32); el controlador pasa `catalogoEstados: []` en ese modo. El servidor mantiene el 403 para territorio ajeno.
+- **Móvil**: `.admin-panel .filter-row > *` recupera `flex: 0 0 auto` y `width: 100%` en pantallas ≤640 px (el `flex-basis` de 180 px actuaba como altura en columna y producía huecos enormes en Publicidad y Campañas); se reducen los márgenes de `.pe-form`/`.camp-form`.
+- Pruebas: nuevo bloque «V2.11.1: el funcionario solo cambia el nombre y solicita la baja» (3/3) en `v211-roles-alcance.test.js`; suite completa 348/348. Migración `20261108_solicitudes_baja.js`.
+
+### 2026-10-29 — V2.10.0 (permisos CRUD y claves que autorizan)
+
+- Se separaron los permisos de gestión en operaciones CRUD: usuarios (`ver/crear/editar/eliminar`), claves (`ver/crear/revocar/eliminar`), tipos (`ver/crear/eliminar`), solicitudes de acceso (`ver/aprobar/rechazar`) y avisos por clave (`ver/configurar`). Los antiguos `gestionar_*` siguen funcionando como paraguas y se expanden automáticamente.
+- Las claves de acceso guardan su propia lista de permisos (`claves_acceso.permisos`) y su territorio. Al entrar con una clave, la sesión adopta ambos y el middleware `autenticar` vuelve a aplicar el recorte en cada petición: una clave de Maravatío con «ver usuarios» solo lista cuentas de Maravatío y no puede crear, editar ni eliminar.
+- El modal de claves incorpora la matriz CRUD con preselección por rol. El alta de usuarios permite elegir una clave existente (`claveId`); el servidor toma de ella rol, territorio y permisos y el formulario los muestra como vista previa.
+- El alta y la edición de personal comprueban el correo antes de escribir y traducen `ER_DUP_ENTRY` a un 409 legible («Ese correo ya está registrado en otra cuenta»). También se añadió `DELETE /api/usuarios/:id` como baja lógica con permiso `eliminar_usuarios`.
+- La tabla de usuarios separa los botones de alta, edición y baja según los permisos; la tabla de claves muestra cuántos permisos concede cada una y oculta la eliminación sin `eliminar_claves`.
+- Pruebas: `v210-permisos-clave.test.js` (7/7 en JSON y 7/7 en MySQL), `permisos-panel.test.js`, `v2-ui.test.js` y suite JSON 336/336. Migración `20261103_permisos_clave.js`.
+
+### 2026-10-29 — V2.9.5 (avisos por clave y panel adaptable)
+
+- Las notificaciones de solicitudes de informe enlazan a `/?admin=solicitudes-informe&solicitud=<id>` y abren el resumen completo de la solicitud, con botones para previsualizar, generar y enviar.
+- Nueva pestaña «Avisos por clave» con permiso `gestionar_avisos_clave`. Cada clave puede limitar sus avisos a un subconjunto de sus municipios; el permiso se revoca sin invalidar la clave y el servidor aplica el alcance de la sesión más reciente.
+- El panel de control incorpora A−/A/A+ compartidos con la preferencia global de texto, control de tamaño del modal y redimensionado nativo. La generación de claves bloquea dobles clics y muestra la clave nueva de inmediato.
+- Publicidad y campañas tienen secciones expandibles y redimensionables; el bloque QR usa una cuadrícula adaptable y una etiqueta corta con nota de ayuda. Se añadieron vistas para móvil, laptop, monitores grandes y TV.
+- La creación y validación de claves usan un catálogo ligero (`municipiosLigeros()`) sin polígonos: una clave de un estado bajó de ~1.2 s a ~0.25 s y una de las 32 entidades de ~1.5 s a ~0.1 s. El armazón offline pasa a `incidencias-shell-v2.9.5-r2` para invalidar clientes con caché anterior.
+- Pruebas: `avisos-clave.test.js` (1/1, también valida el catálogo ligero), `solicitudes.test.js` con el enlace al detalle y `v2-ui.test.js` (34/34); suite JSON 329/329.
 
 ### 2026-10-29 — V2.9.4 (claves por estado, sesiones y auditoría)
 

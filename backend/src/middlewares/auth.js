@@ -12,6 +12,7 @@ import {
 } from '../models/usuario.model.js';
 import { obtenerRepositorio } from '../repositories/index.js';
 import { permisosDe, tienePermiso } from '../services/permisos.service.js';
+import { aplicarClaveAUsuario, claveVigente } from '../services/claves.service.js';
 import { hashIp } from '../utils/privacidad.js';
 
 /** Última vez que se tocó cada sesión, para no escribir en cada petición. */
@@ -101,18 +102,62 @@ export async function autenticar(req, res, next) {
     const asignaciones = await repositorio.alcanceDeUsuario(cuenta.id);
     // Compatibilidad: las cuentas anteriores a las asignaciones N:M tienen un
     // único `municipio_id`; se trata como una asignación más.
-    const municipios = asignaciones.municipios.length
+    let municipios = asignaciones.municipios.length
       ? asignaciones.municipios
       : cuenta.municipioId
         ? [cuenta.municipioId]
         : [];
+    let estados = asignaciones.estados;
+    let permisos = permisosDe(cuenta);
+
+    // Una sesión abierta con clave se vuelve a recortar en cada petición: si
+    // la clave cambió de territorio/permisos o fue revocada, el token deja de
+    // servir inmediatamente. Nunca se confía en lo que traiga el JWT.
+    if (delToken.claveId) {
+      const clave = await repositorio.claveAccesoPorId(delToken.claveId);
+      if (!clave || !claveVigente(clave)) {
+        req.usuario = null;
+        return next(AppError.noAutenticado('Tu clave de acceso ya no es válida'));
+      }
+      const restringido = aplicarClaveAUsuario(
+        {
+          ...cuenta,
+          municipios,
+          estados,
+          permisos
+        },
+        clave
+      );
+      municipios = restringido.municipios;
+      estados = restringido.estados;
+      permisos = restringido.permisos;
+    }
 
     // El municipio activo del token se conserva solo si sigue siendo válido.
     const activo = delToken.municipioId;
-    const municipioActivo =
+    let municipioActivo =
       activo && (cuenta.rol === 'admin' || municipios.includes(activo) || !municipios.length)
         ? activo
         : cuenta.municipioId || null;
+
+    if (delToken.claveId) {
+      if (municipios.length) {
+        municipioActivo = municipios.includes(activo)
+          ? activo
+          : municipios[0] || null;
+      } else if (estados.length) {
+        const propio = activo ? await repositorio.municipioPorId(activo) : null;
+        municipioActivo =
+          propio && estados.includes(propio.estado) ? propio.id : null;
+        if (!municipioActivo) {
+          const catalogo = await repositorio.municipiosLigeros();
+          municipioActivo =
+            catalogo.find((m) => estados.includes(m.estado))?.id || null;
+        }
+      } else {
+        municipioActivo = null;
+      }
+    }
 
     req.usuario = {
       ...delToken,
@@ -124,9 +169,9 @@ export async function autenticar(req, res, next) {
       correo: cuenta.correo || null,
       municipioId: municipioActivo,
       puedeEscribir: puedeEscribirDe(cuenta),
-      permisos: permisosDe(cuenta),
+      permisos,
       municipios,
-      estados: asignaciones.estados
+      estados
     };
 
     next();
@@ -178,6 +223,18 @@ export function requierePermiso(permiso) {
   return (req, res, next) => {
     if (!req.usuario) return next(AppError.noAutenticado());
     if (!tienePermiso(req.usuario, permiso)) {
+      return next(AppError.prohibido('Tu cuenta no tiene este permiso'));
+    }
+    next();
+  };
+}
+
+/** Variante para rutas que sirven a más de una pestaña (p. ej. ver claves o avisos). */
+export function requiereAlgunPermiso(permisos = []) {
+  const lista = Array.isArray(permisos) ? permisos : [permisos];
+  return (req, res, next) => {
+    if (!req.usuario) return next(AppError.noAutenticado());
+    if (!lista.some((permiso) => tienePermiso(req.usuario, permiso))) {
       return next(AppError.prohibido('Tu cuenta no tiene este permiso'));
     }
     next();

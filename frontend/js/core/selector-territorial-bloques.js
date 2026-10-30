@@ -68,16 +68,21 @@ let contador = 0;
  * @param {Array}  opciones.estados estados completos marcados.
  * @param {Array}  opciones.catalogoEstados las 32 entidades disponibles, aunque
  *                 todavía no tengan municipios importados.
+ * @param {string} opciones.alCompletarEstado qué significa «estado completo»:
+ *                 `estados` (por omisión) envía el estado entero; `municipios`
+ *                 marca todos sus municipios, para roles que no aceptan estados.
  */
 export function crearSelectorTerritorialPorEstado({
   contenedor,
   municipios = [],
   seleccionados = [],
   estados = [],
-  catalogoEstados = []
+  catalogoEstados = [],
+  alCompletarEstado = 'estados'
 } = {}) {
   const raiz = document.getElementById(contenedor);
   if (!raiz) return null;
+  const completarConMunicipios = alCompletarEstado === 'municipios';
 
   const idBase = `terrBloques${++contador}`;
   const catalogo = [...municipios].sort(
@@ -107,6 +112,9 @@ export function crearSelectorTerritorialPorEstado({
       seleccion.has(String(municipio.id))
     ).length;
     if (!marcados) return 'Ningún municipio seleccionado';
+    if (completarConMunicipios && marcados === municipiosDelEstado.length) {
+      return 'Todos los municipios del estado';
+    }
     return `${marcados} de ${municipiosDelEstado.length} municipios seleccionados`;
   }
 
@@ -160,7 +168,13 @@ export function crearSelectorTerritorialPorEstado({
           ${bloque.completo || sinMunicipios ? 'disabled' : ''}>
         <label class="check-line terr-todos-linea">
           <input type="checkbox" data-todos="${indice}" ${bloque.completo ? 'checked' : ''}>
-          <span>${sinMunicipios ? 'Incluir el estado completo' : 'Seleccionar todos los municipios'}</span>
+          <span>${
+            completarConMunicipios
+              ? 'Seleccionar todos los municipios'
+              : sinMunicipios
+                ? 'Incluir el estado completo'
+                : 'Seleccionar todos los municipios'
+          }</span>
         </label>
         <div class="terr-lista" data-lista="${indice}" role="group"
           aria-label="Municipios de ${esc(bloque.estado)}"
@@ -329,7 +343,15 @@ export function crearSelectorTerritorialPorEstado({
   function alternarTodos(indice, marcar) {
     const bloque = bloques[indice];
     if (!bloque) return;
-    if (marcar) {
+    if (completarConMunicipios) {
+      // Roles que solo aceptan municipios: el estado se expande a su lista.
+      estadosSeleccionados.delete(bloque.estado);
+      bloque.completo = false;
+      for (const municipio of delEstado(bloque.estado)) {
+        if (marcar) seleccion.add(String(municipio.id));
+        else seleccion.delete(String(municipio.id));
+      }
+    } else if (marcar) {
       estadosSeleccionados.add(bloque.estado);
       bloque.completo = true;
       delEstado(bloque.estado).forEach((municipio) =>

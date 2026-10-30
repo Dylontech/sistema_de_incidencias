@@ -3,12 +3,28 @@ import { asyncHandler } from '../utils/AppError.js';
 import { ESTADOS_REPUBLICA } from '../config/constantes.js';
 import * as municipios from '../services/municipios.service.js';
 import * as colindantesService from '../services/colindantes.service.js';
+import { estadosPermitidosPara, modoDeAlcance } from '../services/alcance.service.js';
 
 export const listar = asyncHandler(async (req, res) => {
   const incluirPoligono = req.query.poligono === '1' || req.query.poligono === 'true';
+  const visibles = await municipios.listar(req.repositorio, req.usuario, { incluirPoligono });
+  // `estados` sigue siendo el catálogo nacional (dato público). `alcance` es el
+  // territorio que esta sesión puede elegir: un funcionario de Maravatío solo
+  // recibe Michoacán, y así los selectores no le ofrecen estados ajenos.
+  const estadosAlcance = estadosPermitidosPara(req.usuario, {
+    estadoDeMunicipio: new Map(visibles.map((m) => [String(m.id), m.estado]))
+  });
   res.json({
-    municipios: await municipios.listar(req.repositorio, req.usuario, { incluirPoligono }),
-    estados: ESTADOS_REPUBLICA
+    municipios: visibles,
+    estados: ESTADOS_REPUBLICA,
+    alcance: {
+      todos: estadosAlcance === null,
+      // `municipios` = alcance municipal: el selector de estadísticas no debe
+      // ofrecer estados ni «Añadir un estado».
+      modo: modoDeAlcance(req.usuario),
+      estados: estadosAlcance === null ? [...ESTADOS_REPUBLICA] : estadosAlcance,
+      municipios: visibles.map((m) => m.id)
+    }
   });
 });
 
@@ -41,6 +57,9 @@ export const resumenPanel = asyncHandler(async (req, res) => {
 
 /** Municipios que tocan las fronteras del indicado (para saltar de uno a otro). */
 export const colindantes = asyncHandler(async (req, res) => {
+  // El detalle valida el alcance: nadie enumera los vecinos de un municipio
+  // ajeno aprovechando una ruta de solo lectura.
+  await municipios.detalle(req.repositorio, req.usuario, req.params.id);
   res.json({ colindantes: await colindantesService.colindantes(req.repositorio, req.params.id) });
 });
 

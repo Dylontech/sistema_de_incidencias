@@ -82,17 +82,17 @@ router.get(
 
 router.get(
   '/admin/solicitudes-acceso',
-  requierePermiso('gestionar_usuarios'),
+  requierePermiso('ver_solicitudes_acceso'),
   acceso.listar
 );
 router.post(
   '/admin/solicitudes-acceso/:id/aprobar',
-  requierePermiso('gestionar_usuarios'),
+  requierePermiso('aprobar_solicitudes_acceso'),
   acceso.aprobar
 );
 router.post(
   '/admin/solicitudes-acceso/:id/rechazar',
-  requierePermiso('gestionar_usuarios'),
+  requierePermiso('rechazar_solicitudes_acceso'),
   acceso.rechazar
 );
 

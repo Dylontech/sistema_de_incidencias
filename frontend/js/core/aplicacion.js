@@ -50,14 +50,17 @@ export async function arrancar({ usuario, municipioActivo }) {
       catalogos: catalogos,
       tipos: tipos.tipos,
       municipios: municipios.municipios,
-      estados: municipios.estados || []
+      estados: municipios.estados || [],
+      // V2.11: territorio que esta sesión puede elegir. `estados` sigue
+      // siendo el catálogo nacional (dato público); `alcance` es el recorte.
+      alcance: municipios.alcance || null
     },
     'catalogos'
   );
   tiposView.renderIconPickers(catalogos.iconos);
   formView.renderSelectTipos(tipos.tipos);
   adminView.renderTipos(tipos.tipos, {
-    puedeEliminar: sesion.puede('gestionar_tipos') && sesion.puedeEscribir()
+    puedeEliminar: sesion.puede('eliminar_tipos') && sesion.puedeEscribir()
   });
   adminView.renderMunicipios(municipios.municipios, municipioActivo?.id);
 
@@ -228,7 +231,7 @@ export async function cargarTipos() {
     filtros: store.estado.filtros
   });
   adminView.renderTipos(tipos, {
-    puedeEliminar: sesion.puede('gestionar_tipos') && sesion.puedeEscribir()
+    puedeEliminar: sesion.puede('eliminar_tipos') && sesion.puedeEscribir()
   });
   return tipos;
 }
@@ -303,7 +306,19 @@ export async function cargarUsuarios(tipo = 'personal') {
   store.actualizar({ usuarios }, 'usuarios');
   adminView.renderUsuarios(usuarios, store.estado.municipios || [], {
     esAdmin: sesion.esAdmin(),
-    puedeGestionar: sesion.puede('gestionar_usuarios'),
+    puedeCrear: sesion.esAlgunaAdmin() && sesion.puede('crear_usuarios'),
+    puedeEditar: sesion.puede('editar_usuarios'),
+    puedeEliminar: sesion.esAlgunaAdmin() && sesion.puede('eliminar_usuarios'),
+    puedeRevelar: sesion.puede('revelar_password_usuarios'),
+    puedeSolicitarBaja:
+      !sesion.esAlgunaAdmin() &&
+      (sesion.puede('editar_usuarios') || sesion.puede('eliminar_usuarios')),
+    puedeSolicitarPassword:
+      !sesion.esAlgunaAdmin() &&
+      (sesion.puede('editar_usuarios') || sesion.puede('gestionar_usuarios')),
+    puedeReactivar: sesion.esAlgunaAdmin() && sesion.puede('editar_usuarios'),
+    puedeSolicitarAlta: !sesion.esAlgunaAdmin() && sesion.puede('crear_usuarios'),
+    usuarioActualId: sesion.usuario?.id || null,
     tipo
   });
   return usuarios;
@@ -319,6 +334,13 @@ export async function guardarUsuario(id, datos) {
   const respuesta = id
     ? await catalogosService.actualizarUsuario(id, datos)
     : await catalogosService.crearUsuario(datos);
+  await cargarUsuarios();
+  return respuesta;
+}
+
+/** Baja lógica de una cuenta del personal. */
+export async function eliminarUsuario(id) {
+  const respuesta = await catalogosService.eliminarUsuario(id);
   await cargarUsuarios();
   return respuesta;
 }
