@@ -1,10 +1,10 @@
 /**
  * Claves de acceso ligadas al alta/edición de una cuenta del personal.
  *
- * El panel puede pedir `generarClave` al crear o editar un usuario: la clave
- * cubre los municipios de esa cuenta y el código se devuelve una sola vez para
- * entregarlo a la persona. El login acepta esa clave en `claveAcceso` y sigue
- * aceptando la clave geoestadística antigua en `claveMunicipio`.
+ * El panel pide `generarClave` al crear la cuenta: la clave cubre sus
+ * municipios, se consume una vez para activarla y el código se devuelve una
+ * sola vez. Al editar no se crean claves: se consultan o se renuevan. El login
+ * sigue aceptando la clave geoestadística antigua en `claveMunicipio`.
  */
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,25 +57,51 @@ describe('Claves de acceso al dar de alta una cuenta', () => {
     assert.equal(entrada.body.municipioActivo.id, MUNICIPIO_MARAVATIO);
   });
 
-  test('sin pedir clave no se genera ninguna', async () => {
+  test('sin pedir clave no se genera ninguna y la cuenta queda sin acceso', async () => {
     const admin = await Api.admin(app);
     const alta = await altaFuncionario(admin, { username: 'sinclave', nombre: 'Sin Clave' });
     assert.equal(alta.status, 201);
     assert.equal(alta.body.clave, null);
-  });
 
-  test('la clave nueva convive con la clave geoestadística de la cuenta', async () => {
+    // La cuenta existe, pero no puede entrar hasta que se le vincule una clave.
     const entrada = await Api.entrarFuncionario(app, {
       username: 'sinclave',
       password: 'segura1234',
       claveMunicipio: MUNICIPIO_MARAVATIO
     });
+    assert.equal(entrada.status, 403);
+    assert.equal(entrada.body.detalles?.[0]?.codigo, 'clave_no_asignada');
+  });
+
+  test('la administración puede vincular una clave a una cuenta sin acceso', async () => {
+    const admin = await Api.admin(app);
+    const { usuarios } = (await admin.get('/api/usuarios')).body;
+    const cuenta = usuarios.find((u) => u.username === 'sinclave');
+    const vinculada = await admin
+      .post(`/api/usuarios/${cuenta.id}/clave/vincular`)
+      .send({ generarClave: true, claveExpiraEn: '2030-12-31' });
+    assert.equal(vinculada.status, 201, JSON.stringify(vinculada.body));
+    assert.ok(vinculada.body.clave?.codigo);
+
+    const entrada = await Api.entrarFuncionario(app, {
+      username: 'sinclave',
+      password: 'segura1234',
+      claveAcceso: vinculada.body.clave.codigo
+    });
     assert.equal(entrada.status, 200);
   });
 
-  test('una clave que no existe no deja entrar aunque la cuenta sea correcta', async () => {
+  test('una clave que no existe no deja entrar antes de activar la cuenta', async () => {
+    const admin = await Api.admin(app);
+    const alta = await altaFuncionario(admin, {
+      username: 'otro_funcionario',
+      nombre: 'Otro Funcionario',
+      generarClave: true
+    });
+    assert.equal(alta.status, 201);
+
     const entrada = await Api.entrarFuncionario(app, {
-      username: 'jlopez',
+      username: 'otro_funcionario',
       password: 'segura1234',
       claveAcceso: 'ZZZZ-ZZZZ-ZZZZ'
     });
@@ -84,32 +110,43 @@ describe('Claves de acceso al dar de alta una cuenta', () => {
 });
 
 describe('Claves de acceso al editar una cuenta', () => {
-  test('editar puede generar una clave nueva para los municipios actuales', async () => {
+  test('editar no genera claves: la renovación es la que crea una nueva', async () => {
     const admin = await Api.admin(app);
     const { usuarios } = (await admin.get('/api/usuarios')).body;
     const cuenta = usuarios.find((u) => u.username === 'sinclave');
 
-    const cambio = await admin.patch(`/api/usuarios/${cuenta.id}`).send({
+    const intento = await admin.patch(`/api/usuarios/${cuenta.id}`).send({
       generarClave: true,
       claveUsosMaximos: 3,
       claveExpiraEn: '2030-12-31'
     });
-    assert.equal(cambio.status, 200);
+    assert.equal(intento.status, 400);
+
+    const cambio = await admin.post(`/api/usuarios/${cuenta.id}/clave/renovar`).send({
+      claveExpiraEn: '2030-12-31'
+    });
+    assert.equal(cambio.status, 201, JSON.stringify(cambio.body));
     assert.match(cambio.body.clave.codigo, PATRON_CLAVE);
-    assert.equal(cambio.body.clave.usosMaximos, 3);
+    assert.equal(cambio.body.clave.modo, 'unica');
+    assert.equal(cambio.body.clave.usosMaximos, 1);
 
     const entrada = await Api.entrarFuncionario(app, {
       username: 'sinclave',
       password: 'segura1234',
       claveAcceso: cambio.body.clave.codigo
     });
-    assert.equal(entrada.status, 200);
+    assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
   });
 
-  test('la clave generada aparece en el listado del panel', async () => {
+  test('la clave renovada aparece en el estado de la cuenta', async () => {
     const admin = await Api.admin(app);
-    const { claves } = (await admin.get('/api/admin/claves')).body;
-    assert.ok(claves.some((c) => c.nombre.includes('Sin Clave')));
+    const { usuarios } = (await admin.get('/api/usuarios')).body;
+    const cuenta = usuarios.find((u) => u.username === 'sinclave');
+    const estado = await admin.get(`/api/usuarios/${cuenta.id}/clave`);
+    assert.equal(estado.status, 200);
+    assert.match(estado.body.clave.codigo, PATRON_CLAVE);
+    assert.equal(estado.body.clave.modo, 'unica');
+    assert.ok(estado.body.cuenta.claveVigenteHasta);
   });
 });
 

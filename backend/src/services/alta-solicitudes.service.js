@@ -15,6 +15,7 @@ import { alcanceDe, esAdminMaestro, esAlgunaAdmin } from './alcance.service.js';
 import { tienePermiso } from './permisos.service.js';
 import { normalizarCorreo } from '../models/usuario.model.js';
 import { crear as crearUsuario } from './usuarios.service.js';
+import * as claves from './claves.service.js';
 import { emitir } from './notificaciones.service.js';
 
 const limpiar = (valor, max) => String(valor ?? '').trim().slice(0, max);
@@ -142,7 +143,18 @@ export async function listar(repositorio, actor, filtros = {}) {
   return visibles;
 }
 
-export async function resolver(repositorio, actor, id, { aprobar = true, respuesta = '' } = {}) {
+export async function resolver(
+  repositorio,
+  actor,
+  id,
+  {
+    aprobar = true,
+    respuesta = '',
+    claveId = null,
+    generarClave = false,
+    claveExpiraEn = null
+  } = {}
+) {
   if (!esAlgunaAdmin(actor)) {
     throw AppError.prohibido('Solo la administración puede resolver solicitudes de alta');
   }
@@ -157,7 +169,24 @@ export async function resolver(repositorio, actor, id, { aprobar = true, respues
 
   let usuario = null;
   let password = null;
+  let clave = null;
   if (aprobar) {
+    if (!claveId && generarClave !== true) {
+      throw AppError.solicitudInvalida(
+        'Elige una clave existente o genera una nueva para aprobar la solicitud'
+      );
+    }
+    if (generarClave === true && !claveExpiraEn) {
+      throw AppError.solicitudInvalida(
+        'Indica la fecha de vencimiento de la clave nueva antes de aprobar'
+      );
+    }
+    if (claveId) {
+      clave = await claves.validarParaCuenta(repositorio, actor, claveId, {
+        municipios: solicitud.municipios,
+        estados: []
+      });
+    }
     password = passwordTemporal();
     // Se crea como funcionario con los municipios que el solicitante tenía
     // cuando la pidió. `usuarios.crear` valida de nuevo el alcance y los
@@ -172,17 +201,35 @@ export async function resolver(repositorio, actor, id, { aprobar = true, respues
         rol: 'funcionario',
         municipios: solicitud.municipios,
         estados: [],
+        claveId: clave?.id || null,
         password
       },
       { actor }
     );
+    if (!clave) {
+      clave = await claves.crearParaCuenta(
+        repositorio,
+        actor,
+        {
+          ...usuario,
+          municipios: solicitud.municipios,
+          estados: [],
+          permisosEfectivos: usuario.permisosEfectivos
+        },
+        { expiraEn: claveExpiraEn }
+      );
+    }
+    if (!clave) {
+      throw AppError.solicitudInvalida('No se pudo vincular una clave a la cuenta aprobada');
+    }
   }
 
   const actualizada = await repositorio.actualizarSolicitudUsuario(id, {
     estado: aprobar ? 'aprobada' : 'rechazada',
     resueltoPor: actor.username,
     resueltoEn: new Date().toISOString(),
-    respuesta: limpiar(respuesta, 600)
+    respuesta: limpiar(respuesta, 600),
+    ...(clave ? { claveId: clave.id } : {})
   });
 
   const destinatario = solicitud.solicitadoPor || null;
@@ -190,7 +237,7 @@ export async function resolver(repositorio, actor, id, { aprobar = true, respues
     evento: 'alta_resuelta',
     titulo: aprobar ? 'Cuenta creada' : 'Solicitud de alta rechazada',
     mensaje: aprobar
-      ? `La cuenta de ${solicitud.nombre} quedó creada con el usuario ${solicitud.username}. La contraseña temporal es: ${password}. Entrégasela y pide que la cambie.`
+      ? `La cuenta de ${solicitud.nombre} quedó creada con el usuario ${solicitud.username}. Contraseña temporal: ${password}. Clave de acceso: ${clave?.codigo || ''}. Entrégaselas y pide que cambie la contraseña.`
       : `La solicitud de alta de ${solicitud.nombre} fue rechazada. ${limpiar(respuesta, 600)}`.trim(),
     paraUsuarios: [destinatario].filter(Boolean),
     municipioId: (solicitud.municipios || [])[0] || null,
@@ -199,5 +246,18 @@ export async function resolver(repositorio, actor, id, { aprobar = true, respues
     url: usuario ? `/?panel=usuarios&alta=${encodeURIComponent(id)}` : '/'
   });
 
-  return { solicitud: actualizada, usuario, password, generada: Boolean(password) };
+  return {
+    solicitud: actualizada,
+    usuario,
+    password,
+    clave: clave
+      ? {
+          id: clave.id,
+          codigo: clave.codigo,
+          expiraEn: clave.expiraEn,
+          usosMaximos: clave.usosMaximos
+        }
+      : null,
+    generada: Boolean(password)
+  };
 }

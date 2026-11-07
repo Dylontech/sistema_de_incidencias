@@ -1,0 +1,254 @@
+/*
+ * V2.15.0 — Estándar legible de 14px (solo pantalla).
+ *
+ * Se carga al final de la hoja de estilos para elevar los textos secundarios
+ * (notas, tablas, metadatos, chips y ayudas) sin tocar la escala de títulos ni
+ * la hoja de impresión A4. Los controles A−/A/A+ parten de este mínimo.
+ *
+ * Todo el archivo va dentro de @media screen: antes el mínimo de 14px también
+ * se aplicaba al imprimir y pisaba los tamaños en puntos de la vista A4.
+ */
+
+@media screen {
+
+:root {
+  --fs-min: 14px;
+  --fs-campo: 15px;
+}
+
+/* Los botones acompañan al tamaño de texto elegido con A−/A/A+. */
+.btn { font-size: var(--fs-campo); }
+.btn.btn-sm { font-size: var(--fs-min); }
+
+/* Notas, ayudas y avisos. */
+.campo-nota,
+.nota-aviso,
+.nota-visibilidad,
+.nota-cuenta,
+.personal-nota,
+.aviso-tipo,
+.publico-msg,
+.publico-pasos,
+.login-error,
+.aviso-caps,
+.permisos-grupo .campo-nota,
+.tutorial-guia-texto span,
+.tutorial-guia-texto small,
+.tutorial-simulacion,
+.pe-campo-nota,
+.ayuda-permiso,
+.ayuda-clave {
+  font-size: var(--fs-min);
+}
+
+/* Tablas, listados, tarjetas y metadatos. */
+.data-table th,
+.data-table td,
+.stat-card .stat-label,
+.detail-row,
+.detail-row .label,
+.detail-section-title,
+.timeline-item,
+.timeline-item .t-time,
+.comment-item,
+.comment-item .c-meta,
+.notif-item,
+.notif-item .n-time,
+.notif-empty,
+.notif-header,
+.info-panel .legend-item,
+.info-panel .leg-title,
+.pila-filas,
+.pila-filas-chica,
+.meta-fila,
+.vacio-suave,
+.bandeja-mensaje-meta,
+.notif-evento,
+.notif-evento select,
+.soporte-item-meta,
+.municipios-grupo td,
+.incidencia-card .inc-title,
+.incidencia-card .inc-desc,
+.incidencia-card .inc-meta,
+.incidencia-card .inc-badge,
+.empty-state,
+.detalle-oculta,
+.detalle-oculta strong,
+.detalle-denuncias,
+.moderacion-titulo,
+.moderacion-card h4,
+.moderacion-vacio,
+.bloqueo-card p,
+.servidor-grafico h4,
+.servidor-detalle,
+.campana-preview,
+.campana-sub,
+.notif-eventos-titulo,
+.soporte-item-asunto,
+.soporte-hilo h3,
+.soporte-mensaje,
+.mapa-capa,
+.legal-nav-enlace,
+.correo-busqueda {
+  font-size: var(--fs-min);
+}
+
+/* Formularios, buscadores y visores. */
+.form-group label,
+.combo-opcion,
+.combo-estado,
+.combo-vacio,
+.campo-linea,
+.filter-input,
+.filter-select,
+.terr-opcion,
+.terr-estado,
+.terr-todos-linea,
+.terr-filtro-estado,
+.terr-estado-rapido,
+.visor-informe pre {
+  font-size: var(--fs-min);
+}
+
+/* Chips, etiquetas y contadores. */
+.chip-estado,
+.chip-municipio,
+.chip-zona,
+.chip-zona-lg,
+.chip-objetivo,
+.chip-motivo,
+.chip-aviso,
+.pastilla-activo,
+.pastilla-personalizado,
+.terr-chip,
+.terr-grupo-titulo,
+.terr-grupo-todos,
+.terr-bloque-resumen,
+.insignia-oculta,
+.peligro-card .peligro-meta,
+.peligro-card .peligro-motivo,
+.peligro-panel-head p,
+.peligro-panel-head .peligro-contador,
+.detalle-peligro,
+.moderacion-contador,
+.moderacion-meta,
+.moderacion-resumen,
+.moderacion-detalle,
+.denuncia-fecha,
+.denuncia-lista li,
+.bloqueo-nota,
+.bandeja-etiqueta,
+.bandeja-hilo-meta,
+.bandeja-adjunto,
+.bandeja-adjunto-ver,
+.pe-nav-btn,
+.pe-chip,
+.pe-card-cuerpo strong,
+.pe-card-meta,
+.pe-detalle > summary,
+.pe-contador,
+.pe-paleta,
+.pe-lienzo-info,
+.pe-aviso,
+.pe-canva-tarjeta p,
+.pe-canva-tarjeta li,
+.pe-marca-item,
+.camp-imagen-remota {
+  font-size: var(--fs-min);
+}
+
+/*
+ * Utilidades históricas: el nombre se conserva para no tocar las plantillas,
+ * pero todas parten del mínimo legible.
+ */
+.u-fs-10px,
+.u-fs-105px,
+.u-fs-11px,
+.u-fs-115px,
+.u-fs-12px,
+.u-fs-125px,
+.u-fs-13px {
+  font-size: var(--fs-min);
+}
+
+/* Niveles de accesibilidad: A−/A/A+ no bajan del mínimo. */
+html[data-texto='grande'] {
+  --fs-min: 16px;
+  --fs-campo: 17px;
+}
+
+html[data-texto='muy-grande'] {
+  --fs-min: 18px;
+  --fs-campo: 19px;
+}
+
+html[data-texto='grande'] .chip-estado,
+html[data-texto='grande'] .list-container .inc-meta,
+html[data-texto='muy-grande'] .chip-estado,
+html[data-texto='muy-grande'] .list-container .inc-meta {
+  font-size: var(--fs-min);
+}
+
+/* Selectores con id o con más especificidad que la regla base. */
+#obMunicipio select,
+#obMunicipio .combo input[type='text'],
+.topbar .muni-name,
+.topbar .muni-picker input[type='text'],
+.topbar .user-info,
+.sidebar-grupo h3,
+.sidebar-accesos .link-terminos,
+.texto-controles-label,
+.boton-texto,
+.c-accion,
+.tutorial-paso,
+.tutorial-tarjeta p,
+.tutorial-saltar,
+.link-terminos,
+.municipio-reporte,
+.bloque-opcional > summary,
+.acerca-volver,
+.acerca-sub,
+.acerca-distintivo,
+.acerca-aviso,
+.acerca-intro,
+.acerca-texto,
+.acerca-subtitulo,
+.acerca-pasos li,
+.acerca-pasos li::before,
+.acerca-pasos strong,
+.acerca-tabla,
+.acerca-tabla th,
+.acerca-nota,
+.acerca-nota i,
+.acerca-tarjeta h3,
+.acerca-tarjeta p,
+.acerca-credito h3,
+.acerca-tec-bloque h3,
+.acerca-lista,
+.acerca-contacto a,
+.acerca-contacto small,
+.acerca-pie,
+.topbar .muni-picker,
+.topbar .muni-picker select,
+.sidebar-header h3,
+.sidebar-filtros h3,
+.colindantes h3,
+.legend-box,
+.legend-box .leg-title,
+.notif-badge,
+.icon-opt .label,
+.evidence-drop p,
+.evidence-drop small,
+.evidence-item .ev-name,
+.loc-status {
+  font-size: var(--fs-min);
+}
+
+/* El contador de la campana necesita más caja para el nuevo tamaño. */
+.notif-badge {
+  min-width: 22px;
+  height: 22px;
+}
+
+}
+

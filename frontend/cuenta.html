@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Mi cuenta — Sistema de Incidencias</title>
+<link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/componentes.css">
+<link rel="stylesheet" href="css/extensiones.css">
+<link rel="stylesheet" href="css/legibilidad.css">
+</head>
+<body class="pagina-publica">
+
+<div class="login-screen publico-screen">
+  <div class="login-card publico-card">
+    <h1><i class="bi bi-person-lock"></i> Mi cuenta</h1>
+    <p class="sub" id="cuentaSubtitulo">
+      El enlace se envía al correo que registraste en tu cuenta. Ese correo identifica la cuenta
+      para recuperarla o confirmarla; después entras con tu nombre, pseudónimo o correo y tu contraseña.
+    </p>
+    <p class="personal-nota u-mt-8">
+      <a href="/?login=1">Entrar con nombre o correo</a> ·
+      <a href="/personal">Acceso del personal</a>
+    </p>
+
+    <div class="publico-msg u-oculto" id="cuentaEstado" role="status" aria-live="polite"></div>
+
+    <!-- Solicitud de enlace -->
+    <div id="cuentaSolicitudBox">
+      <form id="formCuentaSolicitud">
+        <div class="form-group">
+          <label for="cuentaCorreo">Correo de la cuenta *</label>
+          <input type="email" id="cuentaCorreo" maxlength="160" autocomplete="email"
+                 placeholder="tu@correo.mx" required>
+          <p class="campo-nota">
+            Te enviaremos un enlace de un solo uso al correo registrado. Si no ves el mensaje,
+            revisa la carpeta de spam. Una cuenta sin correo no puede recuperarse.
+          </p>
+        </div>
+        <div class="filter-row">
+          <button class="btn btn-primary" type="submit" id="cuentaRecuperarBtn">
+            <i class="bi bi-envelope-check-fill"></i> Recuperar contraseña
+          </button>
+          <button class="btn btn-outline" type="button" id="cuentaReenviarBtn">
+            <i class="bi bi-envelope-arrow-up-fill"></i> Reenviar confirmación
+          </button>
+        </div>
+      </form>
+      <p class="campo-nota u-mt-10">
+        El enlace de recuperación caduca en 60 minutos. El de confirmación, en 24 horas.
+      </p>
+      <p class="personal-nota">
+        <a href="/?login=1">Volver al inicio de sesión</a> ·
+        <a href="/personal">Acceso del personal</a> ·
+        <a href="/">Ir a la aplicación</a>
+      </p>
+    </div>
+
+    <!-- Confirmación de correo -->
+    <div id="cuentaVerificarBox" hidden>
+      <p class="u-lh-15" id="cuentaVerificarTexto">
+        Confirma que este correo pertenece a tu cuenta.
+      </p>
+      <button class="btn btn-primary btn-block" type="button" id="cuentaVerificarBtn">
+        <i class="bi bi-patch-check-fill"></i> Confirmar mi correo
+      </button>
+    </div>
+
+    <!-- Nueva contraseña -->
+    <div id="cuentaPasswordBox" hidden>
+      <form id="formCuentaPassword">
+        <div class="form-group">
+          <label for="cuentaPass">Nueva contraseña *</label>
+          <input type="password" id="cuentaPass" minlength="8" autocomplete="new-password"
+                 placeholder="Al menos 8 caracteres" required>
+        </div>
+        <div class="form-group">
+          <label for="cuentaPass2">Repite la contraseña *</label>
+          <input type="password" id="cuentaPass2" minlength="8" autocomplete="new-password"
+                 placeholder="Vuelve a escribirla" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" id="cuentaGuardarBtn">
+          <i class="bi bi-shield-lock-fill"></i> Guardar contraseña
+        </button>
+      </form>
+    </div>
+
+    <!-- Resultado -->
+    <div id="cuentaAccionesBox" hidden>
+      <p class="campo-nota" id="cuentaAccesoTexto"></p>
+      <a class="btn btn-primary btn-block" id="cuentaIrLogin" href="/?login=1">
+        <i class="bi bi-box-arrow-in-right"></i> Entrar a mi cuenta
+      </a>
+      <p class="personal-nota u-mt-12">
+        <a href="/">Ir a la aplicación</a> ·
+        <a href="/personal">Acceso del personal</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loading">
+  <div class="u-centro">
+    <div class="spinner"></div>
+    <div id="loadingText">Procesando…</div>
+  </div>
+</div>
+
+<script type="module" src="js/cuenta.js"></script>
+</body>
+</html>

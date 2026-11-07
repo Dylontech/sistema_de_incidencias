@@ -1,9 +1,10 @@
 /**
  * SERVICIO: comentarios de incidencias con reglas anti-abuso.
  *
- * Se permite comentar a ciudadanos y sesiones anónimas. Las cuentas con
- * restricción activa no pueden comentar; la moderación puede restringir tanto
- * una cuenta como un `user_key` anónimo.
+ * Solo las cuentas registradas pueden comentar (las sesiones anónimas reciben
+ * 403). Las cuentas con restricción activa tampoco pueden; la moderación puede
+ * restringir una cuenta o un `user_key` anónimo. La espera entre comentarios se
+ * expone a la interfaz para que no suba una imagen que luego sería rechazada.
  */
 import { AppError } from '../utils/AppError.js';
 import { nuevoId } from '../utils/ids.js';
@@ -15,7 +16,7 @@ import {
 } from './alcance.service.js';
 import { valor as valorConfig } from './configuracion.service.js';
 import { emitir } from './notificaciones.service.js';
-import { adjuntosDe, vincularAdjuntos } from './adjuntos.service.js';
+import { adjuntosDe, validarAdjuntos, vincularAdjuntos } from './adjuntos.service.js';
 
 function texto(valor, campo, { requerido = false, max = 500 } = {}) {
   const limpio = String(valor ?? '').trim();
@@ -42,7 +43,31 @@ async function incidenciaVisible(repositorio, usuario, incidenciaId) {
   return incidencia;
 }
 
-async function exigirSinRestriccion(repositorio, usuario) {
+/**
+ * Estado del compositor de comentarios.
+ *
+ * Devuelve si la cuenta puede comentar ahora y, cuando no puede, el motivo y
+ * los segundos que faltan para la espera anti-spam. La interfaz lo usa para
+ * deshabilitar el envío ANTES de subir una imagen que luego se rechazaría.
+ */
+export async function estadoComentario(repositorio, usuario) {
+  if (!usuario || usuario.esAnonimo || usuario.rol === 'anonimo') {
+    return {
+      puede: false,
+      codigo: 'anonimo',
+      esperaSegundos: 0,
+      motivo: 'Crea una cuenta para comentar en los reportes'
+    };
+  }
+  if (esSoloLectura(usuario)) {
+    return {
+      puede: false,
+      codigo: 'solo_lectura',
+      esperaSegundos: 0,
+      motivo: 'Tu cuenta es de solo lectura'
+    };
+  }
+
   const restriccion = await repositorio.restriccionComentariosVigente({
     usuarioId: usuario.id || null,
     userKey: usuario.userKey || null
@@ -51,10 +76,41 @@ async function exigirSinRestriccion(repositorio, usuario) {
     const hasta = restriccion.hasta
       ? ` hasta ${new Date(restriccion.hasta).toLocaleString('es-MX')}`
       : '';
-    throw AppError.prohibido(
-      `Tus comentarios están restringidos${hasta}. Motivo: ${restriccion.motivo}`
-    );
+    return {
+      puede: false,
+      codigo: 'restringido',
+      esperaSegundos: 0,
+      motivo: `Tus comentarios están restringidos${hasta}. Motivo: ${restriccion.motivo}`
+    };
   }
+
+  const espera = await valorConfig(repositorio, 'comentarios.espera_segundos');
+  if (espera > 0) {
+    const desde = new Date(Date.now() - espera * 1000).toISOString();
+    const recientes = await repositorio.contarComentariosRecientes(usuario.userKey, desde);
+    if (recientes > 0) {
+      return {
+        puede: false,
+        codigo: 'espera',
+        esperaSegundos: espera,
+        motivo: `Espera ${espera} segundos antes de volver a comentar`
+      };
+    }
+  }
+
+  const maxDia = await valorConfig(repositorio, 'comentarios.max_por_dia');
+  const desdeDia = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const delDia = await repositorio.contarComentariosRecientes(usuario.userKey, desdeDia);
+  if (delDia >= maxDia) {
+    return {
+      puede: false,
+      codigo: 'cuota',
+      esperaSegundos: 0,
+      motivo: `Alcanzaste el máximo de ${maxDia} comentarios por día`
+    };
+  }
+
+  return { puede: true, codigo: 'ok', esperaSegundos: 0, motivo: null };
 }
 
 /** Lista paginada; los ocultos solo se muestran a quien puede moderarlos. */
@@ -82,16 +138,26 @@ export async function listar(repositorio, usuario, incidenciaId, filtros = {}) {
 /** Crea un comentario aplicando límites de texto, enlaces, espera y cuota diaria. */
 export async function crear(repositorio, usuario, incidenciaId, datos = {}, { ipHash = null } = {}) {
   const incidencia = await incidenciaVisible(repositorio, usuario, incidenciaId);
-  if (esSoloLectura(usuario)) {
-    throw AppError.prohibido('Tu cuenta es de solo lectura');
+  const estado = await estadoComentario(repositorio, usuario);
+  if (!estado.puede) {
+    if (estado.codigo === 'espera') {
+      throw AppError.conflicto(estado.motivo, [
+        {
+          campo: 'reintentarEn',
+          codigo: 'comentario_espera',
+          mensaje: String(estado.esperaSegundos)
+        }
+      ]);
+    }
+    throw AppError.prohibido(estado.motivo);
   }
-  await exigirSinRestriccion(repositorio, usuario);
 
   const max = 500;
-  const adjuntos = Array.isArray(datos.adjuntos) ? [...new Set(datos.adjuntos.map(String))].slice(0, 3) : [];
-  if (adjuntos.length && usuario.esAnonimo) {
-    throw AppError.prohibido('Crea una cuenta para adjuntar imágenes a un comentario');
-  }
+  // Los adjuntos se validan ANTES de crear el comentario: si algo falla, no
+  // queda una publicación de texto sin la imagen que la persona sí subió.
+  const adjuntos = await validarAdjuntos(repositorio, usuario, datos.adjuntos, {
+    proposito: 'comentario'
+  });
   const contenido = texto(datos.texto, 'texto', { requerido: adjuntos.length === 0, max });
   const enlaces = (contenido.match(/https?:\/\//gi) || []).length;
   const maxEnlaces = await valorConfig(repositorio, 'comentarios.max_enlaces');
@@ -99,22 +165,6 @@ export async function crear(repositorio, usuario, incidenciaId, datos = {}, { ip
     throw AppError.solicitudInvalida('Comentario inválido', [
       { campo: 'texto', mensaje: `Máximo ${maxEnlaces} enlaces por comentario` }
     ]);
-  }
-
-  const espera = await valorConfig(repositorio, 'comentarios.espera_segundos');
-  if (espera > 0) {
-    const desde = new Date(Date.now() - espera * 1000).toISOString();
-    const recientes = await repositorio.contarComentariosRecientes(usuario.userKey, desde);
-    if (recientes > 0) {
-      throw AppError.conflicto(`Espera ${espera} segundos antes de volver a comentar`);
-    }
-  }
-
-  const maxDia = await valorConfig(repositorio, 'comentarios.max_por_dia');
-  const desdeDia = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const delDia = await repositorio.contarComentariosRecientes(usuario.userKey, desdeDia);
-  if (delDia >= maxDia) {
-    throw AppError.prohibido(`Alcanzaste el máximo de ${maxDia} comentarios por día`);
   }
 
   const comentario = {
@@ -132,28 +182,42 @@ export async function crear(repositorio, usuario, incidenciaId, datos = {}, { ip
   };
   await repositorio.crearComentarioIncidencia(incidenciaId, comentario);
   if (adjuntos.length) {
-    await vincularAdjuntos(repositorio, usuario, adjuntos, {
-      contextoTipo: 'comentario',
-      contextoId: comentario.id,
-      proposito: 'comentario'
-    });
+    try {
+      await vincularAdjuntos(repositorio, usuario, adjuntos, {
+        contextoTipo: 'comentario',
+        contextoId: comentario.id,
+        proposito: 'comentario',
+        yaValidados: true
+      });
+    } catch (error) {
+      // Sin transacción común entre incidencias y adjuntos: se deshace el
+      // comentario para que la persona pueda reintentar con texto e imagen.
+      await repositorio.eliminarComentarioIncidencia(incidenciaId, comentario.id).catch(() => {});
+      throw error;
+    }
     const mapa = await adjuntosDe(repositorio, 'comentario', [comentario.id]);
     comentario.adjuntos = mapa.get(comentario.id) || [];
   }
 
   if (incidencia.userKey && !incidencia.userKey.startsWith('anon_') && incidencia.userKey !== usuario.userKey) {
-    await emitir(repositorio, {
-      evento: 'incidencia_comentario',
-      titulo: '💬 Nuevo comentario',
-      mensaje: `${comentario.autor} comentó "${incidencia.titulo}".`,
-      severidad: 'info',
-      entidadTipo: 'incidencia',
-      entidadId: incidenciaId,
-      municipioId: incidencia.municipioId,
-      url: `/?incidencia=${encodeURIComponent(incidenciaId)}&comentarios=1`,
-      paraUsuarios: [incidencia.userKey],
-      claveDedupe: `comentario:${comentario.id}`
-    });
+    try {
+      await emitir(repositorio, {
+        evento: 'incidencia_comentario',
+        titulo: '💬 Nuevo comentario',
+        mensaje: `${comentario.autor} comentó "${incidencia.titulo}".`,
+        severidad: 'info',
+        entidadTipo: 'incidencia',
+        entidadId: incidenciaId,
+        municipioId: incidencia.municipioId,
+        url: `/?incidencia=${encodeURIComponent(incidenciaId)}&comentarios=1`,
+        paraUsuarios: [incidencia.userKey],
+        claveDedupe: `comentario:${comentario.id}`
+      });
+    } catch (error) {
+      // El comentario ya está publicado: una notificación fallida no debe
+      // convertirse en un error para quien comentó.
+      console.error('[comentarios] no se pudo emitir el aviso:', error.message);
+    }
   }
 
   return comentario;

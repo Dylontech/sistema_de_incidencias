@@ -3,6 +3,7 @@
  * generación del informe imprimible.
  */
 import { $, esc, descargar, fmtFecha, textoAntiguedad, etiquetaEstado, hoyIso } from '../core/utils.js';
+import { graficoBarrasSvg, graficoDonaSvg, graficoSerieSvg } from './graficos-svg.js';
 
 export function renderStats(resumen) {
   const contenedor = $('reporteStats');
@@ -95,59 +96,213 @@ export function descargarJSON(datos) {
   descargar(JSON.stringify(respaldo, null, 2), `respaldo_${hoyIso()}.json`, 'application/json');
 }
 
-/** Informe imprimible en una ventana nueva (equivale a `generarReporteImprimible`). */
-export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio, plantilla = {} }) {
-  const resueltas = incidencias.filter((i) => i.estado === 'resuelta').length;
-  const pendientes = incidencias.length - resueltas;
-  const tasa = incidencias.length > 0 ? ((resueltas / incidencias.length) * 100).toFixed(1) : 0;
-  const nombreMunicipio = municipio ? `${municipio.nombre}, ${municipio.estado}` : '';
-  const generado = new Date().toLocaleString('es-MX');
-  const posicionLogo = ['izquierda', 'derecha', 'centro'].includes(plantilla.logoPosicion)
+/* ------------------------- constructor de informes ------------------------ */
+
+const ETIQUETAS_COMPARAR = {
+  municipio: 'municipio',
+  estado: 'estado',
+  tipo: 'tipo de incidencia',
+  ambito: 'ámbito / vía',
+  mes: 'mes'
+};
+
+/** Barras horizontales; delega en el módulo compartido y conserva la firma histórica. */
+function svgBarras(filas = [], titulo = '', { ancho = 660 } = {}) {
+  const items = filas.slice(0, 8).map((fila) => ({
+    etiqueta: fila.etiqueta || fila.nombre || '—',
+    valor: Number(fila.total) || 0
+  }));
+  const svg = graficoBarrasSvg(items, { ancho, descripcion: titulo });
+  return svg ? `<figure class="informe-grafico"><figcaption>${esc(titulo)}</figcaption>${svg}</figure>` : '';
+}
+
+/** Dona por estado; delega en el módulo compartido y conserva la firma histórica. */
+function svgPastel(filas = [], titulo = '', { ancho = 318 } = {}) {
+  const items = filas.map((fila, indice) => ({
+    etiqueta: fila.etiqueta || fila.nombre || '—',
+    valor: Number(fila.total) || 0,
+    clase: fila.clase || `serie-${(indice % 6) + 1}`
+  }));
+  const svg = graficoDonaSvg(items, { ancho, descripcion: titulo });
+  return svg ? `<figure class="informe-grafico"><figcaption>${esc(titulo)}</figcaption>${svg}</figure>` : '';
+}
+
+/** Tendencia mensual; delega en el módulo compartido y conserva la firma histórica. */
+function svgSerie(series = [], titulo = 'Tendencia mensual') {
+  const puntos = series.slice(-12).map((fila) => ({
+    mes: fila.periodo || fila.mes,
+    total: Number(fila.total) || 0
+  }));
+  const svg = graficoSerieSvg(puntos, { descripcion: titulo });
+  return svg ? `<figure class="informe-grafico"><figcaption>${esc(titulo)}</figcaption>${svg}</figure>` : '';
+}
+
+function filtrosLegibles(datos) {
+  const filtros = datos.filtros || {};
+  const partes = [];
+  if (filtros.municipios?.length) partes.push(`Municipios: ${filtros.municipios.length}`);
+  if (filtros.estados?.length) partes.push(`Estados: ${filtros.estados.join(', ')}`);
+  if (!filtros.municipios?.length && !filtros.estados?.length) {
+    partes.push('Todas las incidencias del ámbito');
+  }
+  if (filtros.tiposTodos) partes.push('Todos los tipos');
+  else if (filtros.tipos?.length) partes.push(`Tipos: ${filtros.tipos.length}`);
+  if (filtros.desde) partes.push(`Desde ${filtros.desde}`);
+  if (filtros.hasta) partes.push(`Hasta ${filtros.hasta}`);
+  return partes.join(' · ');
+}
+
+/** Cuerpo del informe (se usa en la vista previa y en la ventana de impresión). */
+export function htmlInforme(datos = {}, opciones = {}) {
+  const plantilla = datos.plantilla || {};
+  const resumen = datos.resumen || {};
+  const posicion = ['izquierda', 'derecha', 'centro'].includes(plantilla.logoPosicion)
     ? plantilla.logoPosicion
     : 'izquierda';
   const logo = plantilla.logoUrl
-    ? `<img class="informe-logo informe-logo-${posicionLogo}" src="${esc(plantilla.logoUrl)}" alt="Logo institucional">`
+    ? `<img class="informe-logo informe-logo-${posicion}" src="${esc(plantilla.logoUrl)}" alt="Logo institucional">`
     : '';
+  const filtros = datos.filtros || {};
+  const comparar = filtros.compararPor || 'municipio';
+  const comparativa = datos.comparativa || [];
+  const alcanceTexto = filtros.municipios?.length
+    ? `${filtros.municipios.length} municipio${filtros.municipios.length === 1 ? '' : 's'}`
+    : filtros.estados?.length
+      ? `Estados: ${filtros.estados.join(', ')}`
+      : 'Todas las incidencias del ámbito';
+  const tiposTexto = filtros.tiposTodos || !filtros.tipos?.length
+    ? 'Todos los tipos'
+    : `${filtros.tipos.length} tipo${filtros.tipos.length === 1 ? '' : 's'}`;
+  const periodoTexto = filtros.desde || filtros.hasta
+    ? `${filtros.desde || 'Inicio'} – ${filtros.hasta || 'hoy'}`
+    : 'Todo el historial';
+  const porEstado = [
+    { etiqueta: 'Resueltas', total: Number(resumen.resueltas) || 0, clase: 'estado-resuelta' },
+    { etiqueta: 'En proceso', total: Number(resumen.enProceso) || 0, clase: 'estado-en_proceso' },
+    { etiqueta: 'Reportadas', total: Number(resumen.reportadas) || 0, clase: 'estado-reportada' }
+  ];
+  const bloqueComparacion =
+    opciones.comparacion !== false && comparativa.length
+      ? `<section class="informe-bloque">
+          <h2>Comparación por ${esc(ETIQUETAS_COMPARAR[comparar] || comparar)}</h2>
+          <table>
+            <thead><tr><th>Grupo</th><th class="num">Total</th><th class="num">Resueltas</th><th class="num">Pendientes</th><th class="num">% resolución</th></tr></thead>
+            <tbody>
+              ${comparativa
+                .map(
+                  (fila) => `<tr>
+                    <td>${esc(fila.etiqueta)}</td>
+                    <td class="num">${esc(String(fila.total))}</td>
+                    <td class="num">${esc(String(fila.resueltas))}</td>
+                    <td class="num">${esc(String(fila.pendientes))}</td>
+                    <td class="num">${esc(String(fila.tasaResolucion))}%</td>
+                  </tr>`
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </section>`
+      : '';
+  const mostrarBarras = opciones.barras !== false;
+  const mostrarPastel = opciones.pastel !== false && porEstado.some((estado) => estado.total > 0);
+  const ambas = mostrarBarras && mostrarPastel;
+  const barras = mostrarBarras
+    ? svgBarras(
+        comparativa.length ? comparativa : datos.porTipo || [],
+        comparativa.length
+          ? `Incidencias por ${ETIQUETAS_COMPARAR[comparar] || comparar}`
+          : 'Incidencias por tipo',
+        { ancho: ambas ? 318 : 660 }
+      )
+    : '';
+  const pastel = mostrarPastel
+    ? svgPastel(porEstado, 'Distribución por estado', { ancho: ambas ? 318 : 660 })
+    : '';
+  const serie = svgSerie(datos.series || []);
+  const bloqueGraficas = ambas
+    ? `<section class="informe-bloque"><div class="informe-rejilla-2">${barras}${pastel}</div></section>`
+    : `${barras ? `<section class="informe-bloque">${barras}</section>` : ''}${
+        pastel ? `<section class="informe-bloque">${pastel}</section>` : ''
+      }`;
+  const bloqueSerie =
+    opciones.serie === false || !serie ? '' : `<section class="informe-bloque">${serie}</section>`;
+  const bloqueDetalle =
+    opciones.detalle === false || !(datos.detalle || []).length
+      ? ''
+      : `<section class="informe-bloque">
+          <h2>Detalle de incidencias (${datos.detalle.length})</h2>
+          <table>
+            <thead><tr><th>#</th><th>Tipo</th><th>Título</th><th>Municipio</th><th>Estado</th><th class="num">Días</th></tr></thead>
+            <tbody>
+              ${datos.detalle
+                .slice(0, 500)
+                .map((incidencia, indice) => {
+                  const claseEstado =
+                    { resuelta: 'badge-verde', en_proceso: 'badge-amarillo', reportada: 'badge-rojo' }[
+                      incidencia.estado
+                    ] || 'badge';
+                  return `<tr>
+                    <td>${indice + 1}</td>
+                    <td>${esc(incidencia.tipo || '—')}</td>
+                    <td>${esc(incidencia.titulo || '')}</td>
+                    <td>${esc(incidencia.municipio || '')}</td>
+                    <td><span class="badge ${claseEstado}">${esc(etiquetaEstado(incidencia.estado))}</span></td>
+                    <td class="num">${incidencia.estado === 'resuelta' ? '—' : esc(String(incidencia.dias ?? '—'))}</td>
+                  </tr>`;
+                })
+                .join('')}
+            </tbody>
+          </table>
+        </section>`;
+  return `<article class="informe-previa">
+    ${logo}
+    <h1>Informe de incidencias municipales</h1>
+    <p class="informe-meta">${esc(filtrosLegibles(datos))} · Generado: ${esc(
+      fmtFecha(datos.generadoEn || new Date().toISOString())
+    )}</p>
+    <dl class="informe-ficha">
+      <div><dt>Alcance</dt><dd>${esc(alcanceTexto)}</dd></div>
+      <div><dt>Tipos</dt><dd>${esc(tiposTexto)}</dd></div>
+      <div><dt>Periodo</dt><dd>${esc(periodoTexto)}</dd></div>
+    </dl>
+    <div class="informe-stats">
+      <div class="informe-stat"><strong>${esc(String(resumen.total ?? 0))}</strong><span>Total</span></div>
+      <div class="informe-stat"><strong>${esc(String(resumen.reportadas ?? 0))}</strong><span>Reportadas</span></div>
+      <div class="informe-stat"><strong>${esc(String(resumen.enProceso ?? 0))}</strong><span>En proceso</span></div>
+      <div class="informe-stat"><strong>${esc(String(resumen.resueltas ?? 0))}</strong><span>Resueltas</span></div>
+      <div class="informe-stat"><strong>${esc(String(resumen.criticas ?? 0))}</strong><span>Críticas</span></div>
+      <div class="informe-stat"><strong>${esc(String(resumen.tasaResolucion ?? 0))}%</strong><span>Resolución</span></div>
+    </div>
+    ${bloqueGraficas}
+    ${bloqueSerie}
+    ${bloqueComparacion}
+    ${bloqueDetalle}
+    <p class="informe-pie">${esc(plantilla.pieTexto || 'Sistema de Incidencias Municipales')}</p>
+  </article>`;
+}
 
+/** Previsualización dentro del modal (sin ventanas nuevas). */
+export function renderVistaPrevia(datos, opciones = {}) {
+  const caja = $('informeVistaPrevia');
+  if (!caja) return;
+  caja.innerHTML = htmlInforme(datos, opciones);
+  // El color institucional se aplica por CSSOM, que la CSP sí permite.
+  const acento = datos?.plantilla?.colorAcento;
+  if (/^#[0-9a-f]{6}$/i.test(acento || '')) caja.style.setProperty('--inf-acento', acento);
+}
+
+/** Informe imprimible en una ventana nueva (con el logo y las gráficas). */
+export function abrirInformeImprimible({ datos = {}, opciones = {} } = {}) {
   const ventana = window.open('', '_blank');
-  // Puede devolver null si el navegador bloquea las ventanas emergentes.
-  if (!ventana) return;
+  if (!ventana) return false;
   ventana.document.write(`
     <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
-    <title>Reporte de Incidencias — ${esc(nombreMunicipio)}</title>
+    <title>Informe de incidencias</title>
     <link rel="stylesheet" href="/css/impresion-informe.css">
     <link rel="stylesheet" href="/api/informes/estilo.css">
     </head><body>
     <main class="informe-contenido">
-    ${logo}
-    <h1>Reporte de Incidencias Municipales</h1>
-    <div class="meta">${esc(nombreMunicipio)} · Generado: ${esc(generado)}</div>
-    <div class="stats">
-      <div class="stat"><div class="stat-num">${incidencias.length}</div><div class="stat-label">Total</div></div>
-      <div class="stat"><div class="stat-num">${resueltas}</div><div class="stat-label">Resueltas</div></div>
-      <div class="stat"><div class="stat-num">${pendientes}</div><div class="stat-label">Pendientes</div></div>
-      <div class="stat"><div class="stat-num">${tasa}%</div><div class="stat-label">Resolución</div></div>
-    </div>
-    <h2 class="titulo-detalle">Detalle de incidencias</h2>
-    <table>
-      <thead><tr><th>#</th><th>Tipo</th><th>Título</th><th>Estado</th><th>Días</th><th>Reportó</th></tr></thead>
-      <tbody>
-        ${incidencias
-          .map((inc, indice) => {
-            const tipo = tipos.find((t) => t.id === inc.tipoId);
-            return `<tr>
-              <td>${indice + 1}</td>
-              <td>${tipo ? tipo.icono + ' ' + esc(tipo.nombre) : '—'}</td>
-              <td>${inc.peligrosa ? '<strong>⚠️ PELIGROSA</strong> · ' : ''}${esc(inc.titulo)}</td>
-              <td><span class="badge badge-${inc.color}">${etiquetaEstado(inc.estado)}</span></td>
-              <td>${inc.estado === 'resuelta' ? '—' : textoAntiguedad(inc.dias)}</td>
-              <td>${esc(inc.esAnonimo ? 'Anónimo' : inc.autorNombre)}</td>
-            </tr>`;
-          })
-          .join('')}
-      </tbody>
-    </table>
-    <div class="footer">${esc(plantilla.pieTexto || 'Sistema de Incidencias Municipales')} · ${esc(nombreMunicipio)} · ${fmtFecha(new Date().toISOString())}</div>
+      ${htmlInforme(datos, opciones)}
     </main>
     <script src="/js/informe-paged-config.js"></script>
     <script src="/vendor/pagedjs/paged.polyfill.js"></script>
@@ -155,6 +310,7 @@ export function abrirInformeImprimible({ incidencias = [], tipos = [], municipio
     </body></html>
   `);
   ventana.document.close();
+  return true;
 }
 
 /** Lee el archivo de respaldo elegido en el modal de importación. */

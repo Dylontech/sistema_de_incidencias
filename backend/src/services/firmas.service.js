@@ -209,6 +209,16 @@ async function firmarRecoleccion(repositorio, usuario, recoleccion, ipHash = nul
   const maximo = await valorConfig(repositorio, 'firmas.max_por_usuario');
   const totalUsuario = await repositorio.contarFirmasDeUsuario(usuario.userKey);
   if (totalUsuario >= maximo) {
+    await emitir(repositorio, {
+      evento: 'limite_firmas_alcanzado',
+      paraUsuarios: [usuario.userKey],
+      titulo: '⚠️ Límite de firmas alcanzado',
+      mensaje: `Alcanzaste el límite de ${maximo} firmas por cuenta. Un administrador puede ampliarlo.`,
+      entidadTipo: 'cuenta',
+      entidadId: usuario.id || null,
+      url: '/?perfil=1',
+      claveDedupe: `limite_firmas:${usuario.userKey}:${new Date().toISOString().slice(0, 10)}`
+    }).catch(() => {});
     throw AppError.conflicto(
       `Alcanzaste el límite de ${maximo} firmas por cuenta. Un administrador puede ampliarlo.`
     );

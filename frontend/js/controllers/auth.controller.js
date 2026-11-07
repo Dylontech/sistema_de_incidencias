@@ -10,6 +10,7 @@ import * as loginView from '../views/login.view.js';
 import * as notifView from '../views/notificaciones.view.js';
 import { authService } from '../services/auth.service.js';
 import * as aplicacion from '../core/aplicacion.js';
+import { vigilarCorreo } from '../core/correo-cuenta.js';
 
 async function entrar(
   operacion,
@@ -18,7 +19,8 @@ async function entrar(
     antesDeArrancar = null,
     alFallar = null,
     textoCarga = 'Iniciando sesión…',
-    mensajeExito = null
+    mensajeExito = null,
+    aceptarTerminos = false
   } = {}
 ) {
   loading(true, textoCarga);
@@ -27,6 +29,14 @@ async function entrar(
     sesion.guardar(respuesta);
     loginView.cancelarLogin();
 
+    // En un alta la persona ya aceptó los términos en el formulario: se registra
+    // su aceptación antes de arrancar, sin volver a preguntarle después.
+    if (aceptarTerminos) {
+      await consentimiento
+        .aceptar({ municipioId: respuesta.municipioActivo?.id || null })
+        .catch(() => null);
+    }
+
     // Paso previo (municipio + términos): puede cambiar el municipio activo.
     // Al iniciar sesión o registrarse solo se pregunta por los términos; el
     // municipio ya viene en la respuesta o se conserva de la sesión anterior.
@@ -34,9 +44,11 @@ async function entrar(
       usuario: respuesta.usuario,
       municipioActivo: respuesta.municipioActivo
     };
-    const previo = antesDeArrancar
-      ? await antesDeArrancar(contextoPrevio)
-      : await pedirConsentimiento({ ...contextoPrevio, soloTerminos: true });
+    const previo = aceptarTerminos
+      ? contextoPrevio
+      : antesDeArrancar
+        ? await antesDeArrancar(contextoPrevio)
+        : await pedirConsentimiento({ ...contextoPrevio, soloTerminos: true });
 
     // Se llama a `arrancar` en ambos casos: el mapa es idempotente
     // (no se crea dos veces) y así el cambio de rol se refleja sin recargar.
@@ -50,12 +62,16 @@ async function entrar(
         `Bienvenido, ${respuesta.usuario.nombre}`;
       toast(texto, 'ok');
     }
+    // El llamador decide si debe recordar el identificador. Solo se devuelve
+    // éxito cuando la sesión ya quedó guardada y la aplicación arrancó.
+    return true;
   } catch (error) {
     const aviso = error?.message || 'No se pudo iniciar sesión';
     // Dentro del acceso el error se pinta en la tarjeta; fuera de él (arranque
     // silencioso) se usa el toast.
     if (alFallar) alFallar(error, aviso);
     else toast(aviso, 'err');
+    return false;
   } finally {
     loading(false);
   }
@@ -103,6 +119,10 @@ export async function entrarComoCiudadano({ silencioso = false, antesDeArrancar 
 }
 
 export function registrar() {
+  vigilarCorreo($('reg-correo'), {
+    contexto: 'registro',
+    estadoEl: $('regCorreoEstado')
+  });
   registrarAcciones({
     /** Sub-pasos del panel ciudadano (inicio / entrar / crear cuenta). */
     'auth:modoAnon': ({ valor }) => loginView.mostrarModoAnon(valor || 'inicio'),
@@ -122,19 +142,23 @@ export function registrar() {
     /** Entrada con una cuenta ciudadana (nombre o pseudónimo + contraseña). */
     'auth:entrarCiudadano': async ({ elemento }) => {
       const datos = loginView.valoresCiudadano();
-      if (!datos.nombre || !datos.password) {
-        loginView.mensaje('Escribe tu nombre y tu contraseña', 'err');
+      if (!datos.identificador || !datos.password) {
+        loginView.mensaje('Escribe tu nombre, correo y contraseña', 'err');
         $('ciud-nombre')?.focus();
         return;
       }
+      const recordar = $('ciud-recordar')?.checked === true;
       loginView.limpiarMensaje();
       ocupado(elemento, true);
       try {
-        await entrar(() => authService.entrarCiudadano(datos), {
+        const exito = await entrar(() => authService.entrarCiudadano(datos), {
           textoCarga: 'Entrando a tu cuenta…',
           alFallar: (error, aviso) =>
             loginView.mensaje(avisoDeError(error, 'Nombre o contraseña incorrectos'), 'err')
         });
+        // «Recordar cuenta» solo se aplica cuando el acceso fue correcto. Un
+        // intento fallido no debe borrar ni sobrescribir el nombre guardado.
+        if (exito) loginView.recordarUsuario(datos.identificador, recordar);
       } finally {
         ocupado(elemento, false);
       }
@@ -158,55 +182,109 @@ export function registrar() {
         $('reg-nombre')?.focus();
         return;
       }
+      const estadoCorreo = $('reg-correo')?.dataset.estadoCorreo || '';
+      if (!['', 'disponible', 'sin-verificar'].includes(estadoCorreo)) {
+        loginView.mensaje(
+          'Ese correo ya está registrado o no está disponible. Revisa el aviso del campo o inicia sesión.',
+          'err'
+        );
+        $('reg-correo')?.focus();
+        return;
+      }
+      if (datos.aceptaTerminos !== true) {
+        loginView.mensaje(
+          'Para crear la cuenta debes leer y aceptar los términos y el aviso de privacidad.',
+          'err'
+        );
+        $('reg-acepta')?.focus();
+        return;
+      }
 
       loginView.limpiarMensaje();
       ocupado(elemento, true);
       try {
-        await entrar(() => authService.registrarCiudadano(datos), {
-          textoCarga: 'Creando tu cuenta…',
-          mensajeExito: (respuesta) =>
-            `Tu cuenta quedó como «${respuesta.usuario?.nombre || datos.nombre}». Entra con ese nombre y tu contraseña.`,
-          alFallar: (error, aviso) => {
-            // El nombre es la credencial de acceso y el correo el canal de
-            // avisos: el 409 puede venir de cualquiera de los dos y se guía a
-            // la persona al campo correcto.
-            if (error?.estado === 409) {
-              if (/correo/i.test(aviso || '')) {
-                loginView.mensaje(
-                  'Ese correo ya está registrado en otra cuenta. Usa otro correo o entra con tu nombre y contraseña.',
-                  'err',
-                  {
-                    accion: {
-                      etiqueta: 'Entrar a mi cuenta',
-                      accion: 'auth:modoAnon',
-                      valor: 'login'
-                    }
-                  }
-                );
-                $('reg-correo')?.focus();
-              } else {
-                loginView.mensaje(
-                  'Ese nombre ya tiene una cuenta. Si es tuya, entra con tu contraseña; si no, elige otro nombre.',
-                  'err',
-                  {
-                    accion: {
-                      etiqueta: 'Entrar con este nombre',
-                      accion: 'auth:usarNombre',
-                      valor: datos.nombre
-                    }
-                  }
-                );
-                $('reg-nombre')?.focus();
+        const respuesta = await authService.registrarCiudadano(datos);
+        if (respuesta?.pendienteVerificacion) {
+          loginView.mensaje(
+            `Cuenta creada. Revisa ${respuesta.correo} y confirma el enlace para activarla.`,
+            'ok',
+            {
+              accion: {
+                etiqueta: 'Reenviar enlace',
+                accion: 'auth:reenviarVerificacion'
               }
-              return;
             }
-            loginView.mensaje(avisoDeError(error, 'No se pudo crear la cuenta'), 'err');
-          }
+          );
+          return;
+        }
+        const exito = await entrar(() => Promise.resolve(respuesta), {
+          textoCarga: 'Creando tu cuenta…',
+          aceptarTerminos: true,
+          mensajeExito: (sesionCreada) =>
+            `Tu cuenta quedó como «${sesionCreada.usuario?.nombre || datos.nombre}». Entra con ese nombre y tu contraseña.`
         });
+        // El nombre asignado (o el real) queda listo para el próximo acceso.
+        // Nunca se guarda la contraseña.
+        if (exito) {
+          const nombreCuenta = respuesta?.usuario?.nombre || datos.nombre || datos.correo;
+          if (nombreCuenta) loginView.recordarUsuario(nombreCuenta, true);
+        }
+      } catch (error) {
+        const aviso = error?.message || 'No se pudo crear la cuenta';
+        // El nombre es la credencial de acceso y el correo el canal de
+        // avisos: el 409 puede venir de cualquiera de los dos y se guía a
+        // la persona al campo correcto.
+        if (error?.estado === 409) {
+          if (/correo/i.test(aviso || '')) {
+            loginView.mensaje(
+              'Ese correo ya está registrado en otra cuenta. Usa otro correo o entra con tu nombre y contraseña. Si no confirmaste, reenvía el enlace.',
+              'err',
+              {
+                accion: {
+                  etiqueta: 'Entrar a mi cuenta',
+                  accion: 'auth:modoAnon',
+                  valor: 'login'
+                }
+              }
+            );
+            $('reg-correo')?.focus();
+          } else {
+            loginView.mensaje(
+              'Ese nombre ya tiene una cuenta. Si es tuya, entra con tu contraseña; si no, elige otro nombre.',
+              'err',
+              {
+                accion: {
+                  etiqueta: 'Entrar con este nombre',
+                  accion: 'auth:usarNombre',
+                  valor: datos.nombre
+                }
+              }
+            );
+            $('reg-nombre')?.focus();
+          }
+          return;
+        }
+        loginView.mensaje(avisoDeError(error, 'No se pudo crear la cuenta'), 'err');
       } finally {
         ocupado(elemento, false);
       }
     },
+
+    /** Reenvía el enlace de confirmación con el correo del formulario de alta. */
+    'auth:reenviarVerificacion': () =>
+      intentar(async () => {
+        const correo = $('reg-correo')?.value.trim() || '';
+        if (!correo) {
+          loginView.mensaje('Escribe el correo de la cuenta para reenviar el enlace.', 'err');
+          $('reg-correo')?.focus();
+          return;
+        }
+        await authService.reenviarVerificacion(correo);
+        loginView.mensaje(
+          'Si el correo pertenece a una cuenta sin confirmar, recibirás un enlace nuevo.',
+          'ok'
+        );
+      }),
 
     /**
      * Abre la pantalla de acceso ciudadano sin perder la sesión anónima.

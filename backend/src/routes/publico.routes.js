@@ -8,6 +8,7 @@ import {
   limiteSolicitudesPublicas
 } from '../middlewares/limitadores.js';
 import { requiereCuenta } from '../middlewares/auth.js';
+import { recibirDocumentosSolicitud } from '../middlewares/upload.js';
 
 const router = Router();
 
@@ -20,7 +21,14 @@ router.post('/qr/:codigo/escaneo', limiteConsultasPublicas, publicidad.escanearQ
 router.post('/contacto', limiteSolicitudesPublicas, publico.crearContacto);
 router.post('/sugerencias', limiteSolicitudesPublicas, publico.crearSugerencia);
 router.get('/sugerencias/:folio', limiteConsultasPublicas, publico.consultarSugerencia);
+router.post('/correo/estado', limiteConsultasPublicas, acceso.estadoCorreo);
 router.post('/solicitudes-acceso', limiteSolicitudesPublicas, acceso.crear);
+router.post(
+  '/solicitudes-acceso/documentos',
+  limiteSolicitudesPublicas,
+  recibirDocumentosSolicitud,
+  acceso.subirDocumentos
+);
 
 // Suscripción a las campañas informativas (doble opt-in y baja en un clic).
 router.post('/suscripciones', limiteSolicitudesPublicas, publico.crearSuscripcion);

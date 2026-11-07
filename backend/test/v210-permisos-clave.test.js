@@ -42,6 +42,8 @@ async function crearClave(admin, datos = {}) {
     nombre: `Clave ${sufijo()}`,
     rolSugerido: 'funcionario',
     municipios: [MUNICIPIO_MARAVATIO],
+    usosMaximos: 10,
+    expiraEn: '2030-12-31',
     ...datos
   });
   assert.equal(respuesta.status, 201, JSON.stringify(respuesta.body));
@@ -91,10 +93,12 @@ describe('V2.10: la clave define permisos y territorio', () => {
     const admin = await Api.admin(app);
     const clave = await crearClave(admin, { permisos: ['ver_usuarios'] });
     assert.deepEqual(clave.permisos, ['ver_usuarios']);
+    const cuenta = await crearCuenta(admin, { claveId: clave.id });
+    assert.equal(cuenta.status, 201, JSON.stringify(cuenta.body));
 
     const entrada = await Api.entrarFuncionario(app, {
-      username: 'funcionario',
-      password: 'func123',
+      username: cuenta.body.usuario.username,
+      password: 'segura1234',
       claveAcceso: clave.codigo
     });
     assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
@@ -115,10 +119,12 @@ describe('V2.10: la clave define permisos y territorio', () => {
   test('con «crear usuarios» la clave permite solicitar altas aunque no permita listar', async () => {
     const admin = await Api.admin(app);
     const clave = await crearClave(admin, { permisos: ['crear_usuarios'] });
+    const cuenta = await crearCuenta(admin, { claveId: clave.id });
+    assert.equal(cuenta.status, 201, JSON.stringify(cuenta.body));
 
     const entrada = await Api.entrarFuncionario(app, {
-      username: 'funcionario',
-      password: 'func123',
+      username: cuenta.body.usuario.username,
+      password: 'segura1234',
       claveAcceso: clave.codigo
     });
     assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
@@ -157,18 +163,19 @@ describe('V2.10: la clave define permisos y territorio', () => {
       201
     );
 
-    // Cuenta con dos municipios: sin clave vería ambos. La clave solo concede
-    // Maravatío, así que la sesión debe quedarse con ese territorio.
-    const actor = await crearCuenta(admin, {
-      username: `amplio_${sufijo()}`,
-      municipios: [MUNICIPIO_MARAVATIO, MORELIA]
-    });
-    assert.equal(actor.status, 201, JSON.stringify(actor.body));
-
+    // La cuenta se crea ya ligada a una clave de Maravatío: aunque el panel
+    // tenga cuentas de Morelia, la sesión solo ve el territorio de la clave.
     const clave = await crearClave(admin, {
       municipios: [MUNICIPIO_MARAVATIO],
       permisos: ['ver_usuarios']
     });
+    const actor = await crearCuenta(admin, {
+      username: `amplio_${sufijo()}`,
+      municipios: [MUNICIPIO_MARAVATIO],
+      claveId: clave.id
+    });
+    assert.equal(actor.status, 201, JSON.stringify(actor.body));
+
     const entrada = await Api.entrarFuncionario(app, {
       username: actor.body.usuario.username,
       password: 'segura1234',
@@ -196,6 +203,18 @@ describe('V2.10: alta de cuenta desde una clave', () => {
       municipios: [MUNICIPIO_MARAVATIO]
     });
 
+    // Una clave de Maravatío no puede crear una cuenta adscrita a Morelia.
+    const fuera = await admin.post('/api/usuarios').send({
+      username: `fuera_${sufijo()}`,
+      nombre: 'Cuenta fuera de la clave',
+      rol: 'funcionario',
+      password: 'segura1234',
+      claveId: clave.id,
+      municipios: [MORELIA]
+    });
+    assert.equal(fuera.status, 403, JSON.stringify(fuera.body));
+    assert.equal(fuera.body.detalles?.[0]?.codigo, 'clave_no_corresponde');
+
     const username = `desde_clave_${sufijo()}`;
     const alta = await admin.post('/api/usuarios').send({
       username,
@@ -203,8 +222,7 @@ describe('V2.10: alta de cuenta desde una clave', () => {
       rol: 'funcionario',
       password: 'segura1234',
       claveId: clave.id,
-      // Estos valores no deben imponerse sobre la clave; el servidor los ignora.
-      municipios: [MORELIA],
+      // Sin territorio explícito: se toma el de la clave.
       permisos: { reportar: true }
     });
     assert.equal(alta.status, 201, JSON.stringify(alta.body));

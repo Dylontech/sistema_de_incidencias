@@ -9,6 +9,7 @@
 const TODOS = [
   'anonimo',
   'ciudadano',
+  'cuadrilla',
   'funcionario',
   'auditor',
   'enlace_estatal',
@@ -20,6 +21,7 @@ const TODOS = [
 ];
 const CON_CUENTA = TODOS.filter((r) => r !== 'anonimo');
 const PERSONAL = [
+  'cuadrilla',
   'funcionario',
   'auditor',
   'enlace_estatal',
@@ -567,14 +569,45 @@ export const GUIA_TUTORIALES = [
   {
     id: 'panel-simulador',
     titulo: 'Simulador de acciones',
-    descripcion: 'Probar flujos con roles reales y revertir.',
+    descripcion: 'Probar flujos con roles reales, simular vialidades y revertir.',
     categoria: 'Panel',
     roles: ADMIN,
     vista: 'panel',
     tab: 'simulador',
     pasos: [
       paso('#simuladorRol', 'Elige el rol y el municipio', 'El simulador crea una cuenta temporal con ese rol y ejecuta acciones reales marcadas como simuladas.', 'abajo'),
+      paso('#simViaBueno', 'Simula el estado de las vialidades', 'Distribuye los tramos por porcentajes (bueno, leve, regular, malo y crítico). Deben sumar 100%; no modifica los datos reales.', 'abajo'),
       paso('#simuladorJournal', 'Revisa y revierte', 'Cada operación queda en el journal; revertir borra lo simulado sin tocar datos reales.', 'auto')
+    ]
+  },
+  {
+    id: 'panel-vialidades',
+    titulo: 'Catálogo de vialidades',
+    descripcion: 'Delimitar polígonos de calles y carreteras, importar KML/GeoJSON u OSM y verificar la condición.',
+    categoria: 'Panel',
+    roles: ['admin_municipal', 'admin_estatal', 'admin'],
+    vista: 'panel',
+    tab: 'vialidades',
+    pasos: [
+      paso('#vialidadesMunicipioFiltro', 'Elige el municipio', 'La lista muestra las vialidades reales de tu alcance y las que están sin verificar o con más de 180 días.', 'abajo'),
+      paso('#vialidadesResumen', 'Revisa el estado actual', 'El resumen indica cuántas vialidades tienen reportes, cuántas están sin reportes y cuántas esperan verificación.', 'auto'),
+      paso('#vialidadesLista', 'Edita o verifica', 'Cada fila enlaza a Google Maps y permite editar el eje/polígono, el ancho de calzada, marcarlo verificado o archivarlo.', 'auto'),
+      paso('#vialidadesArchivo', 'Importa la red real', 'Puedes cargar un KML/GeoJSON con polígonos o ejecutar «Cargar red real (OSM)». La importación fusiona por clave/OSM y conserva notas y enlaces manuales; «Reemplazar todo» es opcional.', 'abajo')
+    ]
+  },
+  {
+    id: 'panel-auditoria',
+    titulo: 'Auditoría y reportes',
+    descripcion: 'Filtrar por fecha, tipo y autor, y descargar el informe.',
+    categoria: 'Panel',
+    roles: PERSONAL,
+    vista: 'panel',
+    tab: 'auditoria',
+    pasos: [
+      paso('#auditoriaUsuario', 'Filtra por autor y tipo', 'Combina autor, tipo de acción (alta, cambio, baja), ruta y rango de fechas.', 'abajo'),
+      paso('#auditoriaEnciclopedia', 'Consulta la enciclopedia', 'Explica qué significa cada columna y qué se guarda (y qué nunca se guarda) en la bitácora.', 'auto'),
+      paso('#auditoriaLista', 'Revisa el resultado', 'Cada fila conserva actor, rol, entidad, resultado HTTP, clave e huella de IP.', 'auto'),
+      paso('[data-action="auditoria:pdf"]', 'Descarga el informe', 'PDF o CSV usan exactamente los filtros activos; el archivo incluye el detalle saneado.', 'arriba')
     ]
   },
   {
@@ -609,8 +642,8 @@ export const GUIA_TUTORIALES = [
 
   {
     id: 'soporte-panel',
-    titulo: 'Panel de soporte técnico',
-    descripcion: 'Cola de tickets, prioridad, asignación y respuesta.',
+    titulo: 'Bandeja de soporte técnico',
+    descripcion: 'Cola de tickets, prioridad, asignación y respuesta dentro del modal.',
     categoria: 'Soporte',
     roles: ['soporte', 'admin_municipal', 'admin_estatal', 'admin'],
     pasos: [

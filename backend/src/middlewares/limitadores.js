@@ -106,3 +106,9 @@ export const limiteConsultasPublicas = crearLimitador({
 
 /** Subida de evidencia por sesión. */
 export const limiteSubidas = crearLimitador({ max: limites.maxUploads, porCuenta: true });
+
+/** Recuperación de contraseña y reenvío de verificación por IP. */
+export const limiteRecuperacion = crearLimitador({
+  max: limites.maxRecuperacion,
+  ventanaMs: 15 * 60 * 1000
+});

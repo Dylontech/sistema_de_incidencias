@@ -13,3 +13,17 @@ export const listar = asyncHandler(async (req, res) => {
 export const guardar = asyncHandler(async (req, res) => {
   res.json({ configuracion: await configuracion.guardar(req.repositorio, req.usuario, req.body || {}) });
 });
+
+export const verificacion = asyncHandler(async (req, res) => {
+  res.json({ configuracion: await configuracion.verificacion(req.repositorio) });
+});
+
+export const guardarVerificacion = asyncHandler(async (req, res) => {
+  res.json({
+    configuracion: await configuracion.guardarVerificacion(
+      req.repositorio,
+      req.usuario,
+      req.body || {}
+    )
+  });
+});

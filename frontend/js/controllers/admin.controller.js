@@ -2,12 +2,17 @@
 import { registrarAcciones } from '../core/eventos.js';
 import { abrirModal, cerrarModal, loading, preguntar, toast } from '../core/ui.js';
 import { intentar } from '../core/errores.js';
-import { debounce } from '../core/utils.js';
+import { $, debounce, esc, descargar } from '../core/utils.js';
+import { api } from '../core/api.js';
+import { elegirVersionPdf } from './versionPdf.controller.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { incidenciasService } from '../services/incidencias.service.js';
+import { reparacionesService } from '../services/reparaciones.service.js';
 import * as aplicacion from '../core/aplicacion.js';
 import * as adminView from '../views/admin.view.js';
+import * as reparacionesView from '../views/reparaciones.view.js';
+import * as vialidadesController from './vialidades.controller.js';
 import * as detalleController from './incidencias.controller.js';
 import { cargar as cargarCampanas } from './campanas.controller.js';
 import { clavesService } from '../services/claves.service.js';
@@ -19,6 +24,7 @@ import { notificacionesService } from '../services/notificaciones.service.js';
 import { catalogosService } from '../services/catalogos.service.js';
 import { abrirSugerenciasDeMunicipio } from './comunicacion.controller.js';
 import { cargar as cargarConfiguracion } from './configuracion.controller.js';
+import { cargar as cargarVerificacion } from './verificacion.controller.js';
 import { cargar as cargarLegal } from './legal.controller.js';
 import { cargar as cargarFirmasAdmin } from './firmasAdmin.controller.js';
 import { cargar as cargarSolicitudesInforme } from './solicitudesInforme.controller.js';
@@ -74,8 +80,11 @@ function cambiarTamanoPanel(paso) {
 export const PERMISO_POR_TAB = {
   stats: 'ver_metricas',
   incidencias: 'ver_incidencias_panel',
+  reparaciones: 'ver_reparaciones_panel',
   tipos: 'ver_tipos',
   municipios: 'ver_municipios_panel',
+  mapas: 'ver_municipios_panel',
+  vialidades: 'gestionar_vialidades',
   claves: 'ver_claves',
   'avisos-clave': 'ver_avisos_clave',
   zonas: 'ver_zonas',
@@ -86,10 +95,14 @@ export const PERMISO_POR_TAB = {
   auditoria: 'ver_auditoria',
   notificaciones: 'configurar_notificaciones',
   moderacion: 'ver_moderacion',
+  'reportes-conversacion': 'ver_moderacion',
+  reclamaciones: 'gestionar_reclamaciones',
+  archivo: 'ver_incidencias_panel',
   firmas: 'ver_firmas',
   'solicitudes-informe': 'gestionar_solicitudes_informe',
   legal: 'gestionar_legal',
   configuracion: 'gestionar_configuracion',
+  verificacion: 'gestionar_verificacion_cuentas',
   respaldos: 'gestionar_respaldos',
   simulador: 'usar_simulador',
   publicidad: 'gestionar_publicidad',
@@ -100,8 +113,15 @@ function permisoDeTab(nombre) {
   return PERMISO_POR_TAB[nombre] || null;
 }
 
+/** Pestaña cargada y momento del último refresco (evita recargas repetidas). */
+let tabActual = null;
+let tabCargadoEn = 0;
+
 export function puedeAbrirTab(nombre) {
   if (nombre === 'notificaciones' && !sesion.esAdmin()) return false;
+  // La configuración de acceso es global y el servidor exige `admin`; una
+  // pestaña visible que siempre respondería 403 solo confundiría.
+  if (nombre === 'verificacion' && !sesion.esAdmin()) return false;
   const permiso = permisoDeTab(nombre);
   return !permiso || sesion.puede(permiso);
 }
@@ -111,6 +131,59 @@ export function puedeAbrirTab(nombre) {
  * Vuelve a pintar el bloque de incidencias peligrosas y la tabla.
  * Se hace siempre junto porque una marca de peligro cambia los dos.
  */
+let reparacionesCache = [];
+let documentosPendientes = [];
+
+async function cargarReparaciones() {
+  const { reparaciones } = await reparacionesService.listar({
+    reparacionEstado: document.getElementById('repFiltroEstado')?.value || 'todos',
+    texto: document.getElementById('repFiltroTexto')?.value || ''
+  });
+  reparacionesCache = reparaciones || [];
+  reparacionesView.renderLista(
+    document.getElementById('reparacionesLista'),
+    reparacionesCache,
+    sesion.usuario
+  );
+}
+
+async function abrirAsignacionReparacion(id) {
+  const { cuadrillas } = await reparacionesService.cuadrillas();
+  reparacionesView.renderCuadrillas(document.getElementById('asignarCuadrilla'), cuadrillas || []);
+  const campo = document.getElementById('asignarIncidenciaId');
+  if (campo) campo.value = id;
+  const notas = document.getElementById('asignarNotas');
+  if (notas) notas.value = '';
+  abrirModal('modalAsignarReparacion', { nested: true });
+}
+
+async function abrirDocumentosReparacion(id) {
+  const detalle = await incidenciasService.obtener(id);
+  const incidencia = detalle.incidencia || detalle;
+  const campo = document.getElementById('documentosIncidenciaId');
+  if (campo) campo.value = id;
+  documentosPendientes = [];
+  const pendientes = document.getElementById('reparacionDocumentosPendientes');
+  if (pendientes) pendientes.innerHTML = '';
+  reparacionesView.renderDocumentos(
+    document.getElementById('reparacionDocumentosLista'),
+    incidencia.documentosReparacion || []
+  );
+  abrirModal('modalDocumentosReparacion', { nested: true });
+}
+
+function pintarDocumentosPendientes() {
+  const contenedor = document.getElementById('reparacionDocumentosPendientes');
+  if (!contenedor) return;
+  contenedor.innerHTML = documentosPendientes.length
+    ? documentosPendientes
+        .map(
+          (archivo) => `<div class="ev-file"><i class="bi bi-file-earmark"></i> ${esc(archivo.name)}</div>`
+        )
+        .join('')
+    : '<p class="campo-nota">Sin archivos seleccionados.</p>';
+}
+
 function pintarPanelIncidencias() {
   adminView.renderPeligrosas(store.estado.incidencias, { tipos: store.estado.tipos });
   adminView.renderTablaIncidencias(store.estado.incidencias, {
@@ -124,12 +197,26 @@ function pintarPanelIncidencias() {
   if (boton) boton.classList.toggle('btn-primary', store.estado.soloPeligrosas === true);
 }
 
-export async function abrirTab(nombre) {
+export async function abrirTab(nombre, { forzar = false } = {}) {
   if (!puedeAbrirTab(nombre)) {
     toast('Tu cuenta no tiene permiso para esta sección', 'err');
     return false;
   }
+  // Volver a pulsar la pestaña activa no debe repetir todas las consultas.
+  // Mapas es local y barato: siempre se refresca para reflejar descargas hechas
+  // desde otra pestaña.
+  if (
+    !forzar &&
+    nombre !== 'mapas' &&
+    nombre === tabActual &&
+    Date.now() - tabCargadoEn < 20_000
+  ) {
+    adminView.activarTab(nombre);
+    return true;
+  }
   adminView.activarTab(nombre);
+  tabActual = nombre;
+  tabCargadoEn = Date.now();
   switch (nombre) {
     case 'stats':
       prepararSelectorStats();
@@ -139,11 +226,22 @@ export async function abrirTab(nombre) {
       await aplicacion.recargarIncidencias();
       pintarPanelIncidencias();
       break;
+    case 'reparaciones':
+      await cargarReparaciones();
+      break;
     case 'tipos':
       await aplicacion.cargarTipos();
       break;
     case 'municipios':
       await cargarResumenMunicipios();
+      break;
+    case 'mapas': {
+      const { cargar: cargarMapas } = await import('./mapas.controller.js');
+      await cargarMapas();
+      break;
+    }
+    case 'vialidades':
+      await vialidadesController.cargar();
       break;
     case 'claves':
       await cargarClaves();
@@ -193,6 +291,18 @@ export async function abrirTab(nombre) {
       await aplicacion.recargarIncidencias();
       await aplicacion.cargarModeracion();
       break;
+    case 'reportes-conversacion':
+      await aplicacion.cargarReportesConversacion();
+      break;
+    case 'reclamaciones': {
+      const { cargar: cargarReclamaciones } = await import('./reclamaciones.controller.js');
+      await cargarReclamaciones();
+      break;
+    }
+    case 'archivo': {
+      await cargarArchivo();
+      break;
+    }
     case 'campanas':
       await cargarCampanas();
       break;
@@ -207,6 +317,9 @@ export async function abrirTab(nombre) {
       break;
     case 'configuracion':
       await cargarConfiguracion();
+      break;
+    case 'verificacion':
+      await cargarVerificacion();
       break;
     case 'respaldos':
       await cargarRespaldos();
@@ -226,10 +339,15 @@ export async function abrirTab(nombre) {
 }
 
 async function cargarClaves() {
-  const { claves } = await clavesService.listar();
+  const [{ claves }, renovaciones] = await Promise.all([
+    clavesService.listar(),
+    clavesService.renovaciones().catch(() => ({ solicitudes: [] }))
+  ]);
   adminView.renderClaves(claves, store.estado.municipios || [], {
-    puedeEliminar: sesion.puede('eliminar_claves')
+    puedeEliminar: sesion.puede('eliminar_claves'),
+    puedeEditar: sesion.puede('editar_claves')
   });
+  adminView.renderRenovacionesClave(renovaciones.solicitudes || []);
 }
 
 /** Claves vigentes que se pueden asignar al alta de una cuenta. */
@@ -237,7 +355,9 @@ async function clavesParaAlta() {
   if (!sesion.puede('ver_claves') && !sesion.puede('ver_avisos_clave')) return [];
   try {
     const { claves } = await clavesService.listar();
-    return claves || [];
+    // Las claves `unica` son de activación de una cuenta concreta: no se
+    // ofrecen para crear otras cuentas. Las compartidas conservan su uso.
+    return (claves || []).filter((clave) => clave.modo !== 'unica');
   } catch {
     return [];
   }
@@ -404,6 +524,8 @@ async function cargarResumenMunicipios() {
   document.getElementById('municipioActivoBox')?.classList.toggle('u-oculto', municipal);
   document.getElementById('municipiosFiltroBox')?.classList.toggle('u-oculto', municipal);
   adminView.renderMunicipios(municipios, store.estado.municipioActivo?.id, { municipal });
+  // Estado del mapa descargado del municipio activo (panel de Municipios).
+  detalleController.actualizarEstadoMapaOffline?.().catch(() => {});
 }
 
 async function cargarSesiones() {
@@ -411,15 +533,33 @@ async function cargarSesiones() {
   adminView.renderSesiones(sesiones);
 }
 
-async function cargarAuditoria() {
-  const filtros = {
+function filtrosAuditoria() {
+  return {
     username: document.getElementById('auditoriaUsuario')?.value.trim() || '',
+    metodo: document.getElementById('auditoriaMetodo')?.value || '',
     accion: document.getElementById('auditoriaAccion')?.value.trim() || '',
     desde: document.getElementById('auditoriaDesde')?.value || '',
     hasta: document.getElementById('auditoriaHasta')?.value || ''
   };
+}
+
+async function cargarAuditoria() {
+  const filtros = filtrosAuditoria();
   const { registros } = await auditoriaService.listar(filtros);
-  adminView.renderAuditoria(registros || []);
+  adminView.renderAuditoria(registros || [], filtros);
+  return registros || [];
+}
+
+async function descargarAuditoria(formato) {
+  const filtros = filtrosAuditoria();
+  const contenido = await auditoriaService.informe(filtros, formato);
+  const dia = new Date().toISOString().slice(0, 10);
+  descargar(
+    contenido,
+    `auditoria-${dia}.${formato}`,
+    formato === 'csv' ? 'text/csv;charset=utf-8' : 'application/pdf'
+  );
+  toast(`Informe ${formato.toUpperCase()} descargado`, 'ok');
 }
 
 async function cargarSolicitudesAcceso() {
@@ -517,7 +657,6 @@ export async function abrirPanel(tabInicial = null) {
         );
       }
     }
-    adminView.activarTab(inicial?.dataset.valor || 'stats');
     return true;
   } finally {
     loading(false);
@@ -568,6 +707,21 @@ export async function enfocarSolicitud({
     }
     resaltar(`#usuariosLista tr[data-usuario="${limpio(usuarioId)}"]`);
   }
+}
+
+function filtrosArchivo() {
+  return {
+    desde: $('archivoDesde')?.value || '',
+    hasta: $('archivoHasta')?.value || '',
+    texto: $('archivoTexto')?.value.trim() || ''
+  };
+}
+
+async function cargarArchivo() {
+  const filtros = filtrosArchivo();
+  const datos = await incidenciasService.archivo(filtros);
+  adminView.renderArchivo(datos, filtros);
+  return datos;
 }
 
 export function registrar() {
@@ -923,25 +1077,18 @@ export function registrar() {
       }),
     'alta:aprobar': ({ id }) =>
       intentar(async () => {
-        if (
-          !(await preguntar(
-            '¿Aprobar esta alta? Se creará la cuenta como funcionario en los municipios del solicitante y la contraseña temporal se le entregará por la campana.'
-          ))
-        ) {
-          return;
-        }
-        const resultado = await altaService.aprobar(id, 'Aprobada desde el panel');
-        await Promise.all([cargarSolicitudesAlta(), aplicacion.cargarUsuarios('personal')]);
-        const usuario = resultado?.usuario;
-        if (usuario) {
-          adminView.mostrarPasswordUsuario({
-            usuario,
-            password: resultado.password,
-            generada: true
-          });
-          abrirModal('modalPasswordUsuario', { nested: true });
-        }
-        toast('Cuenta creada; la contraseña se entregó al solicitante', 'ok');
+        const solicitud = adminView.solicitudAltaPorId(id);
+        if (!solicitud) return toast('No se encontró la solicitud de alta', 'err');
+        const claves = await clavesParaAlta();
+        adminView.prepararModalAprobacion({
+          tipo: 'alta',
+          solicitud,
+          claves,
+          resumen: `Alta de ${solicitud.nombre} (${solicitud.username}). Se creará como funcionario en ${
+            (solicitud.municipios || []).length
+          } municipio(s) del solicitante ${solicitud.solicitadoPor || '—'}.`
+        });
+        abrirModal('modalAprobarSolicitud', { nested: true });
       }),
     'alta:rechazar': ({ id }) =>
       intentar(async () => {
@@ -1035,6 +1182,30 @@ export function registrar() {
           if ((!datos.id || datos.password) && datos.password.length < 8) {
             return toast('La contraseña debe tener al menos 8 caracteres', 'err');
           }
+          if (!datos.id) {
+            // Toda cuenta de funcionario debe nacer ligada a una clave. Las
+            // cuentas administrativas entran por la puerta de administración y
+            // no usan clave municipal.
+            const requiereClave = !['admin', 'admin_estatal', 'admin_municipal'].includes(
+              datos.rol
+            );
+            if (requiereClave && !datos.claveId && datos.generarClave !== true) {
+              return toast(
+                'Elige una clave de acceso o marca «Generar una clave nueva»: sin clave la cuenta no podrá entrar',
+                'err'
+              );
+            }
+            if (!datos.claveId && datos.generarClave === true && !datos.claveExpiraEn) {
+              return toast('Indica la fecha de vencimiento de la clave nueva', 'err');
+            }
+            if (
+              !datos.claveId &&
+              datos.generarClave === true &&
+              new Date(`${datos.claveExpiraEn}T23:59:59`).getTime() <= Date.now()
+            ) {
+              return toast('La fecha de vencimiento de la clave debe ser futura', 'err');
+            }
+          }
 
           // En edición, la contraseña vacía significa «no la cambies».
           envio = {
@@ -1058,14 +1229,15 @@ export function registrar() {
             envio.password = datos.password;
             // Si se eligió una clave, el servidor toma de ella rol, territorio y
             // permisos; los campos del formulario quedan como vista previa.
-            if (datos.claveId) envio.claveId = datos.claveId;
-          }
-          // Clave de acceso del personal (segundo factor del login). Solo la
-          // administración genera claves: un funcionario usa la suya.
-          envio.generarClave = datos.generarClave === true;
-          if (envio.generarClave) {
-            envio.claveUsosMaximos = datos.claveUsosMaximos;
-            envio.claveExpiraEn = datos.claveExpiraEn;
+            if (datos.claveId) {
+              envio.claveId = datos.claveId;
+            } else if (datos.generarClave === true) {
+              // Clave nueva, exclusiva de esta cuenta (cupo 1). Solo la
+              // administración la genera y solo al crear la cuenta.
+              envio.generarClave = true;
+              envio.claveUsosMaximos = 1;
+              envio.claveExpiraEn = datos.claveExpiraEn;
+            }
           }
         }
 
@@ -1083,6 +1255,46 @@ export function registrar() {
             abrirModal('modalClaveGenerada', { nested: true });
             cargarClaves().catch(() => {});
           }
+        } finally {
+          loading(false);
+        }
+      }),
+
+    /** Consulta el estado de la clave de activación de una cuenta. */
+    'admin:claveUsuarioVer': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.esAlgunaAdmin()) {
+          toast('Solo la administración gestiona las claves de activación', 'err');
+          return;
+        }
+        const datos = await catalogosService.claveUsuario(id);
+        adminView.mostrarEstadoClaveUsuario(datos);
+        abrirModal('modalClaveUsuario', { nested: true });
+      }),
+
+    /** Renueva la clave de activación; el código se muestra una sola vez. */
+    'admin:claveUsuarioRenovar': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.esAlgunaAdmin()) {
+          toast('Solo la administración gestiona las claves de activación', 'err');
+          return;
+        }
+        const objetivo = id || document.getElementById('btnRenovarClaveUsuario')?.dataset.id || '';
+        if (!objetivo) return;
+        if (
+          !(await preguntar(
+            '¿Renovar la clave de activación? La anterior dejará de servir para entrar y la cuenta pedirá la nueva en el próximo inicio de sesión.'
+          ))
+        ) {
+          return;
+        }
+        loading(true, 'Renovando clave…');
+        try {
+          const resultado = await catalogosService.renovarClaveUsuario(objetivo, {});
+          cerrarModal('modalClaveUsuario');
+          adminView.mostrarClaveGenerada(resultado.clave);
+          abrirModal('modalClaveGenerada', { nested: true });
+          await aplicacion.cargarUsuarios('personal');
         } finally {
           loading(false);
         }
@@ -1222,6 +1434,15 @@ export function registrar() {
         if (!datos.municipios.length && !datos.estados.length) {
           return toast('Elige al menos un estado o un municipio', 'err');
         }
+        if (!datos.usosMaximos || datos.usosMaximos < 1) {
+          return toast('Indica el cupo de funcionarios que podrán usar la clave', 'err');
+        }
+        if (!datos.expiraEn) {
+          return toast('Indica la fecha de vencimiento de la clave', 'err');
+        }
+        if (new Date(`${datos.expiraEn}T23:59:59`).getTime() <= Date.now()) {
+          return toast('La fecha de vencimiento debe ser futura', 'err');
+        }
 
         creandoClave = true;
         const boton = document.querySelector('[data-action="claves:guardar"]');
@@ -1245,6 +1466,99 @@ export function registrar() {
             boton.removeAttribute('aria-busy');
           }
         }
+      }),
+
+    'claves:completar': ({ id }) => {
+      const clave = adminView.clavesCargadas().find((c) => String(c.id) === String(id));
+      if (!clave) return toast('No se encontró la clave', 'err');
+      adminView.prepararModalRenovarClave({ clave, modo: 'completar' });
+      abrirModal('modalRenovarClave', { nested: true });
+    },
+
+    'claves:renovar': ({ id }) => {
+      const clave = adminView.clavesCargadas().find((c) => String(c.id) === String(id));
+      if (!clave) return toast('No se encontró la clave', 'err');
+      adminView.prepararModalRenovarClave({ clave, modo: 'renovar' });
+      abrirModal('modalRenovarClave', { nested: true });
+    },
+
+    'claves:renovarConfirmar': () =>
+      intentar(async () => {
+        if (!sesion.puede('editar_claves')) {
+          return toast('Tu cuenta no puede modificar claves', 'err');
+        }
+        const datos = adminView.valoresRenovarClave();
+        if (!datos.id) return toast('No se encontró la clave', 'err');
+        if (!datos.expiraEn) return toast('Indica el nuevo vencimiento', 'err');
+        if (new Date(`${datos.expiraEn}T23:59:59`).getTime() <= Date.now()) {
+          return toast('El vencimiento debe ser futuro', 'err');
+        }
+        if (datos.modo !== 'solicitud' && (!datos.usosMaximos || datos.usosMaximos < 1)) {
+          return toast('Indica el cupo de funcionarios', 'err');
+        }
+        loading(
+          true,
+          datos.modo === 'completar'
+            ? 'Completando clave…'
+            : datos.modo === 'solicitud'
+              ? 'Aprobando renovación…'
+              : 'Renovando clave…'
+        );
+        try {
+          if (datos.modo === 'solicitud') {
+            if (!datos.solicitudId) return toast('No se encontró la solicitud', 'err');
+            await clavesService.resolverRenovacion(datos.solicitudId, true, {
+              expiraEn: datos.expiraEn,
+              respuesta: 'Renovación aprobada desde el panel'
+            });
+          } else if (datos.modo === 'completar') {
+            await clavesService.actualizar(datos.id, {
+              expiraEn: datos.expiraEn,
+              usosMaximos: datos.usosMaximos
+            });
+          } else {
+            await clavesService.renovar(datos.id, {
+              expiraEn: datos.expiraEn,
+              usosMaximos: datos.usosMaximos
+            });
+          }
+          cerrarModal('modalRenovarClave');
+          await cargarClaves();
+          toast(
+            datos.modo === 'completar'
+              ? 'Clave completada'
+              : datos.modo === 'solicitud'
+                ? 'Renovación aprobada'
+                : 'Clave renovada',
+            'ok'
+          );
+        } finally {
+          loading(false);
+        }
+      }),
+
+    'claves:renovacionAprobar': ({ id }) => {
+      const solicitud = adminView.renovacionClavePorId(id);
+      if (!solicitud) return toast('No se encontró la solicitud', 'err');
+      adminView.prepararModalRenovarClave({
+        clave: solicitud.clave || {},
+        modo: 'solicitud',
+        solicitud
+      });
+      abrirModal('modalRenovarClave', { nested: true });
+    },
+
+    'claves:renovacionRechazar': ({ id }) =>
+      intentar(async () => {
+        if (!sesion.puede('editar_claves')) {
+          return toast('Tu cuenta no puede modificar claves', 'err');
+        }
+        if (!(await preguntar('¿Rechazar esta solicitud de renovación?'))) return;
+        await clavesService.resolverRenovacion(id, false, {
+          respuesta: 'Rechazada desde el panel'
+        });
+        await cargarClaves();
+        toast('Solicitud de renovación rechazada', 'info');
       }),
 
     /** Copia una clave al portapapeles (lista de claves o modal de alta). */
@@ -1347,12 +1661,20 @@ export function registrar() {
     'auditoria:recargar': () => intentar(() => cargarAuditoria()),
     'auditoria:limpiar': () =>
       intentar(async () => {
-        for (const id of ['auditoriaUsuario', 'auditoriaAccion', 'auditoriaDesde', 'auditoriaHasta']) {
+        for (const id of [
+          'auditoriaUsuario',
+          'auditoriaMetodo',
+          'auditoriaAccion',
+          'auditoriaDesde',
+          'auditoriaHasta'
+        ]) {
           const campo = document.getElementById(id);
           if (campo) campo.value = '';
         }
         await cargarAuditoria();
       }),
+    'auditoria:pdf': () => intentar(() => descargarAuditoria('pdf')),
+    'auditoria:csv': () => intentar(() => descargarAuditoria('csv')),
 
     'sesiones:revocar': ({ id }) =>
       intentar(async () => {
@@ -1364,13 +1686,127 @@ export function registrar() {
 
     'solicitudes:aprobar': ({ id }) =>
       intentar(async () => {
-        if (!(await preguntar('¿Aprobar esta solicitud y crear la cuenta?'))) return;
-        const resultado = await solicitudesAccesoService.aprobar(id);
-        await cargarSolicitudesAcceso();
-        toast(
-          `Cuenta ${resultado.usuario?.username || 'creada'} lista${resultado.clave ? ` · clave ${resultado.clave.codigo}` : ''}`,
-          'ok'
-        );
+        const solicitud = adminView.solicitudAccesoPorId(id);
+        if (!solicitud) return toast('No se encontró la solicitud', 'err');
+        const claves = await clavesParaAlta();
+        adminView.prepararModalAprobacion({
+          tipo: 'acceso',
+          solicitud,
+          claves,
+          resumen: [
+            `Solicitud de ${solicitud.nombre} (${solicitud.correo}).`,
+            `Usuario sugerido: ${
+              solicitud.usuarioVinculado?.nombre ||
+              solicitud.usuarioVinculado?.username ||
+              solicitud.usuarioSugerido ||
+              '—'
+            }.`,
+            `Rol sugerido: ${solicitud.rolSugerido || solicitud.rolSolicitado || '—'}.`,
+            `Territorio: ${
+              (solicitud.municipiosNombres || []).join(', ') ||
+              (solicitud.estadosNombres || []).join(', ') ||
+              'sin territorio'
+            }.`,
+            solicitud.usuarioVinculado
+              ? `Se promoverá la cuenta ciudadana ${
+                  solicitud.usuarioVinculado.nombre || solicitud.usuarioVinculado.username
+                }.`
+              : 'Se creará una cuenta nueva con contraseña temporal.'
+          ].join(' ')
+        });
+        abrirModal('modalAprobarSolicitud', { nested: true });
+      }),
+
+    'admin:aprobarClave': () => adminView.actualizarAprobacionClave(),
+    'admin:aprobarRol': () => adminView.actualizarRolAprobacion(),
+
+    'solicitudes:aprobarConfirmar': () =>
+      intentar(async () => {
+        const datos = adminView.valoresAprobacion();
+        if (!datos.id) return toast('No se encontró la solicitud', 'err');
+        if (!datos.claveId && datos.generarClave !== true) {
+          return toast('Elige una clave o genera una nueva: sin clave la cuenta no podrá entrar', 'err');
+        }
+        if (datos.generarClave === true && !datos.claveExpiraEn) {
+          return toast('Indica el vencimiento de la clave nueva', 'err');
+        }
+        if (
+          datos.generarClave === true &&
+          new Date(`${datos.claveExpiraEn}T23:59:59`).getTime() <= Date.now()
+        ) {
+          return toast('El vencimiento de la clave debe ser futuro', 'err');
+        }
+        loading(true, 'Aprobando y creando la cuenta…');
+        try {
+          const resultado =
+            datos.tipo === 'acceso'
+              ? await solicitudesAccesoService.aprobar(datos.id, {
+                  rol: datos.rol,
+                  claveId: datos.claveId,
+                  generarClave: datos.generarClave,
+                  claveExpiraEn: datos.claveExpiraEn
+                })
+              : await altaService.aprobar(datos.id, {
+                  respuesta: 'Aprobada desde el panel',
+                  claveId: datos.claveId,
+                  generarClave: datos.generarClave,
+                  claveExpiraEn: datos.claveExpiraEn
+                });
+          cerrarModal('modalAprobarSolicitud');
+          await Promise.all([
+            cargarSolicitudesAcceso().catch(() => {}),
+            cargarSolicitudesAlta().catch(() => {}),
+            aplicacion.cargarUsuarios('personal').catch(() => {}),
+            cargarClaves().catch(() => {})
+          ]);
+          if (datos.tipo === 'acceso' && resultado.usuario) {
+            if (resultado.promovida) {
+              toast(
+                `Cuenta existente ${resultado.usuario.username} habilitada para el panel. Usa su contraseña actual.`,
+                'ok'
+              );
+              if (resultado.clave?.codigo) {
+                adminView.mostrarClaveGenerada(resultado.clave);
+                abrirModal('modalClaveGenerada', { nested: true });
+              }
+            } else {
+              adminView.mostrarPasswordUsuario({
+                usuario: resultado.usuario,
+                password: resultado.password,
+                generada: true,
+                extra: resultado.clave?.codigo
+                  ? `Clave de acceso: ${resultado.clave.codigo}.`
+                  : ''
+              });
+              abrirModal('modalPasswordUsuario', { nested: true });
+            }
+          } else if (datos.tipo === 'alta' && resultado.usuario) {
+            // En un alta se entrega la contraseña temporal y, si se generó,
+            // también el código de la clave.
+            adminView.mostrarPasswordUsuario({
+              usuario: resultado.usuario,
+              password: resultado.password,
+              generada: true,
+              extra: resultado.clave?.codigo
+                ? `Clave de acceso: ${resultado.clave.codigo}.`
+                : ''
+            });
+            abrirModal('modalPasswordUsuario', { nested: true });
+          } else if (resultado.clave?.codigo) {
+            adminView.mostrarClaveGenerada(resultado.clave);
+            abrirModal('modalClaveGenerada', { nested: true });
+          } else if (resultado.usuario) {
+            adminView.mostrarPasswordUsuario({
+              usuario: resultado.usuario,
+              password: resultado.password,
+              generada: true
+            });
+            abrirModal('modalPasswordUsuario', { nested: true });
+          }
+          toast('Cuenta creada y vinculada a su clave', 'ok');
+        } finally {
+          loading(false);
+        }
       }),
 
     'solicitudes:rechazar': ({ id }) =>
@@ -1426,6 +1862,105 @@ export function registrar() {
         `Panel ${cambiarTamanoPanel(valor)}`,
         'ok'
       ),
+
+    'archivo:filtrar': () => intentar(() => cargarArchivo()),
+    'archivo:limpiar': () => {
+      const desde = $('archivoDesde');
+      const hasta = $('archivoHasta');
+      const texto = $('archivoTexto');
+      if (desde) desde.value = '';
+      if (hasta) hasta.value = '';
+      if (texto) texto.value = '';
+      return intentar(() => cargarArchivo());
+    },
+    'archivo:expediente': ({ id }) =>
+      intentar(async () => {
+        const datos = await incidenciasService.expediente(id);
+        descargar(
+          new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' }),
+          `expediente-${String(datos?.resumen?.folio || id).replace(/[^\w-]/g, '')}.json`,
+          'application/json'
+        );
+        toast('Expediente descargado', 'ok');
+      }),
+    'archivo:pdf': ({ id }) =>
+      intentar(async () => {
+        const motor = await elegirVersionPdf();
+        if (!motor) return;
+        const query = motor === 'auto' ? '' : `?pdf=${encodeURIComponent(motor)}`;
+        const blob = await api.blob(
+          `/incidencias/${encodeURIComponent(id)}/expediente/pdf${query}`
+        );
+        descargar(blob, `expediente-${String(id).slice(0, 8)}.pdf`, 'application/pdf');
+        toast('PDF del expediente descargado', 'ok');
+      }),
+
+    'reparaciones:recargar': () => intentar(() => cargarReparaciones()),
+
+    'reparaciones:asignarAbrir': ({ id }) =>
+      intentar(() => abrirAsignacionReparacion(id)),
+
+    'reparaciones:asignarConfirmar': () =>
+      intentar(async () => {
+        const id = document.getElementById('asignarIncidenciaId')?.value;
+        const cuadrillaId = document.getElementById('asignarCuadrilla')?.value;
+        const notas = document.getElementById('asignarNotas')?.value || '';
+        if (!id || !cuadrillaId) {
+          toast('Elige una cuadrilla para asignar la reparación', 'err');
+          return;
+        }
+        await reparacionesService.asignar(id, { cuadrillaId, notas });
+        cerrarModal('modalAsignarReparacion');
+        await cargarReparaciones();
+        toast('Reparación asignada', 'ok');
+      }),
+
+    'reparaciones:estado': ({ id, valor }) =>
+      intentar(async () => {
+        const estado = String(valor || '');
+        const etiquetas = {
+          en_reparacion: 'Reparación iniciada',
+          terminada: 'Reparación terminada, pendiente de validación',
+          validada: 'Reparación validada'
+        };
+        await reparacionesService.cambiarEstado(id, { estado });
+        await cargarReparaciones();
+        toast(etiquetas[estado] || 'Reparación actualizada', 'ok');
+      }),
+
+    'reparaciones:documentosAbrir': ({ id }) =>
+      intentar(() => abrirDocumentosReparacion(id)),
+
+    'reparaciones:elegirDocumentos': () =>
+      document.getElementById('reparacionDocumentos')?.click(),
+
+    'reparaciones:documentosSeleccionados': ({ elemento }) => {
+      documentosPendientes = Array.from(elemento?.files || []);
+      pintarDocumentosPendientes();
+      if (elemento) elemento.value = '';
+    },
+
+    'reparaciones:subirDocumentos': () =>
+      intentar(async () => {
+        const id = document.getElementById('documentosIncidenciaId')?.value;
+        if (!id) return;
+        if (!documentosPendientes.length) {
+          toast('Elige al menos un documento', 'err');
+          return;
+        }
+        loading(true, 'Subiendo documentos…');
+        try {
+          const subida = await reparacionesService.subirArchivos(documentosPendientes);
+          await reparacionesService.documentos(id, subida.evidencia || []);
+          documentosPendientes = [];
+          pintarDocumentosPendientes();
+          cerrarModal('modalDocumentosReparacion');
+          await cargarReparaciones();
+          toast('Documentos agregados a la reparación', 'ok');
+        } finally {
+          loading(false);
+        }
+      }),
 
     'admin:tab': ({ valor }) =>
       intentar(async () => {
@@ -1563,7 +2098,7 @@ export function registrar() {
           await aplicacion.cambiarMunicipio(id);
           if (valor === 'tickets') {
             store.actualizar({ filtroTicketsMunicipio: id });
-            await abrirTab('tickets');
+            await abrirTab('tickets', { forzar: true });
             return;
           }
           if (valor === 'sugerencias') {

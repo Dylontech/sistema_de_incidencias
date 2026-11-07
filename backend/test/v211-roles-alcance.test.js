@@ -37,17 +37,19 @@ async function crearCuenta(admin, datos = {}) {
     rol: 'funcionario',
     municipios: [MUNICIPIO_MARAVATIO],
     password: 'segura1234',
+    generarClave: true,
+    claveExpiraEn: '2030-12-31',
     ...datos
   });
   assert.equal(respuesta.status, 201, JSON.stringify(respuesta.body));
-  return respuesta.body.usuario;
+  return { ...respuesta.body.usuario, clave: respuesta.body.clave };
 }
 
-async function sesionFuncionario(cuenta, { password = 'segura1234', claveMunicipio = MUNICIPIO_MARAVATIO } = {}) {
+async function sesionFuncionario(cuenta, { password = 'segura1234' } = {}) {
   const entrada = await Api.entrarFuncionario(app, {
     username: cuenta.username,
     password,
-    claveMunicipio
+    claveAcceso: cuenta.clave?.codigo
   });
   assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
   return new Api(app, entrada.body.token);
@@ -56,21 +58,22 @@ async function sesionFuncionario(cuenta, { password = 'segura1234', claveMunicip
 describe('V2.11: matriz de los roles integrados', () => {
   test('editar un rol cambia la sesión siguiente y se restablece a fábrica', async () => {
     const admin = await Api.admin(app);
-    const cuenta = await crearCuenta(admin);
 
     const recorte = await admin.patch('/api/roles/funcionario').send({
       permisos: ['reportar', 'ver_usuarios']
     });
     assert.equal(recorte.status, 200, JSON.stringify(recorte.body));
 
-    const sinMetricas = await sesionFuncionario(cuenta);
+    // La cuenta semilla es anterior a las claves obligatorias: permite ver el
+    // efecto de la matriz del rol sin que una clave congele los permisos.
+    const sinMetricas = await Api.funcionario(app);
     const bloqueado = await sinMetricas.get('/api/stats/panel');
     assert.equal(bloqueado.status, 403, JSON.stringify(bloqueado.body));
 
     const restablecido = await admin.post('/api/roles/funcionario/restablecer').send({});
     assert.equal(restablecido.status, 200, JSON.stringify(restablecido.body));
 
-    const conMetricas = await sesionFuncionario(cuenta);
+    const conMetricas = await Api.funcionario(app);
     const permitido = await conMetricas.get('/api/stats/panel');
     assert.equal(permitido.status, 200, JSON.stringify(permitido.body));
   });
@@ -446,7 +449,7 @@ describe('V2.11.2: avisos de baja y contraseña con entrega', () => {
     const entra = await Api.entrarFuncionario(app, {
       username: titular.username,
       password: nueva,
-      claveMunicipio: MUNICIPIO_MARAVATIO
+      claveAcceso: titular.clave.codigo
     });
     assert.equal(entra.status, 200, JSON.stringify(entra.body));
 
@@ -502,7 +505,11 @@ describe('V2.11.3: solicitud de alta y reactivación de cuentas', () => {
 
     const aprobada = await admin
       .post(`/api/alta/solicitudes/${solicitud.body.solicitud.id}/aprobar`)
-      .send({ respuesta: 'Alta aprobada' });
+      .send({
+        respuesta: 'Alta aprobada',
+        generarClave: true,
+        claveExpiraEn: '2030-12-31'
+      });
     assert.equal(aprobada.status, 200, JSON.stringify(aprobada.body));
     assert.equal(aprobada.body.usuario.rol, 'funcionario');
     assert.equal(aprobada.body.usuario.username, username);
@@ -523,7 +530,7 @@ describe('V2.11.3: solicitud de alta y reactivación de cuentas', () => {
     const entrada = await Api.entrarFuncionario(app, {
       username,
       password,
-      claveMunicipio: MUNICIPIO_MARAVATIO
+      claveAcceso: aprobada.body.clave.codigo
     });
     assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
 
@@ -568,7 +575,7 @@ describe('V2.11.3: solicitud de alta y reactivación de cuentas', () => {
     const entrada = await Api.entrarFuncionario(app, {
       username: cuenta.username,
       password: 'segura1234',
-      claveMunicipio: MUNICIPIO_MARAVATIO
+      claveAcceso: cuenta.clave.codigo
     });
     assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
 

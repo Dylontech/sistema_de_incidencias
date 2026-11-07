@@ -19,6 +19,7 @@
 export const ROLES = [
   'anonimo',
   'ciudadano',
+  'cuadrilla',
   'funcionario',
   'auditor',
   'enlace_estatal',
@@ -31,6 +32,7 @@ export const ROLES = [
 
 /** Todo el personal con acceso al panel (lectura o escritura). */
 export const ROLES_PERSONAL = [
+  'cuadrilla',
   'funcionario',
   'auditor',
   'enlace_estatal',
@@ -54,7 +56,7 @@ export const ROLES_EMPLEADO = ROLES_PERSONAL;
 export const ROLES_LECTURA = ['auditor', 'enlace_estatal', 'enlace_federal'];
 
 /** Roles con escritura (siempre que `usuarios.puede_escribir` no lo revoque). */
-export const ROLES_ESCRITURA = ['funcionario', 'admin'];
+export const ROLES_ESCRITURA = ['cuadrilla', 'funcionario', 'admin'];
 
 /** Roles que puede crear y editar un administrador desde el panel. */
 export const ROLES_PERSONAL_ASIGNABLES = ROLES_PERSONAL;
@@ -302,6 +304,10 @@ export const PERMISOS = [
   'ver_monitoreo',
   'responder_tickets',
   'atender_tickets',
+  'ver_reparaciones_panel',
+  'coordinar_reparaciones',
+  'atender_reparaciones',
+  'subir_documentos_reparacion',
   'configurar_notificaciones',
   'ver_metricas',
   // Solicitudes de acceso al personal: consulta, aprobación y rechazo.
@@ -315,10 +321,13 @@ export const PERMISOS = [
   'gestionar_solicitudes_permisos',
   // Consulta auditada de la contraseña de una cuenta.
   'revelar_password_usuarios',
+  'gestionar_reclamaciones',
   'gestionar_solicitudes_informe',
   'gestionar_legal',
   'gestionar_configuracion',
+  'gestionar_verificacion_cuentas',
   'gestionar_respaldos',
+  'gestionar_vialidades',
   'usar_simulador',
   'gestionar_publicidad',
   'gestionar_correos'
@@ -449,10 +458,15 @@ export const PERMISOS_POR_ROL = {
     'ver_monitoreo',
     'responder_tickets',
     'atender_tickets',
-    'configurar_notificaciones',
+    'ver_reparaciones_panel',
+    'coordinar_reparaciones',
+    'atender_reparaciones',
+    'subir_documentos_reparacion',
     'ver_metricas',
+    'gestionar_vialidades',
     'gestionar_solicitudes_permisos',
-    'revelar_password_usuarios'
+    'revelar_password_usuarios',
+    'gestionar_reclamaciones'
   ],
   admin_municipal: [
     'reportar',
@@ -475,10 +489,15 @@ export const PERMISOS_POR_ROL = {
     'ver_firmas',
     'responder_tickets',
     'atender_tickets',
-    'configurar_notificaciones',
+    'ver_reparaciones_panel',
+    'coordinar_reparaciones',
+    'atender_reparaciones',
+    'subir_documentos_reparacion',
     'ver_metricas',
+    'gestionar_vialidades',
     'gestionar_solicitudes_permisos',
-    'revelar_password_usuarios'
+    'revelar_password_usuarios',
+    'gestionar_reclamaciones'
   ],
   funcionario: [
     'reportar',
@@ -497,8 +516,18 @@ export const PERMISOS_POR_ROL = {
     'gestionar_zonas',
     'ver_firmas',
     'responder_tickets',
-    'configurar_notificaciones',
-    'ver_metricas'
+    'ver_reparaciones_panel',
+    'coordinar_reparaciones',
+    'atender_reparaciones',
+    'subir_documentos_reparacion',
+    'ver_metricas',
+    'gestionar_reclamaciones'
+  ],
+  cuadrilla: [
+    'ver_incidencias_panel',
+    'ver_reparaciones_panel',
+    'atender_reparaciones',
+    'subir_documentos_reparacion'
   ],
   auditor: [
     'exportar',
@@ -509,15 +538,14 @@ export const PERMISOS_POR_ROL = {
     'ver_zonas',
     'ver_moderacion',
     'responder_tickets',
-    'configurar_notificaciones',
-    'ver_metricas'
+    'ver_metricas',
+    'gestionar_reclamaciones'
   ],
   soporte: [
     'responder_tickets',
     'atender_tickets',
     'ver_incidencias_panel',
     'ver_moderacion',
-    'configurar_notificaciones',
     'ver_metricas'
   ],
   enlace_estatal: [
@@ -525,7 +553,6 @@ export const PERMISOS_POR_ROL = {
     'ver_incidencias_panel',
     'ver_moderacion',
     'responder_tickets',
-    'configurar_notificaciones',
     'ver_monitoreo',
     'ver_metricas'
   ],
@@ -534,7 +561,6 @@ export const PERMISOS_POR_ROL = {
     'ver_incidencias_panel',
     'ver_moderacion',
     'responder_tickets',
-    'configurar_notificaciones',
     'ver_monitoreo',
     'ver_metricas'
   ],

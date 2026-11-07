@@ -12,7 +12,11 @@ import {
 } from '../models/usuario.model.js';
 import { obtenerRepositorio } from '../repositories/index.js';
 import { permisosDe, tienePermiso } from '../services/permisos.service.js';
-import { aplicarClaveAUsuario, claveVigente } from '../services/claves.service.js';
+import {
+  aplicarClaveAUsuario,
+  claveVigente,
+  exigirCobertura
+} from '../services/claves.service.js';
 import { hashIp } from '../utils/privacidad.js';
 
 /** Última vez que se tocó cada sesión, para no escribir en cada petición. */
@@ -77,6 +81,19 @@ export async function autenticar(req, res, next) {
       return next(AppError.noAutenticado('Tu cuenta ya no está activa'));
     }
 
+    if (cuenta.correoVerificado === false) {
+      req.usuario = null;
+      return next(
+        new AppError(403, 'Confirma tu correo para activar la cuenta', [
+          {
+            codigo: 'correo_no_verificado',
+            correo: cuenta.correo || null,
+            puedeReenviar: true
+          }
+        ])
+      );
+    }
+
     if (estaSuspendido(cuenta)) {
       // 403 (y no 401) para que el cliente no borre el token: al recargar debe
       // volver a ver el aviso de suspensión en lugar de entrar como anónimo.
@@ -110,15 +127,47 @@ export async function autenticar(req, res, next) {
     let estados = asignaciones.estados;
     let permisos = permisosDe(cuenta);
 
+    // Una cuenta de personal operativo nueva sin clave no tiene acceso. Las
+    // cuentas administrativas entran por `/api/auth/admin` sin clave.
+    if (cuenta.claveObligatoria === true && !cuenta.claveId && !ROLES_ADMIN.includes(cuenta.rol)) {
+      req.usuario = null;
+      return next(
+        new AppError(403, 'Tu cuenta aún no tiene una clave de acceso vinculada', [
+          { codigo: 'clave_no_asignada' }
+        ])
+      );
+    }
+
     // Una sesión abierta con clave se vuelve a recortar en cada petición: si
-    // la clave cambió de territorio/permisos o fue revocada, el token deja de
-    // servir inmediatamente. Nunca se confía en lo que traiga el JWT.
+    // la clave cambió de territorio/permisos, fue revocada o ya no cubre la
+    // adscripción, el token deja de servir inmediatamente.
     if (delToken.claveId) {
-      const clave = await repositorio.claveAccesoPorId(delToken.claveId);
-      if (!clave || !claveVigente(clave)) {
+      if (String(cuenta.claveId || '') !== String(delToken.claveId)) {
         req.usuario = null;
-        return next(AppError.noAutenticado('Tu clave de acceso ya no es válida'));
+        return next(
+          new AppError(401, 'Tu clave de acceso cambió. Vuelve a iniciar sesión.', [
+            { codigo: 'clave_cambiada' }
+          ])
+        );
       }
+      const clave = await repositorio.claveAccesoPorId(delToken.claveId);
+      if (!clave || clave.activa === false) {
+        req.usuario = null;
+        return next(
+          new AppError(401, 'Tu clave de acceso fue revocada', [
+            { codigo: 'clave_revocada' }
+          ])
+        );
+      }
+      if (!claveVigente(clave)) {
+        req.usuario = null;
+        return next(
+          new AppError(401, 'Tu clave de acceso venció. Ingresa la nueva clave.', [
+            { codigo: 'clave_vencida', venceEn: clave.expiraEn || null }
+          ])
+        );
+      }
+      await exigirCobertura(repositorio, clave, { municipios, estados });
       const restringido = aplicarClaveAUsuario(
         {
           ...cuenta,
@@ -131,6 +180,16 @@ export async function autenticar(req, res, next) {
       municipios = restringido.municipios;
       estados = restringido.estados;
       permisos = restringido.permisos;
+    } else if (cuenta.claveId && !ROLES_ADMIN.includes(cuenta.rol)) {
+      // Las cuentas administrativas no usan clave de activación: su acceso se
+      // valida por la puerta de administración. Solo el personal operativo
+      // necesita el segundo factor.
+      req.usuario = null;
+      return next(
+        new AppError(401, 'Vuelve a iniciar sesión con tu clave de acceso', [
+          { codigo: 'clave_requerida' }
+        ])
+      );
     }
 
     // El municipio activo del token se conserva solo si sigue siendo válido.
@@ -171,7 +230,14 @@ export async function autenticar(req, res, next) {
       puedeEscribir: puedeEscribirDe(cuenta),
       permisos,
       municipios,
-      estados
+      estados,
+      claveActivadaEn: cuenta.claveActivadaEn || null,
+      claveVigenteHasta: cuenta.claveVigenteHasta || null,
+      claveObligatoria: cuenta.claveObligatoria === true,
+      correoVerificado: cuenta.correoVerificado !== false,
+      suspendidoHasta: cuenta.suspendidoHasta || null,
+      suspendidoOrigen: cuenta.suspendidoOrigen || null,
+      creadoEn: cuenta.creadoEn || null
     };
 
     next();

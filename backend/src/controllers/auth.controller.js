@@ -14,15 +14,25 @@ export const entrarAnonimo = asyncHandler(async (req, res) => {
 
 /** Alta de una cuenta ciudadana (correo + contraseña, nombre o pseudónimo). */
 export const registrarCiudadano = asyncHandler(async (req, res) => {
-  const sesion = await auth.registrarCiudadano(req.repositorio, req.body || {});
-  res.status(201).json({ ...sesion, municipioActivo: publico(sesion.municipioActivo) });
+  const resultado = await auth.registrarCiudadano(req.repositorio, {
+    ...(req.body || {}),
+    ip: req.ip,
+    userAgent: String(req.headers?.['user-agent'] || '')
+  });
+  res.status(201).json({
+    ...resultado,
+    ...(resultado?.municipioActivo
+      ? { municipioActivo: publico(resultado.municipioActivo) }
+      : {})
+  });
 });
 
 /** Entrada de una cuenta ciudadana ya existente (nombre o pseudónimo + contraseña). */
 export const entrarCiudadano = asyncHandler(async (req, res) => {
   const sesion = await auth.entrarCiudadano(req.repositorio, {
-    nombre: req.body?.nombre,
-    // Respaldo para las cuentas creadas antes del acceso por nombre.
+    // `identificador` es el nombre nuevo del campo; `nombre` y `correo` se
+    // conservan para las integraciones anteriores.
+    nombre: req.body?.identificador || req.body?.nombre,
     correo: req.body?.correo,
     password: req.body?.password,
     municipioId: req.body?.municipioId
@@ -32,7 +42,7 @@ export const entrarCiudadano = asyncHandler(async (req, res) => {
 
 export const entrarFuncionario = asyncHandler(async (req, res) => {
   const sesion = await auth.entrarFuncionario(req.repositorio, {
-    username: req.body?.username,
+    username: req.body?.identificador || req.body?.username,
     password: req.body?.password,
     claveMunicipio: req.body?.claveMunicipio,
     claveAcceso: req.body?.claveAcceso,
@@ -43,7 +53,7 @@ export const entrarFuncionario = asyncHandler(async (req, res) => {
 
 export const entrarAdmin = asyncHandler(async (req, res) => {
   const sesion = await auth.entrarAdmin(req.repositorio, {
-    username: req.body?.username,
+    username: req.body?.identificador || req.body?.username,
     password: req.body?.password
   });
   res.json({ ...sesion, municipioActivo: publico(sesion.municipioActivo) });

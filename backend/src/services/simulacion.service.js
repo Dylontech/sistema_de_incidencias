@@ -30,6 +30,8 @@ import * as sugerencias from './sugerencias.service.js';
 import * as solicitudes from './solicitudes.service.js';
 import * as publicidad from './publicidad.service.js';
 import * as correosInstitucionales from './correos-institucionales.service.js';
+import { condicionVialidades, nivelDeIndice } from './vialidades.service.js';
+import { puedeVerMunicipio } from './alcance.service.js';
 
 const ROLES = new Set(ROLES_SIMULACION.map((r) => r.clave));
 const ROLES_LECTURA = new Set(['auditor', 'enlace_estatal', 'enlace_federal']);
@@ -175,6 +177,132 @@ export function catalogo(rol = null) {
   return {
     roles: ROLES_SIMULACION,
     acciones: rol ? accionesPara(rol) : ACCIONES_SIMULACION
+  };
+}
+
+const NIVELES_SIMULACION_VIA = [
+  { clave: 'bueno', etiqueta: 'Bueno', indice: 8 },
+  { clave: 'leve', etiqueta: 'Leve', indice: 24 },
+  { clave: 'regular', etiqueta: 'Regular', indice: 44 },
+  { clave: 'malo', etiqueta: 'Malo', indice: 64 },
+  { clave: 'critico', etiqueta: 'Crítico', indice: 88 }
+];
+
+function porcentajesDe(datos = {}) {
+  const entrada = datos.porcentajes || datos;
+  const salida = {};
+  for (const nivel of NIVELES_SIMULACION_VIA) {
+    const valor = Number(entrada[nivel.clave]);
+    if (!Number.isFinite(valor) || valor < 0 || valor > 100) {
+      throw AppError.solicitudInvalida(`El porcentaje de ${nivel.etiqueta} debe estar entre 0 y 100`);
+    }
+    salida[nivel.clave] = Math.round(valor * 100) / 100;
+  }
+  const suma = Object.values(salida).reduce((total, valor) => total + valor, 0);
+  if (Math.abs(suma - 100) > 0.05) {
+    throw AppError.solicitudInvalida(`Los porcentajes deben sumar 100% (suman ${suma}%)`);
+  }
+  return salida;
+}
+
+/** Reparte un total entero con el método del mayor resto, sin perder unidades. */
+function repartir(total, porcentajes) {
+  const exactos = NIVELES_SIMULACION_VIA.map((nivel) => ({
+    clave: nivel.clave,
+    exacto: (total * porcentajes[nivel.clave]) / 100
+  }));
+  const resultado = Object.fromEntries(
+    exactos.map((item) => [item.clave, Math.floor(item.exacto)])
+  );
+  let faltantes = total - Object.values(resultado).reduce((suma, valor) => suma + valor, 0);
+  const orden = [...exactos].sort(
+    (a, b) => (b.exacto - Math.floor(b.exacto)) - (a.exacto - Math.floor(a.exacto))
+  );
+  let indice = 0;
+  while (faltantes > 0 && orden.length) {
+    resultado[orden[indice % orden.length].clave] += 1;
+    faltantes -= 1;
+    indice += 1;
+  }
+  return resultado;
+}
+
+/**
+ * Simula el estado de las vialidades por porcentajes.
+ *
+ * No escribe en `vialidades` ni en incidencias: devuelve una copia coloreada
+ * de los tramos reales para pintarla en el mapa y comparar escenarios.
+ */
+export async function simularVialidades(repositorio, admin, datos = {}) {
+  const municipioId = String(datos.municipioId || admin.municipioId || '').trim();
+  if (!municipioId) throw AppError.solicitudInvalida('Elige un municipio para la simulación');
+  if (!puedeVerMunicipio(admin, municipioId)) {
+    throw AppError.prohibido('El municipio está fuera de tu alcance');
+  }
+  const porcentajes = porcentajesDe(datos);
+  const base = await condicionVialidades(repositorio, admin, { municipioId, limite: 5000 });
+  const viasBase = [...(base.vias || [])].sort((a, b) =>
+    String(a.clave || a.nombre || '').localeCompare(String(b.clave || b.nombre || ''), 'es')
+  );
+  const conteos = repartir(viasBase.length, porcentajes);
+  const vias = [];
+  let cursor = 0;
+  for (const nivel of NIVELES_SIMULACION_VIA) {
+    const cantidad = conteos[nivel.clave] || 0;
+    const meta = nivelDeIndice(nivel.indice);
+    for (let i = 0; i < cantidad; i += 1) {
+      const via = viasBase[cursor];
+      cursor += 1;
+      if (!via) continue;
+      const segmentos = (via.segmentos || []).map((segmento) => ({
+        ...segmento,
+        indice: nivel.indice,
+        estado: meta.estado,
+        etiqueta: meta.etiqueta,
+        color: meta.color,
+        sinReportes: false,
+        simulado: true
+      }));
+      vias.push({
+        ...via,
+        indice: nivel.indice,
+        estado: meta.estado,
+        etiqueta: meta.etiqueta,
+        color: meta.color,
+        sinReportes: false,
+        segmentos,
+        simulado: true,
+        simuladoPorcentaje: nivel.clave
+      });
+    }
+  }
+  const zonas = (base.zonas || []).map((zona, indice) => {
+    const nivel = NIVELES_SIMULACION_VIA[indice % NIVELES_SIMULACION_VIA.length];
+    const meta = nivelDeIndice(nivel.indice);
+    return { ...zona, indice: nivel.indice, estado: meta.estado, etiqueta: meta.etiqueta, color: meta.color, simulado: true };
+  });
+  return {
+    simulado: true,
+    tipo: 'porcentajes_vialidades',
+    municipioId,
+    generadoEn: new Date().toISOString(),
+    porcentajes,
+    distribucion: NIVELES_SIMULACION_VIA.map((nivel) => ({
+      ...nivel,
+      total: conteos[nivel.clave] || 0,
+      color: nivelDeIndice(nivel.indice).color
+    })),
+    total: vias.length,
+    vias,
+    zonas,
+    escala: base.escala,
+    resumen: {
+      total: vias.length,
+      conDatos: vias.length,
+      criticas: vias.filter((via) => via.estado === 'critico').length,
+      zonas: zonas.length,
+      sinDatos: 0
+    }
   };
 }
 

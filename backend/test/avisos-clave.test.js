@@ -23,7 +23,9 @@ describe('Avisos por clave', () => {
     const creada = await admin.post('/api/admin/claves').send({
       nombre: 'Avisos de prueba',
       municipios: ['16050', '11001'],
-      rolSugerido: 'funcionario'
+      rolSugerido: 'funcionario',
+      usosMaximos: 10,
+      expiraEn: '2030-12-31'
     });
     assert.equal(creada.status, 201);
     const clave = creada.body.clave;

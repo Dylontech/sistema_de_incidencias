@@ -21,6 +21,10 @@ export const listar = asyncHandler(async (req, res) => {
   });
 });
 
+export const staff = asyncHandler(async (req, res) => {
+  res.json({ personal: await tickets.staffAtencion(req.repositorio, req.usuario) });
+});
+
 export const obtener = asyncHandler(async (req, res) => {
   res.json({ ticket: await tickets.obtener(req.repositorio, req.usuario, req.params.id) });
 });

@@ -173,6 +173,13 @@
  * @property {(usuarioId:string, datos:PreferenciasNotificacion) => Promise<PreferenciasNotificacion>} guardarPreferencias
  * @property {(filtros:FiltrosIncidencias) => Promise<Incidencia[]>} buscarIncidencias
  * @property {(filtros:Object) => Promise<Array<Object>>} puntosIncidencias
+ * @property {(filtros:Object) => Promise<Array<Object>>} listarVialidades
+ * @property {(id:string) => Promise<Object|null>} vialidadPorId
+ * @property {(vialidad:Object) => Promise<Object>} crearVialidad
+ * @property {(id:string, cambios:Object) => Promise<Object|null>} actualizarVialidad
+ * @property {(id:string) => Promise<boolean>} eliminarVialidad
+ * @property {(municipioId:string, vialidades:Array<Object>) => Promise<number>} reemplazarVialidades
+ * @property {(municipioId:string, vialidades:Array<Object>, opciones:{reemplazar?:boolean}) => Promise<{total:number,creadas:number,actualizadas:number}>} sincronizarVialidades
  * @property {() => Promise<Incidencia[]>} todasLasIncidencias
  * @property {(id:string) => Promise<Incidencia|null>} incidenciaPorId
  * @property {(incidencia:Incidencia) => Promise<Incidencia>} crearIncidencia
@@ -268,6 +275,9 @@ export const METODOS_REQUERIDOS = [
   'eliminarClaveAcceso',
   'actualizarClaveAcceso',
   'registrarUsoClave',
+  'avisoClaveRegistrado',
+  'registrarAvisoClave',
+  'eliminarAvisosClave',
   'usuariosDeClaves',
   'notificacionesDeClaves',
   'guardarNotificacionesClave',
@@ -295,6 +305,13 @@ export const METODOS_REQUERIDOS = [
   'actualizarSolicitudAcceso',
   'buscarIncidencias',
   'puntosIncidencias',
+  'listarVialidades',
+  'vialidadPorId',
+  'crearVialidad',
+  'actualizarVialidad',
+  'eliminarVialidad',
+  'reemplazarVialidades',
+  'sincronizarVialidades',
   'todasLasIncidencias',
   'incidenciaPorId',
   'incidenciaPorIdempotencia',
@@ -390,6 +407,7 @@ export const METODOS_REQUERIDOS = [
   'comentariosDeIncidencia',
   'crearComentarioIncidencia',
   'actualizarComentarioIncidencia',
+  'eliminarComentarioIncidencia',
   'restriccionComentariosVigente',
   'crearRestriccionComentarios',
   'desactivarRestriccionComentarios',
@@ -494,7 +512,49 @@ export const METODOS_REQUERIDOS = [
   'crearSolicitudUsuario',
   'solicitudesUsuario',
   'solicitudUsuarioPorId',
-  'actualizarSolicitudUsuario'
+  'actualizarSolicitudUsuario',
+  // Reportes de conversación y restricción de mensajes (V2.11.4)
+  'crearReporteConversacion',
+  'reportesConversacion',
+  'reporteConversacionPorId',
+  'reporteConversacionConAdjunto',
+  'actualizarReporteConversacion',
+  'crearRestriccionMensajes',
+  'restriccionMensajesVigente',
+  'restriccionMensajesPorId',
+  'levantarRestriccionMensajes',
+  // Bloqueos entre cuentas (V2.11.5)
+  'crearBloqueoUsuario',
+  'eliminarBloqueoUsuario',
+  'bloqueosDeUsuario',
+  'bloqueoEntre',
+  // Reclamaciones sobre incidencias resueltas (V2.11.6)
+  'crearReclamacion',
+  'reclamaciones',
+  'reclamacionPorId',
+  'actualizarReclamacion',
+  // Cuentas, recuperación y claves vinculadas (V2.12)
+  'crearTokenCuenta',
+  'tokenCuentaPorHash',
+  'marcarTokenCuentaUsado',
+  'invalidarTokensCuenta',
+  'eliminarTokensCuenta',
+  'vincularCuentaAClave',
+  'desvincularCuentaDeClave',
+  'actualizarVinculoClave',
+  'cuentasDeClave',
+  'cuentasDeClaves',
+  'contarCuentasActivasDeClave',
+  'actividadDeUsuarios',
+  'cerrarSesionesPorUsuario',
+  'eliminarPreferenciasUsuario',
+  'eliminarBloqueosDeUsuario',
+  'eliminarNotificacionesDeUsuario',
+  'anonimizarHuellaDeUsuario',
+  'crearSolicitudRenovacionClave',
+  'solicitudesRenovacionClave',
+  'solicitudRenovacionClavePorId',
+  'actualizarSolicitudRenovacionClave'
 ];
 
 /** Comprueba que un repositorio cumple el contrato (usado en pruebas). */

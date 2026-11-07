@@ -25,7 +25,14 @@ export const descargar = asyncHandler(async (req, res) => {
   if (!ruta) return res.status(404).json({ error: 'Archivo no encontrado' });
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'private, no-store');
-  const inline = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(adjunto.tipo);
+  // Imágenes y PDF se abren en el visor del navegador; Office se descarga.
+  const inline = [
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+    'application/pdf'
+  ].includes(adjunto.tipo);
   const nombre = String(adjunto.nombreOriginal || 'adjunto').replace(/["\\]/g, '_');
   res.setHeader('Content-Type', adjunto.tipo);
   res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${nombre}"`);

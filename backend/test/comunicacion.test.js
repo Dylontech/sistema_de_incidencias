@@ -133,14 +133,16 @@ describe('Mensajería interna', () => {
       password: 'secreta123',
       nombre: 'Auditor Mensajes',
       rol: 'auditor',
-      municipios: [MUNICIPIO_MARAVATIO]
+      municipios: [MUNICIPIO_MARAVATIO],
+      generarClave: true,
+      claveExpiraEn: '2030-12-31'
     });
     assert.equal(creado.status, 201, creado.body?.error);
 
     const login = await Api.entrarFuncionario(app, {
       username: 'auditor_msj',
       password: 'secreta123',
-      claveMunicipio: MUNICIPIO_MARAVATIO
+      claveAcceso: creado.body.clave.codigo
     });
     assert.equal(login.status, 200, login.body?.error);
     const auditor = new Api(app, login.body.token);

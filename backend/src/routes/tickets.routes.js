@@ -8,6 +8,8 @@ const router = Router();
 router.use(requiereSesion);
 router.get('/tickets', tickets.listar);
 router.post('/tickets', requiereCuenta, tickets.crear);
+// Antes de `/:id`: si no, «staff» se interpreta como un id de ticket.
+router.get('/tickets/staff', tickets.staff);
 router.get('/tickets/:id', tickets.obtener);
 router.post('/tickets/:id/mensajes', tickets.responder);
 router.patch('/tickets/:id/estado', tickets.cambiarEstado);

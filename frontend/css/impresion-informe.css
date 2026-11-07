@@ -1,11 +1,97 @@
 /**
- * Estilos del informe imprimible.
+ * Estilos del informe imprimible — V2.12 (rediseño tipográfico y de maquetación).
  *
  * Se cargan SOLO en la ventana que abre `views/reportes.view.js`, no forman
  * parte de la aplicación (por eso no se enlazan desde index.html). Viven en un
  * archivo y no en un bloque <style> en línea porque la Content-Security-Policy
  * no admite estilos en línea.
+ *
+ * Qué cambia respecto a la V2.11:
+ *   · Tipografía Source Sans 3 empaquetada (../fonts/*.woff2), con respaldo del
+ *     sistema. Escala en puntos (pt): nada por debajo de 8 pt al imprimir.
+ *   · Variables --inf-* para color, tipografía y series de gráficas: un solo
+ *     lugar para ajustar la identidad (la vista puede cambiar --inf-acento).
+ *   · Tablas limpias (sin rejilla completa), encabezado repetido y filas cebra.
+ *   · print-color-adjust: exact → los fondos de tarjetas e insignias SÍ se
+ *     imprimen aunque el usuario no active «Gráficos de fondo».
+ *   · Saltos de página: los títulos no quedan solos; las gráficas no se parten;
+ *     las tablas largas sí pueden continuar en otra hoja.
+ *   · Se conservan TODAS las clases anteriores (.stats, .stat, .badge-*, .footer,
+ *     .informe-*), así que no hace falta tocar el marcado de la vista.
+ *
+ * Ruta de las fuentes: este archivo asume css/impresion-informe.css y la carpeta
+ * fonts/ en la raíz del sitio. Si lo mueves, ajusta las URL de @font-face.
  */
+
+/* ───────────────────────────── tipografía ───────────────────────────── */
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Source Sans 3'), local('SourceSans3-Regular'), url('../fonts/SourceSans3-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Source Sans 3 Italic'), local('SourceSans3-It'), url('../fonts/SourceSans3-It.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: local('Source Sans 3 Semibold'), local('SourceSans3-Semibold'), url('../fonts/SourceSans3-Semibold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Source Sans 3 Bold'), local('SourceSans3-Bold'), url('../fonts/SourceSans3-Bold.woff2') format('woff2');
+}
+
+/* ───────────────────────────── variables ───────────────────────────── */
+
+:root {
+  --inf-fuente: 'Source Sans 3', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Identidad: el verde institucional y neutros fríos con buen contraste sobre blanco. */
+  --inf-acento: #006657;
+  --inf-acento-suave: #e6f2ef;
+  --inf-acento-medio: #7fb3a9; /* barras secundarias: sigue al acento si la vista lo cambia */
+  --inf-tinta: #1b2733;
+  --inf-gris: #566474;
+  --inf-linea: #d8dee4;
+  --inf-linea-suave: #ecf0f3;
+  --inf-panel: #f5f8f8;
+
+  /* Series para gráficas categóricas (distinguibles también en escala de grises). */
+  --inf-serie-1: #006657;
+  --inf-serie-2: #d4900c;
+  --inf-serie-3: #2f6fa8;
+  --inf-serie-4: #c8463a;
+  --inf-serie-5: #7a5ea8;
+  --inf-serie-6: #6b7a89;
+
+  /* Escala tipográfica (pt). */
+  --inf-t-cuerpo: 10pt;
+  --inf-t-tabla: 9pt;
+  --inf-t-etiqueta: 8pt;
+  --inf-t-h2: 12pt;
+  --inf-t-h1: 21pt;
+}
+
+* {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 
 @page {
   size: A4;
@@ -19,16 +105,21 @@ body {
 }
 
 body {
-  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-  color: #1a202c;
-  font-size: 12px;
+  font-family: var(--inf-fuente);
+  color: var(--inf-tinta);
+  font-size: var(--inf-t-cuerpo);
+  line-height: 1.42;
   orphans: 3;
   widows: 3;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
 }
 
 .informe-contenido {
   padding: 0;
 }
+
+/* ───────────────────────────── logo ───────────────────────────── */
 
 .informe-logo {
   display: block;
@@ -40,99 +131,138 @@ body {
 .informe-logo-derecha { float: right; margin: 0 0 10px 14px; }
 .informe-logo-centro { margin: 0 auto 12px; }
 
+/* ───────────────────────────── títulos ───────────────────────────── */
+
 h1 {
-  color: #006657;
-  font-size: 22px;
-  margin-bottom: 4px;
+  color: var(--inf-tinta);
+  font-size: var(--inf-t-h1);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 4pt;
 }
 
 .titulo-detalle {
-  font-size: 15px;
-  color: #006657;
-  margin-bottom: 8px;
+  font-size: var(--inf-t-h2);
+  font-weight: 600;
+  color: var(--inf-acento);
+  margin: 14pt 0 6pt;
+  padding-bottom: 4pt;
+  border-bottom: 0.6pt solid var(--inf-linea);
 }
 
 .meta {
-  color: #718096;
-  margin-bottom: 20px;
+  color: var(--inf-gris);
+  font-size: 9pt;
+  margin: 0 0 14pt;
 }
+
+/* ───────────────────────────── resumen (tarjetas) ───────────────────────────── */
 
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: 8pt;
+  margin-bottom: 16pt;
+  clear: both;
 }
 
 .stat {
-  background: #f0faf8;
-  border: 1px solid #b2dfdb;
-  padding: 12px;
-  border-radius: 8px;
-  text-align: center;
+  background: var(--inf-panel);
+  border: 0;
+  border-left: 2.5pt solid var(--inf-acento);
+  padding: 8pt 10pt;
+  border-radius: 3pt;
+  text-align: left;
 }
 
 .stat-num {
-  font-size: 22px;
-  font-weight: 800;
-  color: #006657;
+  font-size: 19pt;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--inf-tinta);
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  color: #4a5568;
-  letter-spacing: .4px;
+  font-size: var(--inf-t-etiqueta);
+  color: var(--inf-gris);
+  margin-top: 2pt;
 }
+
+/* ───────────────────────────── tablas ───────────────────────────── */
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
-  margin-top: 16px;
+  font-size: var(--inf-t-tabla);
+  margin-top: 10pt;
+  font-variant-numeric: tabular-nums;
 }
 
 th,
 td {
-  border: 1px solid #cbd5e0;
-  padding: 6px 8px;
+  border: 0;
+  border-bottom: 0.5pt solid var(--inf-linea-suave);
+  padding: 4pt 6pt;
   text-align: left;
+  vertical-align: top;
 }
 
 th {
-  background: #e8f5f2;
-  color: #006657;
-  font-size: 10px;
-  text-transform: uppercase;
+  background: var(--inf-acento-suave);
+  color: var(--inf-acento);
+  font-size: 8.5pt;
+  font-weight: 600;
+  border-bottom: 0.9pt solid var(--inf-acento);
 }
+
+tbody tr:nth-child(even) td {
+  background: var(--inf-panel);
+}
+
+/* Utilidades de tabla: añade class="num" a las columnas de cifras. */
+.num,
+th.num,
+td.num {
+  text-align: right;
+}
+
+/* ───────────────────────────── insignias de estado ───────────────────────────── */
 
 .badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 700;
+  padding: 0 8pt;
+  border-radius: 999px;
+  font-size: var(--inf-t-etiqueta);
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: top;
+  white-space: nowrap;
 }
 
-.badge-verde { background: #d4edda; color: #155724; }
-.badge-amarillo { background: #fff3cd; color: #856404; }
+.badge-verde { background: #dcf2e3; color: #14532d; }
+.badge-amarillo { background: #fff1cc; color: #7a5200; }
 .badge-naranja { background: #ffe5d0; color: #8a3d00; }
-.badge-rojo { background: #f8d7da; color: #721c24; }
+.badge-rojo { background: #fde8e6; color: #8c2b22; }
+
+/* ───────────────────────────── pie ───────────────────────────── */
 
 .footer {
-  margin-top: 30px;
+  margin-top: 28pt;
   text-align: center;
-  color: #94a3b8;
-  font-size: 10px;
-  padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  color: var(--inf-gris);
+  font-size: var(--inf-t-etiqueta);
+  padding-top: 10pt;
+  border-top: 0.6pt solid var(--inf-linea);
 }
+
+/* ───────────────────────────── saltos de página ───────────────────────────── */
 
 @media print {
   body { padding: 0; }
 
-  /* Evita que un encabezado, el resumen o una fila se queden solos al final
-     de una hoja y empujen el resto a una página nueva. */
+  /* Un encabezado, el resumen o el pie nunca se parten ni quedan solos al final de una hoja. */
   h1,
   .meta,
   .stats,
@@ -140,6 +270,15 @@ th {
   .footer {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3,
+  .titulo-detalle,
+  figcaption {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   table {
@@ -155,6 +294,202 @@ th {
 /* Paged.js inserta sus propias páginas; el pie visible del final no debe
    duplicarse con el pie de página de cada hoja. */
 .pagedjs_pages ~ .footer,
-body:has(.pagedjs_pages) .footer {
+.pagedjs_pages ~ .informe-pie,
+body:has(.pagedjs_pages) .footer,
+body:has(.pagedjs_pages) .informe-pie {
   display: none;
 }
+
+/* Márgenes de página (pie y numeración): la vista define el `content`; aquí solo el estilo. */
+@page {
+  @bottom-left,
+  @bottom-center,
+  @bottom-right {
+    font-family: var(--inf-fuente);
+    font-size: 8pt;
+    color: #566474;
+  }
+}
+
+/* ───────────────────────────── constructor de informes ───────────────────────────── */
+/* La misma hoja sirve a la vista previa y a la impresión. */
+
+.informe-previa h1 { margin-top: 0; }
+
+.informe-meta {
+  color: var(--inf-gris);
+  font-size: 9pt;
+  margin-bottom: 12pt;
+}
+
+.informe-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8pt;
+  margin-bottom: 16pt;
+  clear: both;
+}
+
+.informe-stat {
+  background: var(--inf-panel);
+  border-left: 2.5pt solid var(--inf-acento);
+  border-radius: 3pt;
+  padding: 8pt 10pt;
+  text-align: left;
+}
+
+.informe-stat strong {
+  display: block;
+  font-size: 19pt;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--inf-tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+.informe-stat span {
+  display: block;
+  margin-top: 2pt;
+  font-size: var(--inf-t-etiqueta);
+  color: var(--inf-gris);
+  letter-spacing: 0;
+}
+
+.informe-bloque {
+  margin: 16pt 0;
+}
+
+/* Los bloques con gráfica y las tablas cortas (menos de 16 filas) se mantienen completos en una
+   sola hoja; solo las tablas largas pueden continuar en la siguiente (con su encabezado repetido). */
+.informe-bloque:not(:has(tbody tr:nth-child(16))) {
+  break-inside: avoid;
+}
+
+.informe-bloque h2 {
+  color: var(--inf-acento);
+  font-size: var(--inf-t-h2);
+  font-weight: 600;
+  margin: 0 0 6pt;
+  padding-bottom: 4pt;
+  border-bottom: 0.6pt solid var(--inf-linea);
+  break-after: avoid;
+}
+
+.informe-grafico {
+  margin: 0;
+  break-inside: avoid;
+}
+
+.informe-grafico figcaption {
+  font-weight: 600;
+  color: var(--inf-tinta);
+  font-size: 10pt;
+  margin-bottom: 6pt;
+}
+
+/* Gráficas incrustadas (SVG, canvas o imagen): nunca desbordan la hoja. */
+.informe-grafico svg,
+.informe-grafico canvas,
+.informe-grafico img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.informe-bloque table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--inf-t-tabla);
+  margin-top: 0;
+}
+
+.informe-bloque th,
+.informe-bloque td {
+  border: 0;
+  border-bottom: 0.5pt solid var(--inf-linea-suave);
+  padding: 4pt 6pt;
+  text-align: left;
+}
+
+.informe-bloque th {
+  background: var(--inf-acento-suave);
+  color: var(--inf-acento);
+  border-bottom: 0.9pt solid var(--inf-acento);
+}
+
+.informe-bloque th.num,
+.informe-bloque td.num {
+  text-align: right;
+}
+
+.informe-pie {
+  margin-top: 20pt;
+  border-top: 0.6pt solid var(--inf-linea);
+  padding-top: 6pt;
+  color: var(--inf-gris);
+  font-size: var(--inf-t-etiqueta);
+}
+
+/* ───────────────────────────── utilidades nuevas (opcionales) ───────────────────────────── */
+
+/* Dos gráficas lado a lado (p. ej. barras + dona). */
+.informe-rejilla-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16pt;
+  align-items: start;
+}
+
+.informe-rejilla-2 > * {
+  break-inside: avoid;
+  margin: 0;
+}
+
+/* Ficha de datos: <dl class="informe-ficha"><div><dt>Alcance</dt><dd>…</dd></div>…</dl> */
+.informe-ficha {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8pt 16pt;
+  margin: 0 0 14pt;
+  clear: both;
+}
+
+.informe-ficha div { margin: 0; }
+
+.informe-ficha dt {
+  font-size: var(--inf-t-etiqueta);
+  color: var(--inf-gris);
+}
+
+.informe-ficha dd {
+  margin: 1pt 0 0;
+  font-size: 10.5pt;
+}
+
+/* Gráficas SVG (js/views/graficos-svg.js): los colores van por clase, sin estilos en línea. */
+.serie-1 { fill: var(--inf-serie-1); }
+.serie-1-suave { fill: var(--inf-acento-medio); }
+.serie-2 { fill: var(--inf-serie-2); }
+.serie-3 { fill: var(--inf-serie-3); }
+.serie-4 { fill: var(--inf-serie-4); }
+.serie-5 { fill: var(--inf-serie-5); }
+.serie-6 { fill: var(--inf-serie-6); }
+
+/* Estados: mismo color en la dona, en la tabla y en el PDF del servidor. */
+.estado-reportada { fill: #c8463a; }
+.estado-en_proceso { fill: #d4900c; }
+.estado-resuelta { fill: #2e8b57; }
+
+.grafico-texto { font-family: var(--inf-fuente); font-size: 11px; fill: var(--inf-tinta); }
+.grafico-texto-fuerte { font-weight: 600; }
+.grafico-texto-suave { font-family: var(--inf-fuente); font-size: 10.7px; fill: var(--inf-gris); }
+.grafico-total { font-family: var(--inf-fuente); font-size: 22px; font-weight: 700; fill: var(--inf-tinta); }
+.grafico-linea { stroke: var(--inf-linea); stroke-width: 0.8; }
+.grafico-corte { stroke: #fff; stroke-width: 1.6; }
+.grafico-hueco { fill: #fff; }
+.grafico-area { fill: var(--inf-acento-suave); }
+.grafico-trazo { fill: none; stroke: var(--inf-acento); stroke-width: 2; stroke-linejoin: round; }
+.grafico-punto { fill: #fff; stroke: var(--inf-acento); stroke-width: 1.6; }
+
+.u-salto-antes { break-before: page; page-break-before: always; }
+.u-sin-corte { break-inside: avoid; page-break-inside: avoid; }

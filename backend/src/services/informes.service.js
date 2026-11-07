@@ -11,6 +11,22 @@ import { enriquecerLista } from './estado.service.js';
 import { filtrosDeAlcance } from './alcance.service.js';
 import { plantillaInforme } from './configuracion.service.js';
 
+/** Días entre la fecha del reporte y la resolución (solo incidencias resueltas). */
+function diasDeResolucion(incidencia) {
+  if (!incidencia?.fechaResolucion) return null;
+  const inicio = new Date(incidencia.fecha).getTime();
+  const fin = new Date(incidencia.fechaResolucion).getTime();
+  if (!Number.isFinite(inicio) || !Number.isFinite(fin) || fin < inicio) return null;
+  return (fin - inicio) / 86400000;
+}
+
+/** Promedio de días de atención de un conjunto de incidencias (null si no hay resueltas). */
+function promedioDiasDe(lista = []) {
+  const dias = lista.map(diasDeResolucion).filter((valor) => valor !== null);
+  if (!dias.length) return null;
+  return Number((dias.reduce((suma, valor) => suma + valor, 0) / dias.length).toFixed(1));
+}
+
 function listaUnica(valor) {
   if (!valor) return [];
   const lista = Array.isArray(valor) ? valor : String(valor).split(',');
@@ -52,6 +68,78 @@ async function resolverConsultaTerritorial(repositorio, municipios, estados) {
 }
 
 /**
+ * Agrupa las incidencias para comparar. `compararPor` decide la dimensión y
+ * devuelve filas listas para la tabla y el gráfico.
+ */
+function compararIncidencias(lista, compararPor, { municipiosPorId, tiposPorId }) {
+  const grupos = new Map();
+  const claveDe = (incidencia) => {
+    if (compararPor === 'tipo') return incidencia.tipoId || 'sin-tipo';
+    if (compararPor === 'ambito') return incidencia.ambito || 'urbano';
+    if (compararPor === 'estado') {
+      return municipiosPorId.get(incidencia.municipioId)?.estado || 'Sin entidad';
+    }
+    if (compararPor === 'mes') return String(incidencia.fecha || '').slice(0, 7) || 'sin-fecha';
+    return incidencia.municipioId || 'sin-municipio';
+  };
+  const etiquetaDe = (clave, incidencia) => {
+    if (compararPor === 'tipo') return tiposPorId.get(clave)?.nombre || clave;
+    if (compararPor === 'ambito') {
+      return {
+        urbano: 'Zona urbana o municipal',
+        carretera_estatal: 'Carretera estatal',
+        carretera_federal: 'Carretera federal',
+        autopista: 'Autopista',
+        camino_rural: 'Camino rural'
+      }[clave] || clave;
+    }
+    if (compararPor === 'mes') return clave;
+    if (compararPor === 'estado') return clave;
+    return municipiosPorId.get(clave)?.nombre || clave;
+  };
+  for (const incidencia of lista) {
+    const clave = claveDe(incidencia);
+    if (!grupos.has(clave)) {
+      grupos.set(clave, { clave, etiqueta: etiquetaDe(clave, incidencia), filas: [] });
+    }
+    grupos.get(clave).filas.push(incidencia);
+  }
+  return [...grupos.values()]
+    .map(({ clave, etiqueta, filas }) => {
+      const resueltas = filas.filter((i) => i.estado === 'resuelta').length;
+      const criticas = filas.filter(
+        (i) => i.estado !== 'resuelta' && Number(i.dias) > DIAS_LIMITES.naranja
+      ).length;
+      return {
+        clave,
+        etiqueta,
+        total: filas.length,
+        resueltas,
+        pendientes: filas.length - resueltas,
+        criticas,
+        tasaResolucion:
+          filas.length > 0 ? Number(((resueltas / filas.length) * 100).toFixed(1)) : 0,
+        promedioDias: promedioDiasDe(filas)
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
+/** Totales por mes para la gráfica de tendencia. */
+function serieMensual(lista) {
+  const meses = new Map();
+  for (const incidencia of lista) {
+    const periodo = String(incidencia.fecha || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(periodo)) continue;
+    if (!meses.has(periodo)) meses.set(periodo, { periodo, total: 0, resueltas: 0 });
+    const fila = meses.get(periodo);
+    fila.total += 1;
+    if (incidencia.estado === 'resuelta') fila.resueltas += 1;
+  }
+  return [...meses.values()].sort((a, b) => a.periodo.localeCompare(b.periodo)).slice(-12);
+}
+
+/**
  * Reúne los datos del informe.
  *
  * `publico: true` evita cualquier dato personal: ni autor, ni userKey, ni
@@ -73,6 +161,13 @@ export async function datosInforme(
   const tipos = tiposTodos ? [] : listaUnica(filtros.tipos);
   const desde = desdeIso(filtros.desde);
   const hasta = desdeIso(filtros.hasta, true);
+  // Ejes de comparación y piezas opcionales del informe.
+  const compararPor = ['municipio', 'estado', 'tipo', 'ambito', 'mes', 'ninguna'].includes(
+    filtros.compararPor
+  )
+    ? filtros.compararPor
+    : 'municipio';
+  const incluirDetalle = !(filtros.incluirDetalle === false || filtros.incluirDetalle === 'false');
 
   if (publico && !municipios.length && !estados.length) {
     throw AppError.solicitudInvalida('Elige al menos un municipio o un estado para el informe');
@@ -123,6 +218,7 @@ export async function datosInforme(
   };
   resumen.tasaResolucion =
     resumen.total > 0 ? Number(((resumen.resueltas / resumen.total) * 100).toFixed(1)) : 0;
+  resumen.promedioDias = promedioDiasDe(enriquecidas);
 
   const porTipo = [...porId.values()]
     .map((tipo) => {
@@ -156,8 +252,19 @@ export async function datosInforme(
     })
     .sort((a, b) => b.total - a.total);
 
-  const detalle = enriquecidas.slice(0, 1500).map((i) => ({
+  const comparativa = compararPor === 'ninguna'
+    ? []
+    : compararIncidencias(enriquecidas, compararPor, {
+        municipiosPorId,
+        tiposPorId: porId
+      });
+  const series = serieMensual(enriquecidas);
+
+  const detalle = !incluirDetalle
+    ? []
+    : enriquecidas.slice(0, 1500).map((i) => ({
     id: i.id,
+    folio: i.folio || i.id,
     fecha: i.fecha,
     tipo: porId.get(i.tipoId)?.nombre || i.tipoId,
     titulo: i.titulo,
@@ -191,12 +298,16 @@ export async function datosInforme(
       ambitos,
       tipos,
       tiposTodos,
+      compararPor,
+      incluirDetalle,
       desde: desde ? desde.slice(0, 10) : null,
       hasta: hasta ? hasta.slice(0, 10) : null
     },
     resumen,
     porTipo,
     porMunicipio,
+    comparativa,
+    series,
     detalle
   };
 }

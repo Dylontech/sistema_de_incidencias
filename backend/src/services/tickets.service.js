@@ -55,16 +55,51 @@ function exigirAtencion(usuario) {
 }
 
 /** Alcance territorial aplicado a los tickets del equipo. */
-function dentroDelAlcance(usuario, ticket) {
+async function dentroDelAlcance(repositorio, usuario, ticket) {
   if (esAdmin(usuario)) return true;
   // Un ticket sin municipio (cuenta sin ámbito) queda en la cola general.
   if (!ticket.municipioId) return true;
   const alcance = alcanceDe(usuario);
   if (alcance.todos) return true;
   if (alcance.municipios) return alcance.municipios.has(ticket.municipioId);
-  // Alcance estatal: se resuelve en el listado con el catálogo; aquí se deja
-  // pasar para no bloquear por un dato que no se tiene.
-  return Boolean(alcance.estados);
+  if (!alcance.estados) return false;
+  // El estado no viaja en el ticket: se resuelve con el catálogo. Sin esta
+  // comprobación un administrador estatal podía abrir tickets de otro estado
+  // conociendo el id.
+  const municipio = await repositorio.municipioPorId(ticket.municipioId);
+  return Boolean(municipio && alcance.estados.has(municipio.estado));
+}
+
+/** Personal activo que puede atender tickets, para el selector de responsables. */
+export async function staffAtencion(repositorio, usuario) {
+  exigirAtencion(usuario);
+  const cuentas = await repositorio.todosLosUsuarios();
+  return cuentas
+    .filter((cuenta) => cuenta.activo !== false && puedeAtender(cuenta))
+    .map((cuenta) => ({
+      id: cuenta.id || null,
+      username: cuenta.username,
+      nombre: cuenta.nombre || cuenta.username,
+      rol: cuenta.rol
+    }))
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+}
+
+/** Acciones que el cliente puede mostrar sin duplicar la máquina de estados. */
+function conAcciones(ticket, usuario) {
+  const atiende = puedeAtender(usuario);
+  const esAutor = ticket.autorUserKey === usuario.userKey;
+  return {
+    ...ticket,
+    transiciones: atiende ? TRANSICIONES[ticket.estado] || [] : [],
+    acciones: {
+      responder: (esAutor || atiende) && ticket.estado !== 'cerrado',
+      asignar: atiende,
+      prioridad: atiende,
+      cerrar: atiende && ticket.estado !== 'cerrado',
+      reabrir: atiende && ticket.estado === 'cerrado'
+    }
+  };
 }
 
 function texto(valor, campo, { requerido = false, max = 4000 } = {}) {
@@ -295,16 +330,23 @@ export async function obtener(repositorio, usuario, id) {
   const esAutor = ticket.autorUserKey === usuario.userKey;
   if (!esAutor) {
     exigirAtencion(usuario);
-    if (!dentroDelAlcance(usuario, ticket)) {
+    if (!(await dentroDelAlcance(repositorio, usuario, ticket))) {
       throw AppError.prohibido('Ese ticket pertenece a otro ámbito');
     }
   }
 
   // Un ciudadano no ve las notas internas del equipo.
   if (!puedeAtender(usuario)) {
-    return { ...ticket, mensajes: ticket.mensajes.filter((m) => !m.interno), eventos: [] };
+    return conAcciones(
+      {
+        ...ticket,
+        mensajes: ticket.mensajes.filter((m) => !m.interno),
+        eventos: []
+      },
+      usuario
+    );
   }
-  return ticket;
+  return conAcciones(ticket, usuario);
 }
 
 export async function responder(repositorio, usuario, id, contenido, { interno = false } = {}) {
@@ -312,6 +354,9 @@ export async function responder(repositorio, usuario, id, contenido, { interno =
   const esAutor = ticket.autorUserKey === usuario.userKey;
   const atiende = puedeAtender(usuario);
   if (!esAutor && !atiende) throw AppError.prohibido('No puedes responder este ticket');
+  if (!esAutor && !permisosDe(usuario).includes('responder_tickets') && !atiende) {
+    throw AppError.prohibido('Tu cuenta no tiene permiso para responder tickets');
+  }
   if (interno && !atiende) throw AppError.prohibido('Solo el equipo puede dejar notas internas');
   if (ticket.estado === 'cerrado') {
     throw AppError.conflicto('El ticket está cerrado; reábrelo para responder');

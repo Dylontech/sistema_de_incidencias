@@ -10,6 +10,8 @@ import { nuevoId } from '../utils/ids.js';
 import { alcanceDe, esAdmin, esAlgunaAdmin, esEmpleado } from './alcance.service.js';
 import { adjuntosDe, vincularAdjuntos } from './adjuntos.service.js';
 import { emitir } from './notificaciones.service.js';
+import { exigirSinRestriccionMensajes } from './restricciones-mensajes.service.js';
+import { bloqueoMutuo } from './bloqueos.service.js';
 
 const ROLES_ATIENDEN = ['funcionario', 'admin_municipal', 'admin_estatal', 'admin'];
 
@@ -79,6 +81,7 @@ export async function funcionariosDisponibles(repositorio, usuario, municipioId)
 /** Crea un contacto y lo reparte entre los funcionarios elegidos. */
 export async function crearContacto(repositorio, usuario, datos = {}) {
   exigirCuenta(usuario);
+  await exigirSinRestriccionMensajes(repositorio, usuario);
   const municipioId = texto(datos.municipioId, 'municipioId', { requerido: true, max: 64 });
   const municipio = await repositorio.municipioPorId(municipioId);
   if (!municipio) throw AppError.solicitudInvalida('Municipio no encontrado');
@@ -91,6 +94,16 @@ export async function crearContacto(repositorio, usuario, datos = {}) {
   const elegidos = disponibles.filter((f) => ids.includes(f.id));
   if (elegidos.length !== ids.length) {
     throw AppError.solicitudInvalida('Algún funcionario no pertenece al municipio seleccionado');
+  }
+  // Un bloqueo impide seguir escribiendo: se quitan esos destinatarios y, si
+  // no queda ninguno, se avisa sin revelar quién bloqueó.
+  const permitidos = [];
+  for (const funcionario of elegidos) {
+    const bloqueo = await bloqueoMutuo(repositorio, usuario, { id: funcionario.id });
+    if (!bloqueo) permitidos.push(funcionario);
+  }
+  if (!permitidos.length) {
+    throw AppError.prohibido('No puedes enviar el mensaje a las personas seleccionadas.');
   }
 
   const adjuntos = Array.isArray(datos.adjuntos) ? [...new Set(datos.adjuntos.map(String))].slice(0, 3) : [];
@@ -109,7 +122,7 @@ export async function crearContacto(repositorio, usuario, datos = {}) {
     simulado: false,
     simulacionId: null
   };
-  const destinatarios = elegidos.map((f) => ({
+  const destinatarios = permitidos.map((f) => ({
     contactoId: contacto.id,
     usuarioId: f.id,
     leidoEn: null,
@@ -133,14 +146,14 @@ export async function crearContacto(repositorio, usuario, datos = {}) {
     entidadId: contacto.id,
     municipioId,
     url: `/?contacto=${encodeURIComponent(contacto.id)}`,
-    paraUsuarios: elegidos.map((f) => f.username),
+    paraUsuarios: permitidos.map((f) => f.username),
     claveDedupe: `contacto_funcionario:${contacto.id}`
   });
 
   return {
     folio: contacto.folio,
     id: contacto.id,
-    destinatarios: elegidos.map((f) => ({ id: f.id, nombre: f.nombre })),
+    destinatarios: permitidos.map((f) => ({ id: f.id, nombre: f.nombre })),
     mensaje: 'Tu mensaje se envió a los funcionarios seleccionados.'
   };
 }
@@ -203,9 +216,26 @@ export async function detalle(repositorio, usuario, id) {
   const mensajes = contacto.mensajes || [];
   const mapaMensajes = await adjuntosDe(repositorio, 'contacto_mensaje', mensajes.map((m) => m.id));
   const mapaInicial = await adjuntosDe(repositorio, 'contacto', [contacto.id]);
+  // La otra parte de la conversación: sirve para reportar, bloquear y mostrar
+  // el nombre en la cabecera sin que el cliente tenga que deducirlo.
+  const destinatariosContacto = await repositorio.contactoFuncionarioDestinatarios(id);
+  const esAutor =
+    String(contacto.deUsuarioId) === String(usuario.id) || contacto.deUserKey === usuario.userKey;
+  const otroId = esAutor
+    ? destinatariosContacto[0]?.usuarioId || null
+    : contacto.deUsuarioId || null;
+  const otraCuenta = otroId ? await repositorio.usuarioPorId(otroId) : null;
   return {
     ...contacto,
     adjuntos: mapaInicial.get(contacto.id) || [],
+    contraparte: otraCuenta
+      ? {
+          id: otraCuenta.id,
+          username: otraCuenta.username,
+          nombre: otraCuenta.nombre || otraCuenta.username,
+          rol: otraCuenta.rol
+        }
+      : null,
     mensajes: mensajes.map((mensaje) => ({
       ...mensaje,
       adjuntos: mapaMensajes.get(mensaje.id) || []
@@ -215,12 +245,26 @@ export async function detalle(repositorio, usuario, id) {
 
 /** Responde dentro del hilo. */
 export async function responder(repositorio, usuario, id, datos = {}) {
+  await exigirSinRestriccionMensajes(repositorio, usuario);
   const contacto = await repositorio.contactoFuncionarioPorId(id);
   if (!contacto) throw AppError.noEncontrado('Contacto no encontrado');
   if (!(await participa(repositorio, usuario, contacto))) {
     throw AppError.prohibido('No participas en este contacto');
   }
   if (contacto.estado === 'cerrado') throw AppError.conflicto('El contacto está cerrado');
+  const destinatariosContacto = await repositorio.contactoFuncionarioDestinatarios(id);
+  const contrapartes =
+    String(contacto.deUsuarioId) === String(usuario.id) || contacto.deUserKey === usuario.userKey
+      ? destinatariosContacto.map((d) => d.usuarioId)
+      : [contacto.deUsuarioId];
+  let disponiblesParaResponder = 0;
+  for (const otroId of contrapartes) {
+    const bloqueo = await bloqueoMutuo(repositorio, usuario, { id: otroId });
+    if (!bloqueo) disponiblesParaResponder += 1;
+  }
+  if (!disponiblesParaResponder) {
+    throw AppError.prohibido('No puedes responder en esta conversación por un bloqueo.');
+  }
   const adjuntos = Array.isArray(datos.adjuntos) ? [...new Set(datos.adjuntos.map(String))].slice(0, 3) : [];
   const cuerpo = texto(datos.cuerpo, 'cuerpo', { requerido: adjuntos.length === 0, max: 4000 });
   const mensaje = {

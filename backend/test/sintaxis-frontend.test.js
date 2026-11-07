@@ -19,7 +19,13 @@ function archivos(dir) {
 describe('Sintaxis del frontend', () => {
   test('todos los módulos JS pasan la comprobación del motor', () => {
     for (const archivo of archivos(carpeta)) {
-      const resultado = spawnSync(process.execPath, ['--check', archivo], { encoding: 'utf8' });
+      // La entrada estándar obliga a analizar como módulo: el navegador ejecuta
+      // estos archivos con `type="module"` y un error de plantilla solo aparece
+      // ahí (por ejemplo, un `${` sin cerrar que convierte `/div>` en regex).
+      const resultado = spawnSync(process.execPath, ['--input-type=module', '--check'], {
+        encoding: 'utf8',
+        input: fs.readFileSync(archivo, 'utf8')
+      });
       assert.equal(resultado.status, 0, `${archivo}\n${resultado.stderr}`);
     }
   });

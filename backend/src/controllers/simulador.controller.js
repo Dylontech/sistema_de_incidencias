@@ -49,3 +49,7 @@ export const revertir = asyncHandler(async (req, res) => {
 export const revertirTodas = asyncHandler(async (req, res) => {
   res.json(await simulador.revertirTodas(req.repositorio, req.usuario));
 });
+
+export const simularVialidades = asyncHandler(async (req, res) => {
+  res.json(await simulador.simularVialidades(req.repositorio, req.usuario, req.body || {}));
+});

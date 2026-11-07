@@ -21,6 +21,16 @@ export const crear = asyncHandler(async (req, res) => {
   res.status(201).json({ clave });
 });
 
+export const actualizar = asyncHandler(async (req, res) => {
+  res.json({
+    clave: await claves.actualizar(req.repositorio, req.usuario, req.params.id, req.body || {})
+  });
+});
+
+export const renovar = asyncHandler(async (req, res) => {
+  res.json(await claves.renovar(req.repositorio, req.usuario, req.params.id, req.body || {}));
+});
+
 export const revocar = asyncHandler(async (req, res) => {
   const resultado = await claves.revocar(req.repositorio, req.usuario, req.params.id);
   cerrarCanales(resultado.sesionesCerradas);
@@ -45,4 +55,20 @@ export const revocarNotificaciones = asyncHandler(async (req, res) => {
 
 export const reactivarNotificaciones = asyncHandler(async (req, res) => {
   res.json(await claves.reactivarNotificaciones(req.repositorio, req.usuario, req.params.id));
+});
+
+export const listarRenovaciones = asyncHandler(async (req, res) => {
+  res.json({
+    solicitudes: await claves.listarRenovaciones(req.repositorio, req.usuario, req.query || {})
+  });
+});
+
+export const resolverRenovacion = asyncHandler(async (req, res) => {
+  const aprobar = String(req.path || '').endsWith('/aprobar');
+  res.json(
+    await claves.resolverRenovacion(req.repositorio, req.usuario, req.params.id, {
+      ...(req.body || {}),
+      aprobar
+    })
+  );
 });

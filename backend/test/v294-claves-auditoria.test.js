@@ -24,7 +24,8 @@ describe('V2.9.4: claves que cubren estados', () => {
       nombre: 'Cobertura Michoacán',
       estados: ['Michoacán'],
       rolSugerido: 'funcionario',
-      usosMaximos: 10
+      usosMaximos: 10,
+      expiraEn: '2030-12-31'
     });
     assert.equal(creada.status, 201);
     const clave = creada.body.clave;
@@ -60,14 +61,27 @@ describe('V2.9.4: claves que cubren estados', () => {
     const creada = await admin.post('/api/admin/claves').send({
       nombre: 'Clave temporal para eliminar',
       estados: ['Michoacán'],
-      rolSugerido: 'funcionario'
+      rolSugerido: 'funcionario',
+      usosMaximos: 10,
+      expiraEn: '2030-12-31'
     });
     assert.equal(creada.status, 201);
     const clave = creada.body.clave;
 
+    const username = `eliminar_${Date.now().toString(36)}`;
+    const alta = await admin.post('/api/usuarios').send({
+      username,
+      nombre: 'Cuenta para eliminar clave',
+      rol: 'funcionario',
+      municipios: ['16050'],
+      password: 'segura1234',
+      claveId: clave.id
+    });
+    assert.equal(alta.status, 201, JSON.stringify(alta.body));
+
     const entrada = await Api.entrarFuncionario(app, {
-      username: 'funcionario',
-      password: 'func123',
+      username,
+      password: 'segura1234',
       claveAcceso: clave.codigo
     });
     assert.equal(entrada.status, 200);
@@ -92,7 +106,9 @@ describe('V2.9.4: auditoría de acciones', () => {
     const creada = await admin.post('/api/admin/claves').send({
       nombre: 'Clave para auditar',
       estados: ['Michoacán'],
-      rolSugerido: 'funcionario'
+      rolSugerido: 'funcionario',
+      usosMaximos: 10,
+      expiraEn: '2030-12-31'
     });
     assert.equal(creada.status, 201);
 

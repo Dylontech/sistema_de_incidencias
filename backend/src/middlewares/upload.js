@@ -82,3 +82,16 @@ function recibirAdjunto(proposito) {
 
 export const recibirAdjuntoChat = recibirAdjunto('chat');
 export const recibirAdjuntoComentario = recibirAdjunto('comentario');
+
+/** Documentos de respaldo de una solicitud de acceso (público, hasta 3). */
+export const recibirDocumentosSolicitud = multer({
+  storage: almacenamientoAdjuntos,
+  limits: { fileSize: 10 * 1024 * 1024, files: 3 },
+  fileFilter: (req, file, cb) => {
+    const permitidos = ADJUNTOS_POLITICA.solicitud_acceso.mimes;
+    if (!permitidos.includes(String(file.mimetype || ''))) {
+      return cb(errorMime(file.mimetype));
+    }
+    cb(null, true);
+  }
+}).array('documentos', 3);

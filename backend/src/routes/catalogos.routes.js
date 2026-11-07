@@ -80,5 +80,23 @@ router.post(
   requierePermiso('revelar_password_usuarios'),
   usuarios.restablecerPassword
 );
+// Clave de activación de una cuenta: consulta para la administración y
+// renovación cuando venció o se consumió. La clave solo se crea al alta.
+router.get(
+  '/usuarios/:id/clave',
+  requiereEmpleado,
+  requierePermiso('ver_usuarios'),
+  usuarios.estadoClave
+);
+router.post(
+  '/usuarios/:id/clave/renovar',
+  requiereAlgunaAdmin,
+  usuarios.renovarClave
+);
+router.post(
+  '/usuarios/:id/clave/vincular',
+  requiereAlgunaAdmin,
+  usuarios.vincularClave
+);
 
 export default router;

@@ -25,10 +25,10 @@ export const authService = {
     return api.post('/auth/admin', { username, password });
   },
 
-  /** Entrada de una cuenta ciudadana con su nombre (o pseudónimo) y contraseña. */
-  entrarCiudadano({ nombre, password }) {
+  /** Entrada de una cuenta ciudadana con su nombre, pseudónimo o correo. */
+  entrarCiudadano({ identificador, nombre, password }) {
     return api.post('/auth/ciudadano', {
-      nombre,
+      identificador: identificador || nombre,
       password,
       municipioId: sesion.municipioActivo?.id
     });
@@ -46,6 +46,11 @@ export const authService = {
       pseudonimo: pseudonimo === true,
       municipioId: sesion.municipioActivo?.id
     });
+  },
+
+  /** Reenvía el enlace de confirmación de correo. */
+  reenviarVerificacion(correo) {
+    return api.post('/auth/cuenta/reenviar-verificacion', { correo });
   },
 
   /** Valida el token guardado y recupera la sesión (equivale a Auth.init). */

@@ -49,7 +49,12 @@ const RUTAS_ENTRADA = [
   '/auth/registro',
   '/auth/ciudadano',
   '/auth/funcionario',
-  '/auth/admin'
+  '/auth/admin',
+  '/auth/cuenta/recuperar',
+  '/auth/cuenta/reenviar-verificacion',
+  '/auth/cuenta/validar-token',
+  '/auth/cuenta/verificar',
+  '/auth/cuenta/restablecer'
 ];
 
 async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
@@ -81,9 +86,13 @@ async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
       token.borrar();
       document.dispatchEvent(new CustomEvent('sesion-expirada'));
     }
-    // Cuenta suspendida por moderación: se cubre la interfaz con el aviso (sin
+    // Cuenta suspendida o congelada: se cubre la interfaz con el aviso (sin
     // borrar el token, para que al recargar vuelva a verse el bloqueo).
-    if (respuesta.status === 403 && /suspendida/i.test(datos?.error || '')) {
+    if (
+      respuesta.status === 403 &&
+      !RUTAS_ENTRADA.includes(ruta) &&
+      /suspendida|congelada|inactividad/i.test(datos?.error || '')
+    ) {
       document.dispatchEvent(
         new CustomEvent('cuenta-suspendida', { detail: { mensaje: datos.error } })
       );
@@ -107,12 +116,48 @@ async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
   return datos;
 }
 
+/** Descarga binaria o de texto con el token de la sesión. */
+async function descarga(ruta) {
+  const cabeceras = {};
+  const actual = token.leer();
+  if (actual) cabeceras.Authorization = `Bearer ${actual}`;
+  let respuesta;
+  try {
+    respuesta = await fetch(`${BASE}${ruta}`, { headers: cabeceras });
+  } catch {
+    throw new ErrorApi('No se pudo conectar con el servidor. Verifica tu conexión.', 0);
+  }
+  if (!respuesta.ok) {
+    const tipo = respuesta.headers.get('content-type') || '';
+    const datos = tipo.includes('application/json') ? await respuesta.json() : null;
+    if (respuesta.status === 401 && actual) {
+      token.borrar();
+      document.dispatchEvent(new CustomEvent('sesion-expirada'));
+    }
+    throw new ErrorApi(
+      datos?.error || `Error ${respuesta.status}`,
+      respuesta.status,
+      datos?.detalles || null
+    );
+  }
+  return respuesta;
+}
+
 export const api = {
   get: (ruta) => peticion(ruta),
   post: (ruta, cuerpo) => peticion(ruta, { metodo: 'POST', cuerpo }),
   put: (ruta, cuerpo) => peticion(ruta, { metodo: 'PUT', cuerpo }),
   patch: (ruta, cuerpo) => peticion(ruta, { metodo: 'PATCH', cuerpo }),
   del: (ruta) => peticion(ruta, { metodo: 'DELETE' }),
+  /** Descarga autenticada (PDF, CSV): el Authorization no viaja en un `<a>`. */
+  async blob(ruta) {
+    const respuesta = await descarga(ruta);
+    return respuesta.blob();
+  },
+  async texto(ruta) {
+    const respuesta = await descarga(ruta);
+    return respuesta.text();
+  },
   /** Sube archivos; por defecto usa el campo `archivos` de evidencia. */
   subir: (ruta, archivos, { campo = 'archivos' } = {}) => {
     const formulario = new FormData();

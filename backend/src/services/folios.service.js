@@ -73,7 +73,7 @@ async function recopilar(repositorio, usuario, { todos = false } = {}) {
         titulo: ticket.asunto,
         fecha: ticket.creadoEn,
         estado: ticket.estado,
-        url: `/soporte?ticket=${encodeURIComponent(ticket.id)}`,
+        url: `/?ticket=${encodeURIComponent(ticket.id)}`,
         referencia: ticket.id
       })
     );

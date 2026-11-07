@@ -13,6 +13,7 @@ import { tiposService } from '../services/tipos.service.js';
 import { incidenciasService } from '../services/incidencias.service.js';
 import { notificacionesService } from '../services/notificaciones.service.js';
 import { moderacionService } from '../services/moderacion.service.js';
+import { reportesConversacionService } from '../services/reportes-conversacion.service.js';
 import { statsService } from '../services/stats.service.js';
 import * as loginView from '../views/login.view.js';
 import * as listaView from '../views/lista.view.js';
@@ -301,6 +302,20 @@ export async function cargarModeracion() {
   return { cola, resumen, cuentas };
 }
 
+/**
+ * Reportes de conversación: los ve quien tiene `ver_moderacion` y los resuelve
+ * quien tiene `moderar`.
+ */
+export async function cargarReportesConversacion() {
+  if (!sesion.puede('ver_moderacion')) return [];
+  const { reportes } = await reportesConversacionService.listar({ limite: 200 });
+  store.actualizar({ reportesConversacion: reportes }, 'reportesConversacion');
+  adminView.renderReportesConversacion(reportes, {
+    puedeResolver: sesion.puede('moderar')
+  });
+  return reportes;
+}
+
 export async function cargarUsuarios(tipo = 'personal') {
   const { usuarios } = await catalogosService.usuarios(tipo);
   store.actualizar({ usuarios }, 'usuarios');
@@ -318,6 +333,7 @@ export async function cargarUsuarios(tipo = 'personal') {
       (sesion.puede('editar_usuarios') || sesion.puede('gestionar_usuarios')),
     puedeReactivar: sesion.esAlgunaAdmin() && sesion.puede('editar_usuarios'),
     puedeSolicitarAlta: !sesion.esAlgunaAdmin() && sesion.puede('crear_usuarios'),
+    puedeGestionarClaves: sesion.esAlgunaAdmin() && sesion.puede('editar_usuarios'),
     usuarioActualId: sesion.usuario?.id || null,
     tipo
   });
@@ -418,6 +434,10 @@ export async function aplicarMunicipio(municipio) {
   adminView.renderMunicipios(store.estado.municipios || [], completo.id);
 
   mapa.reiniciarMunicipio(completo);
+  // Refresca el estado del mapa descargado del municipio (sin bloquear el cambio).
+  import('./controllers/incidencias.controller.js')
+    .then((modulo) => modulo.actualizarEstadoMapaOffline?.())
+    .catch(() => {});
   await Promise.all([cargarZonas(completo.id), cargarColindantes(completo.id), recargarIncidencias()]);
   if (sesion.esEmpleado()) await cargarEstadisticas();
 }

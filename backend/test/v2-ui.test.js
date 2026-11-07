@@ -448,13 +448,20 @@ describe('V2.4/V2.5: accesos, informes, tickets y accesibilidad', () => {
     assert.equal(accesibilidad.anteriorNivel('muy-grande'), 'grande');
   });
 
-  test('el enlace de soporte nace oculto y la página valida el permiso', () => {
+  test('el enlace de soporte nace oculto y abre la bandeja dentro del modal', () => {
     const html = leer('index.html');
     assert.match(html, /id="linkSoporte"\s+hidden/);
+    assert.match(html, /data-action="ticketsModal:abrirAtencion"/);
+    assert.match(html, /id="ticketsModalTabBandeja"/);
+    assert.match(html, /id="ticketsAtencionLista"/);
     const login = leer('js/views/login.view.js');
     assert.match(login, /puedeAtenderTickets/);
     assert.match(login, /enlaceSoporte\.hidden/);
-    assert.match(leer('js/soporte.js'), /puedeAtenderTickets/);
+    assert.match(
+      leer('js/controllers/ticketsModal.controller.js'),
+      /import\('\.\/ticketsAtencion\.controller\.js'\)/
+    );
+    assert.match(leer('js/controllers/ticketsAtencion.controller.js'), /ticketsService\.staff/);
     assert.match(leer('css/extensiones.css'), /a\.link-terminos\.u-oculto/);
   });
 

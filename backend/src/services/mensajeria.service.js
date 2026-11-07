@@ -8,6 +8,8 @@ import { AppError } from '../utils/AppError.js';
 import { nuevoId } from '../utils/ids.js';
 import { alcanceDe, esAdmin, esEmpleado } from './alcance.service.js';
 import { adjuntosDe, vincularAdjuntos } from './adjuntos.service.js';
+import { exigirSinRestriccionMensajes } from './restricciones-mensajes.service.js';
+import { exigirNoBloqueado } from './bloqueos.service.js';
 import { enviarMensajeDirecto } from './correo.service.js';
 import { emitir } from './notificaciones.service.js';
 
@@ -40,6 +42,7 @@ export async function enviar(repositorio, usuario, datos = {}) {
   if (!esEmpleado(usuario)) {
     throw AppError.prohibido('La mensajería es solo para el personal del sistema');
   }
+  await exigirSinRestriccionMensajes(repositorio, usuario);
 
   const adjuntos = Array.isArray(datos.adjuntos) ? [...new Set(datos.adjuntos.map(String))].slice(0, 3) : [];
   const asunto = texto(datos.asunto, 'asunto', { requerido: !datos.hilo, max: 160 });
@@ -81,6 +84,7 @@ export async function enviar(repositorio, usuario, datos = {}) {
     if (destinatario.username === usuario.username) {
       throw AppError.solicitudInvalida('No puedes enviarte un mensaje a ti mismo');
     }
+    await exigirNoBloqueado(repositorio, usuario, destinatario);
   }
 
   if (!hilo) hilo = nuevoId();
@@ -151,6 +155,14 @@ export async function enviar(repositorio, usuario, datos = {}) {
   return mensaje;
 }
 
+/** Tipo de conversación según el destino del último mensaje. */
+function tipoDeMensaje(mensaje) {
+  if (!mensaje) return 'interno';
+  if (mensaje.paraMunicipio) return 'difusion_municipio';
+  if (mensaje.paraEstado) return 'difusion_estado';
+  return 'interno';
+}
+
 function resumenHilo(mensajes, usuario) {
   const ordenados = mensajes.slice().sort((a, b) => new Date(a.creadoEn) - new Date(b.creadoEn));
   const ultimo = ordenados[ordenados.length - 1];
@@ -163,6 +175,9 @@ function resumenHilo(mensajes, usuario) {
     ultimoMensaje: ultimo.cuerpo.slice(0, 140),
     ultimoDe: ultimo.deNombre,
     ultimaFecha: ultimo.creadoEn,
+    // V2.11.4: la bandeja distingue un mensaje interno de una difusión.
+    tipo: tipoDeMensaje(ultimo),
+    destino: ultimo.paraUsuario || ultimo.paraMunicipio || ultimo.paraEstado || '',
     noLeidos
   };
 }

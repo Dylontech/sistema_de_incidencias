@@ -14,6 +14,8 @@ import {
 import { crearApp } from './app.js';
 import { cerrarRepositorio, obtenerRepositorio } from './repositories/index.js';
 import { sincronizarAlertas } from './services/estado.service.js';
+import { congelarCuentasInactivas } from './services/cuenta.service.js';
+import { avisarVencimientos } from './services/avisos-clave.service.js';
 import { iniciarTrabajador } from './services/solicitudes.service.js';
 import { iniciarRespaldos } from './services/respaldos.service.js';
 import { iniciarMuestreo } from './services/metricas.service.js';
@@ -55,6 +57,12 @@ async function arrancar() {
   try {
     repositorio = await obtenerRepositorio();
     await sincronizarAlertas(repositorio);
+    await congelarCuentasInactivas(repositorio).catch((error) =>
+      console.error('[cuentas] inactividad:', error.message)
+    );
+    await avisarVencimientos(repositorio).catch((error) =>
+      console.error('[claves] avisos:', error.message)
+    );
   } catch (error) {
     console.error(`\nNo se pudo preparar el almacén de datos: ${descripcionAlmacen()}`);
     console.error(error.message);
@@ -70,6 +78,18 @@ async function arrancar() {
   const intervalo = setInterval(() => {
     sincronizarAlertas(repositorio).catch((e) => console.error('[alertas]', e.message));
   }, config.intervaloAlertasMs);
+
+  const intervaloCuentas = setInterval(() => {
+    congelarCuentasInactivas(repositorio).catch((e) =>
+      console.error('[cuentas] inactividad:', e.message)
+    );
+  }, config.cuentas.intervaloInactividadMs);
+
+  const intervaloClaves = setInterval(() => {
+    avisarVencimientos(repositorio).catch((e) =>
+      console.error('[claves] avisos:', e.message)
+    );
+  }, config.claves.avisosIntervaloMs);
 
   // Cola de informes públicos: genera el PDF/CSV y lo envía por correo.
   const detenerTrabajador = iniciarTrabajador(repositorio);
@@ -107,6 +127,8 @@ async function arrancar() {
       console.error('\nNo se pudo iniciar el servidor:', error.message);
     }
     clearInterval(intervalo);
+    clearInterval(intervaloCuentas);
+    clearInterval(intervaloClaves);
     detenerTrabajador?.();
     detenerMetricas?.();
     detenerRespaldos?.();
@@ -116,6 +138,8 @@ async function arrancar() {
   const apagar = async (senal) => {
     console.log(`\n${senal} recibida: cerrando…`);
     clearInterval(intervalo);
+    clearInterval(intervaloCuentas);
+    clearInterval(intervaloClaves);
     detenerTrabajador?.();
     detenerMetricas?.();
     detenerRespaldos?.();

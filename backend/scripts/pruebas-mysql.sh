@@ -1,35 +1,17 @@
 #!/bin/sh
 # ---------------------------------------------------------------------------
-# Corre la suite de pruebas contra un MariaDB efímero en contenedor.
+# Envoltorio POSIX del runner Node de pruebas contra MariaDB.
 #
 #   npm run test:mysql      (desde la raíz o desde backend/)
+#   sh backend/scripts/pruebas-mysql.sh --archivo=test/cuentas.test.js
 #
-# Levanta `mariadb-test` (compose.test.yaml: puerto 3399, en memoria, con el
-# usuario root porque cada proceso de prueba crea su propia base) y lo baja al
-# terminar, pase lo que pase.
-#
-# Las variables se pasan por comando (no con `export`) para no dejar el entorno
-# de la terminal contaminado: dotenv no sobrescribe lo que ya esté exportado, y
-# un STORAGE_DRIVER=mysql olvidado estropea los siguientes arranques.
+# La lógica vive en `pruebas-mysql.mjs` para que funcione igual en PowerShell,
+# cmd y sh: levanta compose.test.yaml, espera la base, ejecuta migraciones
+# cuando toca y baja el contenedor al terminar.
 # ---------------------------------------------------------------------------
 set -e
 
 raiz=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$raiz"
 
-echo "[pruebas-mysql] levantando mariadb-test…"
-docker compose -f compose.test.yaml up -d --wait
-
-bajar() {
-  echo "[pruebas-mysql] bajando mariadb-test…"
-  docker compose -f compose.test.yaml down
-}
-trap bajar EXIT INT TERM
-
-echo "[pruebas-mysql] ejecutando la suite contra MariaDB…"
-STORAGE_DRIVER_TEST=mysql \
-DB_HOST=127.0.0.1 \
-DB_PORT=3399 \
-DB_USER=root \
-DB_PASSWORD=pruebas \
-npm --prefix backend test
+exec node backend/scripts/pruebas-mysql.mjs "$@"

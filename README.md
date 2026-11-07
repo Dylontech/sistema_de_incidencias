@@ -19,6 +19,52 @@ legacy/     Monolito original, solo como respaldo y referencia de paridad
 > la arquitectura, el modelo de datos, la API, los eventos, la configuración, las
 > migraciones, el catálogo de pruebas y el changelog que deben actualizarse con cada cambio.
 
+## Documentación
+
+- [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md): estado real del sistema, API, modelo de datos,
+  configuración, seguridad y changelog.
+- [`SISTEMA_COMPLETO.md`](SISTEMA_COMPLETO.md): diagramas del sistema, inventario de vistas,
+  modales, botones y acciones, matriz de roles y permisos, flujos principales y las reglas
+  estandarizadas para migraciones, módulos, permisos, roles, vistas y CRUD. Incluye la
+  puerta de decisión «¿es realmente necesario?», las ideas descartadas y el backlog futuro.
+
+## Novedades V2.17.0
+
+- **Polígonos de calzada:** las calles, caminos, carreteras y autopistas se dibujan como polígonos rellenos sobre la red real. Si la fuente solo trae ejes, el sistema genera el corredor con el ancho de la vía; si trae `Polygon`/`MultiPolygon`, se respeta el contorno.
+- **Semáforo con degradado:** cada vialidad se divide en subtramos y se colorea con la escala verde→amarillo→naranja→rojo→negro. La línea punteada que unía incidencias desaparece; si no hay red real, se muestra un aviso de importación.
+- **KML, GeoJSON y OpenStreetMap:** la pestaña Vialidades acepta archivos con líneas o polígonos y el botón «Cargar red real (OSM)» descarga la red vehicular del municipio (con atribución a OpenStreetMap). La importación fusiona por `osm_id`/clave y conserva notas y enlaces; «Reemplazar todo» es una casilla explícita.
+- **Panel territorial:** los administradores municipal y estatal ya pueden usar el catálogo, no solo el administrador maestro.
+
+## Novedades V2.16.0
+
+- **Catálogo administrativo de vialidades:** la pestaña **Vialidades** permite crear, editar, verificar y archivar calles, avenidas, caminos rurales, carreteras estatales/federales y autopistas de cada municipio. Cada tramo guarda su trazado, enlace a Google Maps, origen y notas, y el panel avisa si lleva más de 180 días sin verificarse.
+- **Importación desde Google Maps o datos locales:** acepta KML exportado de Google My Maps y GeoJSON, además del CLI `npm run importar-vialidades` para OpenStreetMap. La importación fusiona por clave/OSM y conserva notas y enlaces; marcar «Reemplazar todo» descarta el trazado anterior.
+- **Simulación porcentual:** dentro del Simulador se reparten los tramos por porcentajes de estado bueno, leve, regular, malo y crítico (deben sumar 100) para comparar escenarios en el mapa sin modificar la condición real.
+- **Auditoría explicada:** filtros por fecha, tipo de acción (POST/PUT/PATCH/DELETE), autor y ruta; enciclopedia embebida que explica cada columna; informes PDF/CSV que usan exactamente los filtros aplicados.
+
+## Novedades V2.13.0
+
+- **Correo como identificador:** el ciudadano puede entrar con su nombre, pseudónimo o correo; el personal con su usuario o correo más su clave. `/cuenta` explica que el enlace se envía al correo registrado y deja siempre visible el acceso al login.
+- **Solicitud de acceso sin elegir rol:** el sistema sugiere funcionario, enlace estatal o federal según el territorio y la administración puede cambiarlo al aprobar. La tabla muestra nombres de municipios y estados, no IDs.
+- **Correo ya registrado antes de enviar:** consulta pública limitada, aviso en el formulario y validación final en el servidor. Si el correo pertenece a una cuenta ciudadana, la solicitud se vincula a ella y la aprobación la promueve conservando historial, correo y contraseña.
+- **Soporte en modal:** la antigua página `/soporte` redirige a `#modalTickets`, que ahora tiene «Mis tickets» y «Bandeja de soporte» con filtros, notas internas, historial y caché. Los enlaces de folios y notificaciones abren el ticket sin recargar la página.
+
+## Novedades V2.12.0
+
+- **Cuenta de autoservicio:** el registro ciudadano confirma el correo antes de entrar; la página `/cuenta` permite recuperar la contraseña, reenviar la confirmación y volver al acceso. El titular puede congelar su cuenta 7/30/90 días o eliminarla con anonimización.
+- **Inactividad:** las cuentas ciudadanas sin actividad durante 30 días se congelan automáticamente y se reactivan al iniciar sesión.
+- **Claves ligadas a la cuenta:** toda cuenta de funcionario nace con una clave (elegida o generada), el cupo y el vencimiento son obligatorios y una clave no puede compartirse entre cuentas. El territorio de la clave nunca amplía el de la cuenta.
+- **Avisos y renovación:** avisos a 30/20/10/5/0 días (app y correo), solicitud de renovación desde «Mi cuenta» y renovación desde el panel; al renovar se abre un ciclo nuevo de avisos.
+- **Aprobaciones seguras:** las solicitudes de acceso y las altas exigen vincular una clave o generar una nueva antes de crear la cuenta.
+
+## Novedades V2.11.7
+
+- **Claves de activación:** cada cuenta nueva recibe una clave única que se usa una sola vez para activarla y no se vuelve a pedir hasta que vence. La administración puede consultar su estado y renovarla; editar una cuenta ya no genera claves.
+- **PDF de incidencia:** sin comentarios, con las imágenes de evidencia incrustadas, formato formal y sin hojas en blanco al final.
+- **Texto legible:** los textos secundarios, tablas, notas y etiquetas parten de 14px; los controles A−/A/A+ escalan desde ese mínimo.
+- **Solicitud de acceso:** selector estado→municipio con autocompletado y documentos de respaldo (PDF/JPG/PNG, hasta 3 × 10 MB).
+- **Corrección:** la descarga de mapas sin conexión ya no falla con «teselas is not defined».
+
 ## Novedades V2.11
 
 - **Roles editables y roles propios**: la matriz de cada rol del sistema vive en la tabla `roles` y se edita desde «Roles y permisos», con «Restablecer a fábrica». El administrador maestro crea roles propios que heredan una plantilla y conservan su propia matriz y territorio.
@@ -232,7 +278,7 @@ cola. Para resolverlo: cambia `PORT` en `backend/.env`, arráncalo puntualmente 
 
 ### Credenciales de demostración
 
-| Rol | Usuario | Contraseña | Clave de municipio |
+| Rol | Usuario | Contraseña | Clave |
 |---|---|---|---|
 | Administrador | `admin` | `admin123` | — |
 | Funcionario | `funcionario` | `func123` | `16050` (Maravatío) |
@@ -250,7 +296,7 @@ Hay tres formas de usar el sistema, y solo la primera no necesita nada:
 |---|---|---|
 | **Participante anónimo** | Botón «Entrar como ciudadano anónimo» | Reportar y ver todo el municipio. **No recibe avisos**: no hay cuenta a la que dirigirlos. |
 | **Cuenta ciudadana** | Correo + contraseña (*Crear cuenta* en la pantalla de acceso) | Buzón de avisos (estado, comentarios, resolución y alertas) y edición de sus reportes. |
-| **Personal** | Página interna **`/personal`**: el funcionario con usuario, contraseña y clave de municipio; el administrador con usuario y contraseña | Funcionario: gestiona su municipio. Administrador: todo + cuentas del personal. |
+| **Personal** | Página interna **`/personal`**: el funcionario con usuario o correo, contraseña y clave de activación; el administrador con usuario o correo y contraseña | Funcionario: gestiona su municipio. Administrador: todo + cuentas del personal. |
 
 **Identidad en cada reporte.** Al registrarse se elige entre poner el nombre real o
 pedir un **nombre generado** («Águila Nocturna», «Colibrí 07»…) que el servidor sortea y
@@ -470,8 +516,9 @@ El puerto de la aplicación se publica **solo en 127.0.0.1** (`APP_BIND`), igual
 Para probarla desde el móvil u otro equipo: `APP_BIND=0.0.0.0` en el `.env` de la raíz,
 asumiendo que queda accesible para toda la red local.
 
-El cuerpo JSON general está acotado a **1 MB**; solo `/api/admin/importar`, que recibe la
-evidencia en base64 de un respaldo, admite hasta 100 MB.
+El cuerpo JSON general está acotado a **1 MB**; las rutas de importación
+`/api/admin/importar` (respaldo con evidencia base64) y
+`/api/admin/vialidades/importar` (KML/GeoJSON) admiten hasta 100 MB.
 
 ---
 
@@ -483,8 +530,11 @@ Desde la raíz (delegan en `backend/`):
 |---|---|
 | `npm run dev` / `npm start` | Arranca el servidor (`node --watch` con guarda anti-duplicados / `node`). |
 | `npm test` | Suite de pruebas de la API con el driver **json** (rápida, sin Docker). |
-| `npm run test:mysql` | La misma suite contra un **MariaDB efímero en contenedor** (puerto 3399). |
+| `npm run test:mysql` | La misma suite contra MariaDB: contenedor efímero (3399) o MariaDB local (3306) si no hay Docker. |
+| `npm run db:pruebas` | Crea y migra `incidencias_pruebas` en el MariaDB de pruebas. |
+| `npm run db:pruebas:down` | Baja el contenedor de pruebas (en modo local no hace nada). |
 | `npm run migrate` | Aplica las migraciones de Knex. |
+| `npm run importar-vialidades -- --municipio=<id>` | Importa la red vial real y genera polígonos de calzada para la capa de condición vial. |
 | `npm run migrate:rollback` | Revierte el último lote de migraciones. |
 | `npm run seed` | Carga los datos semilla (municipios, zonas, tipos, usuarios). |
 | `npm run vendorizar-frontend` | Copia Leaflet y Bootstrap Icons a `frontend/vendor/` (verifica el `sha256` del lock). |
@@ -495,6 +545,7 @@ Dentro de `backend/`:
 |---|---|
 | `npm run extraer-semilla` | Regenera `src/config/seed-data/*.json` desde `legacy/` (ya no la geografía). |
 | `npm run importar-inegi` | Genera el catálogo nacional de municipios y comunidades con los polígonos del INEGI (las 32 entidades por omisión). |
+| `npm run importar-vialidades -- --municipio=<id>` | Importa y fusiona la red real (OSM o GeoJSON/KML) como polígonos de calzada para la capa de condición vial. |
 | `npm run sincronizar-catalogo` | Inserta o actualiza ese catálogo en MySQL sin borrar usuarios ni incidencias (`-- --seco` para previsualizar). |
 | `npm run vendorizar-frontend` | Descarga Leaflet y Bootstrap Icons a `frontend/vendor/` y actualiza el lock (`-- --actualizar` para subir de versión). |
 | `npm run migrar-catalogo` | Pasa los datos existentes a las claves geoestadísticas (ver más abajo). |
@@ -505,6 +556,22 @@ Dentro de `backend/`:
 ---
 
 ## Variables de entorno
+
+V2.12.0 añade `VERIFICAR_CORREO_REGISTRO`, `VERIFICAR_CORREO_EN_PRUEBAS`,
+`TOKEN_VERIFICACION_HORAS`, `TOKEN_RECUPERACION_MINUTOS`,
+`CUENTAS_DIAS_INACTIVIDAD`, `CUENTAS_CONGELAR_INACTIVAS`,
+`CUENTAS_INTERVALO_INACTIVIDAD_MS`, `AVISOS_CLAVES_ACTIVO`,
+`AVISOS_CLAVES_DIAS`, `AVISOS_CLAVES_INTERVALO_MS` y
+`RATE_LIMIT_MAX_RECUPERACION`. Define `URL_PUBLICA` para que los enlaces de
+verificación y recuperación apunten al dominio correcto.
+
+V2.15.0 añade **reparaciones de campo** (rol `cuadrilla`, asignación, estados, documentos y desglose de costos), la **capa de condición de vialidades** (verde→amarillo→naranja→rojo→negro, con trazos reales importables y calor por zona) y el **archivo general** agrupado por mes y día con expediente JSON/PDF. La pestaña Archivo exige `ver_incidencias_panel` y el alcance territorial se aplica en el servidor.
+
+Desde V2.14.0, la pestaña **Acceso y verificación** del panel permite cambiar en caliente la
+activación ciudadana (`correo` o `automatica`), la vigencia de los enlaces de verificación y
+recuperación, y la congelación por inactividad. Esos valores se guardan en la tabla
+`configuracion` (con permiso `gestionar_verificacion_cuentas`) y sustituyen a las variables
+anteriores; las variables siguen siendo el valor inicial.
 
 Ver [`.env.example`](.env.example). Las relevantes:
 
@@ -548,8 +615,8 @@ y `/api/salud`.
 |---|---|---|---|
 | POST | `/api/auth/anonimo` | público | Entrada como ciudadano anónimo (`anonId` opcional y persistente). |
 | POST | `/api/auth/registro` | público | Crea una cuenta ciudadana (correo, contraseña, nombre o `pseudonimo`). |
-| POST | `/api/auth/ciudadano` | público | Entrada de una cuenta ciudadana (correo + contraseña). |
-| POST | `/api/auth/funcionario` | público | Usuario + contraseña + clave de municipio. |
+| POST | `/api/auth/ciudadano` | público | Entrada de una cuenta ciudadana (nombre, pseudónimo o correo + contraseña). |
+| POST | `/api/auth/funcionario` | público | Usuario o correo + contraseña + clave de activación. |
 | POST | `/api/auth/admin` | público | Usuario + contraseña. |
 | GET | `/api/auth/me` | sesión | Sesión actual y municipio sugerido para el mapa. |
 | POST | `/api/auth/municipio-activo` | sesión | Cambia de municipio y devuelve token nuevo (el admin exige la clave). |
@@ -886,12 +953,26 @@ antes (**Informes → Respaldo JSON**) y reimpórtalos después.
 
 ```bash
 npm test           # driver json, sin base de datos ni Docker
-npm run test:mysql # la misma suite contra un MariaDB efímero en 127.0.0.1:3399
+npm run test:mysql # MariaDB de pruebas con migraciones automáticas
 ```
 
-`test:mysql` levanta `compose.test.yaml` (en memoria, con `tmpfs`) y lo baja al terminar. El
-acceso es con **root**: cada proceso de prueba crea y destruye su propia base
-`incidencias_test_<pid>`, y el usuario de la aplicación solo tiene privilegios sobre la suya.
+`test:mysql` usa `compose.test.yaml` (127.0.0.1:3399, en memoria con `tmpfs`) cuando Docker
+está disponible. Si no lo está, detecta el MariaDB local (por omisión `127.0.0.1:3306`, root
+sin contraseña) y lo usa sin tocar la base `incidencias`: cada proceso crea y destruye su
+propia base `incidencias_test_<pid>`, y aplica migraciones y semilla automáticamente. El
+acceso es con **root**.
+
+Para ejecutar un archivo (recomendado por el coste de la semilla) o preparar una base manual:
+
+```bash
+npm run test:mysql -- --archivo=test/cuentas.test.js
+npm run db:pruebas                 # crea incidencias_pruebas y aplica migrate:latest
+npm run db:pruebas -- --semilla    # además carga la semilla (destructiva)
+npm run db:pruebas:down            # baja el contenedor si se usó Docker
+```
+
+`--local` fuerza el MariaDB local; `--limpia` recrea `incidencias_pruebas` antes de migrar.
+La lógica vive en `backend/scripts/pruebas-mysql.mjs` y funciona igual en PowerShell, cmd y sh.
 
 ### Arranque del contenedor
 
@@ -968,10 +1049,10 @@ npm --prefix backend run importar-legacy -- ./respaldo_2026-09-23.json
 
 ```bash
 npm test           # driver json, sin base de datos ni Docker
-npm run test:mysql # driver mysql, con un MariaDB efímero en 127.0.0.1:3399
+npm run test:mysql # driver mysql: Docker 3399 o MariaDB local 3306
 ```
 
-La suite (`backend/test/`, **308 pruebas**) cubre autenticación y roles, ciclo de vida de
+La suite (`backend/test/`, **478 pruebas**) cubre autenticación y roles, ciclo de vida de
 la incidencia, geocerca y colores derivados, filtros y alcance por municipio, evidencia,
 estadísticas, exportación y la importación de respaldos. `cuentas.test.js` añade el
 sistema de cuentas: alta y entrada de ciudadanos, nombre generado, firma por reporte

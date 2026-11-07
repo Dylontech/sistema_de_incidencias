@@ -119,6 +119,29 @@ export const config = {
     limiteConsultasHora: Number(process.env.LIMITE_CONSULTAS_HORA || 30)
   },
 
+  /** Verificación de correo, recuperación de contraseña e inactividad. */
+  cuentas: {
+    verificarCorreo: activo(process.env.VERIFICAR_CORREO_REGISTRO, true),
+    verificarEnPruebas: activo(process.env.VERIFICAR_CORREO_EN_PRUEBAS, false),
+    tokenVerificacionHoras: Number(process.env.TOKEN_VERIFICACION_HORAS || 24),
+    tokenRecuperacionMinutos: Number(process.env.TOKEN_RECUPERACION_MINUTOS || 60),
+    diasInactividad: Number(process.env.CUENTAS_DIAS_INACTIVIDAD || 30),
+    congelarInactivas: activo(process.env.CUENTAS_CONGELAR_INACTIVAS, true),
+    intervaloInactividadMs: Number(
+      process.env.CUENTAS_INTERVALO_INACTIVIDAD_MS || 6 * 60 * 60 * 1000
+    )
+  },
+
+  /** Avisos de vencimiento de claves. */
+  claves: {
+    avisosActivo: activo(process.env.AVISOS_CLAVES_ACTIVO, true),
+    avisosIntervaloMs: Number(process.env.AVISOS_CLAVES_INTERVALO_MS || 6 * 60 * 60 * 1000),
+    diasAviso: String(process.env.AVISOS_CLAVES_DIAS || '30,20,10,5,0')
+      .split(',')
+      .map((valor) => Number(String(valor).trim()))
+      .filter((valor) => Number.isInteger(valor) && valor >= 0)
+  },
+
   /**
    * Consentimiento legal obligatorio. Las suites normales de pruebas no deben
    * pagar el middleware en cada petición; el test dedicado activa
@@ -179,7 +202,9 @@ export const config = {
       // Subida de evidencia (por cuenta/sesión).
       maxUploads: Number(process.env.RATE_LIMIT_MAX_UPLOADS || 30),
       // Formularios públicos (solicitudes de informe, contacto, sugerencias).
-      maxPublico: Number(process.env.RATE_LIMIT_MAX_PUBLICO || 10)
+      maxPublico: Number(process.env.RATE_LIMIT_MAX_PUBLICO || 10),
+      // Recuperación de contraseña y reenvío de verificación.
+      maxRecuperacion: Number(process.env.RATE_LIMIT_MAX_RECUPERACION || 5)
     }
   },
 
@@ -188,6 +213,13 @@ export const config = {
 };
 
 export const esProduccion = () => config.env === 'production';
+
+/** URL absoluta para enlaces de correo (con respaldo local en desarrollo). */
+export function urlPublica(ruta = '') {
+  const base = config.publico.urlBase || `http://localhost:${config.port}`;
+  const limpia = String(ruta || '');
+  return `${base}${limpia.startsWith('/') ? limpia : `/${limpia}`}`;
+}
 
 /**
  * Revisa la configuración antes de escuchar. Devuelve la lista de problemas
@@ -234,6 +266,13 @@ export function avisosDeConfiguracion() {
     avisos.push(
       'La aplicación se servirá por HTTP. Ponle un proxy con TLS delante y define ' +
         'ASUMIR_HTTPS=true para activar HSTS y upgrade-insecure-requests.'
+    );
+  }
+
+  if (config.correo.activo && !config.publico.urlBase) {
+    avisos.push(
+      'URL_PUBLICA está vacía: los enlaces de verificación y recuperación de correo ' +
+        'se generarán con localhost. Define la URL pública para producción.'
     );
   }
 

@@ -26,8 +26,8 @@ export class AppError extends Error {
     return new AppError(404, mensaje);
   }
 
-  static conflicto(mensaje = 'Conflicto con el estado actual del recurso') {
-    return new AppError(409, mensaje);
+  static conflicto(mensaje = 'Conflicto con el estado actual del recurso', detalles = null) {
+    return new AppError(409, mensaje, detalles);
   }
 
   static precondicionRequerida(mensaje = 'Debes aceptar los términos para continuar', detalles = null) {

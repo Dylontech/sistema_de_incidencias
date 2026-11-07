@@ -5,8 +5,8 @@ export const solicitudesAccesoService = {
   listar() {
     return api.get('/admin/solicitudes-acceso');
   },
-  aprobar(id) {
-    return api.post(`/admin/solicitudes-acceso/${id}/aprobar`);
+  aprobar(id, datos = {}) {
+    return api.post(`/admin/solicitudes-acceso/${id}/aprobar`, datos);
   },
   rechazar(id, motivo) {
     return api.post(`/admin/solicitudes-acceso/${id}/rechazar`, { motivo });

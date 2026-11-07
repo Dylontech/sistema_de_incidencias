@@ -14,10 +14,12 @@
 import { registrarAcciones } from '../core/eventos.js';
 import { abrirModal, cerrarModal, modalAbierto, toast } from '../core/ui.js';
 import { intentar } from '../core/errores.js';
-import { $ } from '../core/utils.js';
+import { $, esc, fmtFecha } from '../core/utils.js';
+import { urlPrivada } from '../core/api.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { moderacionService } from '../services/moderacion.service.js';
+import { reportesConversacionService } from '../services/reportes-conversacion.service.js';
 import * as aplicacion from '../core/aplicacion.js';
 import { abrirDesdePanel } from './incidencias.controller.js';
 
@@ -384,6 +386,109 @@ export function registrar() {
       }),
 
     /** Abre la publicación desde la cola, encima del panel. */
-    'moderacion:ver': ({ id }) => abrirDesdePanel(id, { nested: true })
+    'moderacion:ver': ({ id }) => abrirDesdePanel(id, { nested: true }),
+
+    /* ------------------- reportes de conversación ------------------- */
+
+    /** Prepara el modal de resolución con el reporte elegido. */
+    'reporteConv:resolver': ({ id, valor }) => {
+      const reporte = (store.estado.reportesConversacion || []).find((r) => r.id === id);
+      if (!reporte) return toast('No se encontró el reporte', 'err');
+      if (!sesion.puede('moderar')) {
+        toast('No tienes permiso para resolver reportes', 'err');
+        return;
+      }
+      if ($('reporteResolverId')) $('reporteResolverId').value = reporte.id;
+      if ($('reporteResolverObjetivo')) $('reporteResolverObjetivo').value = reporte.objetivoUsername;
+      if ($('reporteResolverResumen')) {
+        $('reporteResolverResumen').textContent = `${reporte.autorNombre} reportó a ${reporte.objetivoNombre} · ${reporte.detalle}`;
+      }
+      if ($('reporteResolverAccion')) {
+        $('reporteResolverAccion').value = valor || 'suspender_mensajes';
+      }
+      if ($('reporteResolverMotivo')) $('reporteResolverMotivo').value = '';
+      if ($('reporteResolverHasta')) $('reporteResolverHasta').value = '';
+      $('reporteResolverFechaBox')?.classList.remove('u-oculto');
+      abrirModal('modalReporteResolver', { nested: true });
+    },
+
+    /** Muestra la copia de la conversación con sus imágenes y documentos. */
+    'reporteConv:ver': ({ id }) => {
+      const reporte = (store.estado.reportesConversacion || []).find((r) => r.id === id);
+      if (!reporte) return toast('No se encontró el reporte', 'err');
+      const caja = $('conversacionReporteCuerpo');
+      if (!caja) return;
+      const mensajes = reporte.mensajes || [];
+      caja.innerHTML = `
+        <p class="campo-nota">
+          ${esc(reporte.autorNombre)} reportó a ${esc(reporte.objetivoNombre)} · ${esc(
+            reporte.conversacionAsunto || 'Conversación'
+          )} · ${esc(fmtFecha(reporte.fecha))}
+        </p>
+        <p><strong>Motivo:</strong> ${esc(
+          store.estado.catalogos?.motivosDenuncia?.[reporte.motivo] || reporte.motivo
+        )}</p>
+        <p>${esc(reporte.detalle)}</p>
+        ${
+          mensajes.length
+            ? `<div class="bandeja-reporte-mensajes">${mensajes
+                .map(
+                  (m) => `<div class="bandeja-reporte-mensaje">
+                    <div class="bandeja-mensaje-meta">${esc(m.nombre)} · ${esc(fmtFecha(m.fecha))}</div>
+                    ${m.cuerpo ? `<div class="bandeja-mensaje-cuerpo">${esc(m.cuerpo)}</div>` : ''}
+                    ${
+                      (m.adjuntos || []).length
+                        ? `<div class="campo-nota">${m.adjuntos
+                            .map(
+                              (a) =>
+                                `<a href="${esc(
+                                  urlPrivada(`/api/adjuntos/${a.id}`)
+                                )}" target="_blank" rel="noopener">📎 ${esc(a.nombre)}</a>`
+                            )
+                            .join(' · ')}</div>`
+                        : ''
+                    }
+                  </div>`
+                )
+                .join('')}`
+            : '<p class="campo-nota">El autor no adjuntó los mensajes: el reporte se basa solo en la descripción.</p>'
+        }`;
+      abrirModal('modalConversacionReporte', { nested: true });
+    },
+
+    /** La fecha de fin solo aplica a medidas con vigencia. */
+    'reporteConv:accion': ({ valor }) => {
+      const accion = valor || $('reporteResolverAccion')?.value;
+      $('reporteResolverFechaBox')?.classList.toggle(
+        'u-oculto',
+        accion === 'descartar' || accion === 'baja_cuenta'
+      );
+    },
+
+    'reporteConv:confirmar': () =>
+      intentar(async () => {
+        const id = $('reporteResolverId')?.value;
+        const accion = $('reporteResolverAccion')?.value || 'descartar';
+        const motivo = ($('reporteResolverMotivo')?.value || '').trim();
+        const hasta = $('reporteResolverHasta')?.value || null;
+        if (!id) return;
+        if (motivo.length < 5) {
+          return toast('Escribe una resolución breve', 'err');
+        }
+        await reportesConversacionService.resolver(id, { accion, motivo, hasta });
+        cerrarModal('modalReporteResolver');
+        await aplicacion.cargarReportesConversacion();
+        if (modalAbierto('modalAdmin')) await aplicacion.cargarModeracion();
+        toast('Reporte resuelto y avisado a las dos partes', 'ok');
+      }),
+
+    'reporteConv:revertir': ({ id }) =>
+      intentar(async () => {
+        if (!id) return;
+        await reportesConversacionService.revertir(id);
+        await aplicacion.cargarReportesConversacion();
+        if (modalAbierto('modalAdmin')) await aplicacion.cargarModeracion();
+        toast('Medida revertida', 'ok');
+      })
   });
 }

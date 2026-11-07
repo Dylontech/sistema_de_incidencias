@@ -41,18 +41,53 @@ function mostrarError(mensaje) {
   caja.focus?.();
 }
 
+const CODIGOS_CLAVE = [
+  'clave_requerida',
+  'clave_vencida',
+  'clave_expirada',
+  'clave_revocada',
+  'clave_no_asignada',
+  'clave_no_corresponde'
+];
+
+/** Abre el bloque de la clave y lleva el foco al campo. */
+function pedirClave() {
+  const detalle = $('funcClaveDetalle');
+  if (detalle) detalle.open = true;
+  $('func-code')?.focus();
+}
+
 /** Traduce el error del servidor a una acción concreta para la persona. */
 function mensajeDeEntrada(error) {
   const estado = error?.estado || error?.status || 0;
   const texto = String(error?.message || '');
+  const codigo = error?.detalles?.[0]?.codigo || '';
   if (estado === 429) {
     return 'Demasiados intentos. Espera unos minutos antes de volver a probar.';
+  }
+  if (codigo === 'clave_no_asignada') {
+    return 'Tu cuenta todavía no tiene una clave vinculada. Pide a un administrador que te asigne una.';
+  }
+  if (codigo === 'clave_vencida' || codigo === 'clave_expirada') {
+    return 'Tu clave venció. Escribe la clave nueva que te entregaron o pide a un administrador que la renueve.';
+  }
+  if (codigo === 'clave_revocada') {
+    return 'Tu clave ya no es válida. Pide a un administrador que te asigne una nueva.';
+  }
+  if (codigo === 'clave_requerida') {
+    return 'Escribe la clave de activación que te entregó la administración.';
+  }
+  if (codigo === 'clave_no_corresponde') {
+    return 'Esa clave no corresponde a tu cuenta o a tu territorio. Revisa el código o pide ayuda a un administrador.';
   }
   if (estado === 403) {
     return texto || 'Tu cuenta no tiene acceso a este municipio o está suspendida.';
   }
+  if (/incompleta/i.test(texto)) {
+    return texto;
+  }
   if (/clave/i.test(texto)) {
-    return 'La clave de municipio no coincide con tu cuenta. Revísala o pide ayuda a un administrador.';
+    return 'La clave no coincide con tu cuenta. Revísala o pide ayuda a un administrador.';
   }
   if (estado === 401) {
     return 'Usuario o contraseña incorrectos. Revisa mayúsculas y el Bloq Mayús.';
@@ -60,17 +95,32 @@ function mensajeDeEntrada(error) {
   return texto || 'No se pudo iniciar sesión. Inténtalo de nuevo.';
 }
 
-async function entrar(operacion) {
+async function entrar(operacion, alExito = null) {
   $('loginError')?.classList.add('u-oculto');
   loading(true, 'Iniciando sesión…');
   try {
     const respuesta = await operacion();
     sesion.guardar(respuesta);
+    // El identificador se recuerda solo cuando el acceso fue correcto; así un
+    // error de contraseña o de clave no pisa el usuario guardado.
+    if (typeof alExito === 'function') {
+      try {
+        alExito(respuesta);
+      } catch {
+        // Recordar el usuario es una comodidad: nunca debe impedir el acceso.
+      }
+    }
     toast(`Bienvenido, ${respuesta.usuario.nombre}`, 'ok');
     location.replace(DESTINO);
+    return true;
   } catch (error) {
     loading(false);
+    const codigo = error?.detalles?.[0]?.codigo || '';
+    if (CODIGOS_CLAVE.includes(codigo) || /clave/i.test(String(error?.message || ''))) {
+      pedirClave();
+    }
     mostrarError(mensajeDeEntrada(error));
+    return false;
   }
 }
 
@@ -106,10 +156,23 @@ function conectarBloqMayus() {
   });
 }
 
+/** Lee el usuario recordado sin romper la página si el almacenamiento falla. */
+function leerRecordado() {
+  try {
+    return localStorage.getItem(CLAVE_USUARIO) || '';
+  } catch {
+    return '';
+  }
+}
+
 /** Recordar el usuario (nunca la contraseña). */
 function recordarUsuario(usuario, recordar) {
-  if (recordar) localStorage.setItem(CLAVE_USUARIO, usuario);
-  else localStorage.removeItem(CLAVE_USUARIO);
+  try {
+    if (recordar && usuario) localStorage.setItem(CLAVE_USUARIO, String(usuario));
+    else localStorage.removeItem(CLAVE_USUARIO);
+  } catch {
+    // Sin almacenamiento disponible el acceso sigue funcionando.
+  }
 }
 
 function conectar() {
@@ -117,10 +180,20 @@ function conectar() {
     tab.addEventListener('click', () => mostrarPanel(tab.dataset.panel));
   });
 
-  const recordado = localStorage.getItem(CLAVE_USUARIO) || '';
-  if (recordado && $('func-user')) {
-    $('func-user').value = recordado;
-    $('recordarUsuario').checked = true;
+  const parametros = new URLSearchParams(location.search);
+  const recordado = leerRecordado();
+  const solicitado = parametros.get('usuario') || '';
+  if ((recordado || solicitado) && $('func-user')) {
+    $('func-user').value = solicitado || recordado;
+    $('recordarUsuario').checked = Boolean(recordado);
+    if (solicitado) $('func-pass')?.focus();
+  }
+  if (parametros.get('expirada') === '1') {
+    mostrarError('Tu sesión expiró. Vuelve a iniciar sesión; si tu clave venció, escríbela en el bloque de clave de acceso.');
+    pedirClave();
+  } else if (CODIGOS_CLAVE.includes(parametros.get('clave') || '')) {
+    pedirClave();
+    mostrarError(mensajeDeEntrada({ detalles: [{ codigo: parametros.get('clave') }] }));
   }
 
   conectarVisibilidad();
@@ -140,12 +213,15 @@ function conectar() {
     };
 
     if (!datos.username || !datos.password) {
-      mostrarError('Escribe tu usuario y contraseña.');
+      mostrarError('Escribe tu usuario o correo y tu contraseña.');
       return;
     }
 
-    recordarUsuario(datos.username, $('recordarUsuario').checked);
-    entrar(() => authService.entrarFuncionario(datos));
+    const recordar = $('recordarUsuario').checked === true;
+    entrar(
+      () => authService.entrarFuncionario(datos),
+      () => recordarUsuario(datos.username, recordar)
+    );
   });
 
   $('formAdmin').addEventListener('submit', (evento) => {
@@ -157,7 +233,7 @@ function conectar() {
       password: $('admin-pass').value
     };
     if (!datos.username || !datos.password) {
-      mostrarError('Escribe tu usuario y contraseña.');
+      mostrarError('Escribe tu usuario o correo y tu contraseña.');
       return;
     }
     entrar(() => authService.entrarAdmin(datos));

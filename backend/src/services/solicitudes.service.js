@@ -15,7 +15,7 @@ import { datosInforme, generarCSV, nombreArchivo } from './informes.service.js';
 import { generarPDF } from './pdf.service.js';
 import { enviarInforme, enviarVerificacion } from './correo.service.js';
 import { emitir } from './notificaciones.service.js';
-import { valor as valorConfig } from './configuracion.service.js';
+import { motorPdf as motorPdfConfig, valor as valorConfig } from './configuracion.service.js';
 
 const ESTADOS_ABIERTOS = ['pendiente_verificacion', 'pendiente', 'procesando'];
 
@@ -382,7 +382,7 @@ async function adjuntoCompleto(repositorio, solicitud, datos) {
     adjuntoDeSolicitud(solicitud, datos) || {
       nombre: nombreAdjunto(datos, solicitud, 'pdf'),
       tipo: 'application/pdf',
-      contenido: await generarPDF(datos)
+      contenido: await generarPDF(datos, { motor: await motorPdfConfig(repositorio) })
     }
   );
 }
@@ -543,7 +543,7 @@ export async function procesarPendientes(repositorio) {
           {
             nombre: nombreAdjunto(datos, solicitud, 'pdf'),
             tipo: 'application/pdf',
-            contenido: await generarPDF(datos)
+            contenido: await generarPDF(datos, { motor: await motorPdfConfig(repositorio) })
           };
 
         const archivo = await guardarAdjunto(adjunto);

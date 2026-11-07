@@ -7,6 +7,7 @@ const router = Router();
 
 router.use('/admin/simulador', requiereAdmin, requierePermiso('usar_simulador'));
 
+router.post('/admin/simulador/vialidades', requiereAdmin, simulador.simularVialidades);
 router.get('/admin/simulador/acciones', requiereAdmin, simulador.catalogo);
 router.get('/admin/simulador/sesiones', requiereAdmin, simulador.listar);
 router.post('/admin/simulador/sesiones', requiereAdmin, simulador.abrir);

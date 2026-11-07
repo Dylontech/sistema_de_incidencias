@@ -43,6 +43,11 @@ export function crearApp() {
   // admite un cuerpo grande. El parser global va después y no vuelve a leer el
   // cuerpo ya procesado (body-parser marca `req._body`).
   app.use('/api/admin/importar', express.json({ limit: config.seguridad.maxImportacionBytes }));
+  // Los KML/GeoJSON de Google Maps pueden superar el límite JSON normal.
+  app.use(
+    '/api/admin/vialidades/importar',
+    express.json({ limit: config.seguridad.maxImportacionBytes })
+  );
   app.use(express.json({ limit: config.seguridad.maxJsonBytes }));
   app.use(express.urlencoded({ extended: false, limit: config.seguridad.maxJsonBytes }));
 
@@ -90,6 +95,14 @@ export function crearApp() {
   app.get(['/tickets', '/tickets.html'], (req, res) => {
     const params = new URLSearchParams(req.query);
     if (!params.has('ticket')) params.set('tickets', '1');
+    res.redirect(302, `/${params.toString() ? `?${params.toString()}` : ''}`);
+  });
+
+  // El panel de soporte ya es una pestaña del modal de tickets. Se conserva la
+  // ruta para correos y marcadores antiguos.
+  app.get(['/soporte', '/soporte.html'], (req, res) => {
+    const params = new URLSearchParams(req.query);
+    if (!params.has('ticket') && !params.has('tickets')) params.set('tickets', '1');
     res.redirect(302, `/${params.toString() ? `?${params.toString()}` : ''}`);
   });
 

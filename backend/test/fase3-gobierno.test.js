@@ -47,7 +47,9 @@ describe('Fase 3: claves de acceso', () => {
     const creada = await admin.post('/api/admin/claves').send({
       nombre: 'Funcionarios de prueba',
       municipios: [MUNICIPIO_MARAVATIO],
-      rolSugerido: 'funcionario'
+      rolSugerido: 'funcionario',
+      usosMaximos: 10,
+      expiraEn: '2030-12-31'
     });
     assert.equal(creada.status, 201);
     assert.match(creada.body.clave.codigo, /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);

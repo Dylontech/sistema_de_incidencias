@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/componentes.css">
 <link rel="stylesheet" href="css/extensiones.css">
+<link rel="stylesheet" href="css/legibilidad.css">
 </head>
 <body class="pagina-publica">
 <main class="login-card publico-card">
@@ -17,28 +18,39 @@
   <form id="accesoForm">
     <div class="form-group">
       <label for="accNombre">Nombre completo *</label>
-      <input type="text" id="accNombre" maxlength="160" required>
+      <input type="text" id="accNombre" maxlength="160" autocomplete="name" required>
     </div>
     <div class="form-group">
       <label for="accCorreo">Correo electrónico *</label>
-      <input type="email" id="accCorreo" maxlength="160" required>
+      <input type="email" id="accCorreo" name="correo" maxlength="160" autocomplete="email" required aria-describedby="accCorreoEstado">
+      <p class="campo-nota" id="accCorreoEstado" role="status" aria-live="polite"></p>
     </div>
     <div class="form-group">
-      <label for="accRol">Tipo de acceso *</label>
-      <select id="accRol" required>
-        <option value="funcionario">Funcionario municipal</option>
-        <option value="auditor">Auditor</option>
-        <option value="enlace_estatal">Enlace estatal</option>
-        <option value="enlace_federal">Enlace federal</option>
-      </select>
+      <p class="campo-nota">
+        El tipo de acceso lo determina la administración según el territorio que elijas.
+        Si ya tienes una cuenta ciudadana con este correo, la solicitud se vinculará a ella.
+      </p>
     </div>
     <div class="form-group">
-      <label for="accMunicipios">Municipios que necesita</label>
-      <select id="accMunicipios" class="select-multiple" multiple size="6"></select>
+      <label id="accTerritorioLabel">Estado y municipio *</label>
+      <div id="accTerritorio" role="group" aria-labelledby="accTerritorioLabel"></div>
+      <p class="campo-nota">
+        Primero elige el estado; después busca tu municipio. Puedes marcar varios
+        municipios o incluir el estado completo si tu cargo lo requiere.
+      </p>
     </div>
     <div class="form-group">
       <label for="accJustificacion">Justificación</label>
       <textarea id="accJustificacion" rows="4" maxlength="2000" placeholder="Dependencia, cargo y motivo del acceso"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="accDocumentos">Documentos de respaldo</label>
+      <input type="file" id="accDocumentos" name="documentos" multiple
+             accept="application/pdf,image/png,image/jpeg">
+      <p class="campo-nota">
+        Hasta 3 archivos de 10 MB. Adjunta identificación, nombramiento o
+        comprobante de la dependencia.
+      </p>
     </div>
     <button type="submit" class="btn btn-primary btn-block">Enviar solicitud</button>
   </form>

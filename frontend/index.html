@@ -15,6 +15,7 @@
 <!-- Estilos propios que no salen del monolito: el extractor no toca este archivo. -->
 <link rel="stylesheet" href="css/extensiones.css">
 <link rel="stylesheet" href="css/publicidad-estudio.css">
+<link rel="stylesheet" href="css/legibilidad.css">
 </head>
 <body>
 
@@ -75,25 +76,34 @@
         </p>
       </div>
 
-      <!-- Paso 2: entrar con nombre o pseudónimo y contraseña -->
+      <!-- Paso 2: entrar con nombre, pseudónimo o correo -->
       <div id="anonLogin" hidden>
         <form data-submit="auth:entrarCiudadano">
           <div class="form-group">
-            <label for="ciud-nombre">Nombre o pseudónimo</label>
-            <input type="text" id="ciud-nombre" name="nombre" placeholder="Como apareces en tus reportes"
-                   autocomplete="username" maxlength="80" required aria-describedby="ciudNombreNota">
+            <label for="ciud-nombre">Nombre, pseudónimo o correo</label>
+            <input type="text" id="ciud-nombre" name="identificador" autocomplete="username" placeholder="Tu nombre, pseudónimo o correo"
+                   maxlength="160" required aria-describedby="ciudNombreNota">
             <p class="campo-nota" id="ciudNombreNota">
-              Es el nombre o pseudónimo con el que creaste la cuenta. No distingue mayúsculas ni acentos.
+              Es el nombre o pseudónimo con el que creaste la cuenta, o el correo que registraste.
+              No distingue mayúsculas ni acentos.
             </p>
           </div>
           <div class="form-group">
             <label for="ciud-pass">Contraseña</label>
             <input type="password" id="ciud-pass" name="password" placeholder="••••••••" autocomplete="current-password" required>
           </div>
+          <label class="check-line">
+            <input type="checkbox" id="ciud-recordar">
+            <span>Recordar mi usuario en este dispositivo</span>
+          </label>
           <button class="btn btn-primary btn-block" type="submit" id="ciudBtnEntrar">
             <i class="bi bi-box-arrow-in-right"></i> Entrar a mi cuenta
           </button>
         </form>
+        <p class="campo-nota u-mt-8 u-centro">
+          <a href="/cuenta">¿Olvidaste tu contraseña?</a> ·
+          <a href="/cuenta?reenviar=1">¿No confirmaste tu correo?</a>
+        </p>
         <button class="btn btn-outline btn-block btn-sm u-mt-10" data-action="auth:modoAnon" data-valor="registro">
           <i class="bi bi-person-plus-fill"></i> Aún no tengo cuenta
         </button>
@@ -108,8 +118,8 @@
           <div class="form-group">
             <div id="regNombreCampo">
               <label for="reg-nombre">Nombre o pseudónimo *</label>
-              <input type="text" id="reg-nombre" name="nombre" maxlength="80" placeholder="Ej. María Ramírez"
-                     autocomplete="nickname" required aria-describedby="regNombreNota">
+              <input type="text" id="reg-nombre" name="nombre" maxlength="80" autocomplete="username" placeholder="Ej. María Ramírez"
+                     required aria-describedby="regNombreNota">
             </div>
             <label class="check-line u-mt-8">
               <input type="checkbox" id="reg-pseudonimo" data-change="auth:pseudonimo">
@@ -120,16 +130,29 @@
             </p>
           </div>
           <div class="form-group">
-            <label for="reg-correo">Correo para avisos *</label>
-            <input type="email" id="reg-correo" name="correo" placeholder="tu@correo.mx" autocomplete="email" required aria-describedby="regCorreoNota">
+            <label for="reg-correo">Correo de la cuenta *</label>
+            <input type="email" id="reg-correo" name="correo" placeholder="tu@correo.mx" autocomplete="email" required aria-describedby="regCorreoNota regCorreoEstado">
             <p class="campo-nota" id="regCorreoNota">
-              Solo una cuenta puede usar cada correo: es el canal de avisos. No es tu nombre de acceso.
+              Solo una cuenta puede usar cada correo. También puedes entrar con él y es el canal para recuperar la contraseña.
             </p>
+            <p class="campo-nota" id="regCorreoEstado" role="status" aria-live="polite"></p>
           </div>
           <div class="form-group">
             <label for="reg-pass">Contraseña *</label>
             <input type="password" id="reg-pass" name="password" placeholder="Al menos 8 caracteres" autocomplete="new-password" minlength="8" required aria-describedby="regPassNota">
             <p class="campo-nota" id="regPassNota">Mínimo 8 caracteres.</p>
+          </div>
+          <div class="panel-blanco u-mb-10" id="regTerminosBox">
+            <label class="check-line">
+              <input type="checkbox" id="reg-acepta" required>
+              <span>He leído y acepto los <strong>términos y condiciones</strong> y el <strong>aviso de privacidad</strong>.</span>
+            </label>
+            <button type="button" class="btn btn-outline btn-sm u-mt-6" data-action="avisoLegal:abrir" data-valor="terminos">
+              <i class="bi bi-file-earmark-text"></i> Leer términos y privacidad
+            </button>
+            <p class="campo-nota">
+              Aceptar es un requisito para crear la cuenta; se registra al terminar el alta.
+            </p>
           </div>
           <button class="btn btn-primary btn-block" type="submit" id="regBtnCrear">
             <i class="bi bi-person-plus-fill"></i> Crear mi cuenta
@@ -316,7 +339,7 @@
         administrador maestro puede consultar todas.
       </p>
       <div class="u-fila-sep u-mb-10">
-        <input type="text" id="tutorialesBuscar" class="filter-input u-flex-1" placeholder="Buscar tutorial…" data-submit="tutorial:buscar">
+        <input type="text" id="tutorialesBuscar" class="filter-input u-flex-1" autocomplete="off" placeholder="Buscar tutorial…" data-submit="tutorial:buscar">
         <button class="btn btn-primary btn-sm" data-action="tutorial:buscar">
           <i class="bi bi-search"></i> Buscar
         </button>
@@ -414,16 +437,22 @@
 
     <div class="notif-panel" id="notifPanel">
       <div class="notif-header">
-        <span>Notificaciones</span>
-        <button class="notif-btn u-oculto" id="btn-notif-config" data-action="notificaciones:configurar" title="Configurar notificaciones" aria-label="Configurar notificaciones">
-          <i class="bi bi-gear-fill"></i>
+        <button type="button" class="btn btn-sm btn-outline u-oculto" id="btn-notif-config"
+                data-action="notificaciones:configurar"
+                title="Preferencias de notificaciones"
+                aria-label="Preferencias de notificaciones">
+          <i class="bi bi-gear-fill"></i> Preferencias
         </button>
-        <button class="btn btn-sm btn-outline" data-action="notificaciones:marcarTodas">Marcar leídas</button>
-        <button class="btn btn-sm btn-outline" data-action="notificaciones:historial" title="Ver historial">
+        <button type="button" class="btn btn-sm btn-outline" data-action="notificaciones:marcarTodas">
+          Marcar leídas
+        </button>
+        <button type="button" class="btn btn-sm btn-outline" data-action="notificaciones:historial"
+                title="Ver historial">
           <i class="bi bi-clock-history"></i> Historial
         </button>
-        <button class="btn btn-sm btn-outline" data-action="notificaciones:archivarTodas" title="Archivar todas">
-          <i class="bi bi-archive"></i>
+        <button type="button" class="btn btn-sm btn-outline" data-action="notificaciones:archivarTodas"
+                title="Archivar todas" aria-label="Archivar todas">
+          <i class="bi bi-archive"></i> Archivar
         </button>
       </div>
       <div id="notifList"></div>
@@ -442,6 +471,15 @@
         <div class="legend-item"><div class="legend-color leyenda-usuario"></div> Tu ubicación</div>
         <div class="leg-title u-mt-12">Comunidades (localidades del INEGI)</div>
         <div id="legendZonas"></div>
+        <div class="leg-title u-mt-12">Semáforo de vialidades</div>
+        <button type="button" class="btn btn-sm btn-outline u-ancho-100" id="btnVialidades"
+                data-action="mapa:vialidades" aria-pressed="false">
+          <i class="bi bi-signpost-split" aria-hidden="true"></i>
+          <span id="btnVialidadesTexto">Mostrar semáforo vial</span>
+        </button>
+        <div id="legendVialidades" class="u-mt-6">
+          <div class="u-fs-11px u-suave">Colores sobre la red vial real: verde, amarillo, naranja, rojo y negro.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -471,15 +509,18 @@
         <nav class="sidebar-accesos" aria-label="Accesos y ayuda">
           <div class="sidebar-grupo">
             <h3><i class="bi bi-person-check-fill"></i> Mi actividad</h3>
+            <button type="button" class="link-terminos" data-action="perfil:abrir" id="linkMiCuenta">
+              <i class="bi bi-person-gear"></i> Mi cuenta y mis datos
+            </button>
             <button type="button" class="link-terminos" data-action="folios:abrir">
               <i class="bi bi-search"></i> Mis folios y trámites
             </button>
             <button type="button" class="link-terminos" data-action="ticketsModal:abrir" id="linkTickets">
               <i class="bi bi-life-preserver"></i> Tickets de soporte
             </button>
-            <a class="link-terminos" href="/soporte" id="linkSoporte" hidden>
-              <i class="bi bi-tools"></i> Panel de soporte técnico
-            </a>
+            <button type="button" class="link-terminos" data-action="ticketsModal:abrirAtencion" id="linkSoporte" hidden>
+              <i class="bi bi-tools"></i> Bandeja de soporte técnico
+            </button>
           </div>
 
           <div class="sidebar-grupo">
@@ -516,7 +557,7 @@
         <div class="sidebar-filtros">
           <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
           <div class="filters">
-            <input type="text" class="filter-input" id="filterText" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
+            <input type="text" class="filter-input" id="filterText" autocomplete="off" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
             <div class="filter-row">
               <select class="filter-select" id="filterEstado" data-change="lista:filtrar">
                 <option value="todos">Todos los estados</option>
@@ -584,6 +625,9 @@
         <button class="fab" data-action="mapa:zonas" title="Mostrar/ocultar zonas">
           <i class="bi bi-bounding-box-circles"></i>
         </button>
+        <button class="fab" data-action="mapa:offlineDescargar" id="fabMapaOffline" title="Descargar el mapa de mi municipio">
+          <i class="bi bi-cloud-download"></i>
+        </button>
       </div>
     </div>
   </div>
@@ -639,31 +683,31 @@
           <div id="viaBox" class="u-oculto">
           <div class="form-group">
             <label for="incViaNombre">Nombre de la carretera, autopista o camino *</label>
-            <input type="text" id="incViaNombre" maxlength="160" placeholder="Ej. Carretera Morelia–Salamanca">
+            <input type="text" id="incViaNombre" maxlength="160" autocomplete="off" placeholder="Ej. Carretera Morelia–Salamanca">
           </div>
           <div class="filter-row">
             <div class="form-group">
               <label for="incViaClave">Clave / número</label>
-              <input type="text" id="incViaClave" maxlength="40" placeholder="Ej. MEX-43">
+              <input type="text" id="incViaClave" maxlength="40" autocomplete="off" placeholder="Ej. MEX-43">
             </div>
             <div class="form-group">
               <label for="incKilometro">Kilómetro</label>
-              <input type="number" id="incKilometro" min="0" step="0.1" placeholder="Ej. 42.5">
+              <input type="number" id="incKilometro" min="0" step="0.1" autocomplete="off" placeholder="Ej. 42.5">
             </div>
           </div>
           <div class="filter-row">
             <div class="form-group">
               <label for="incSentido">Sentido / carril</label>
-              <input type="text" id="incSentido" maxlength="40" placeholder="Ej. hacia Morelia">
+              <input type="text" id="incSentido" maxlength="40" autocomplete="off" placeholder="Ej. hacia Morelia">
             </div>
             <div class="form-group">
               <label for="incTramo">Tramo</label>
-              <input type="text" id="incTramo" maxlength="160" placeholder="Ej. km 40–45">
+              <input type="text" id="incTramo" maxlength="160" autocomplete="off" placeholder="Ej. km 40–45">
             </div>
           </div>
           <div class="form-group">
             <label for="incDependencia">Dependencia responsable</label>
-            <input type="text" id="incDependencia" maxlength="160" placeholder="Ej. SCT, Junta de Caminos, concesionaria">
+            <input type="text" id="incDependencia" maxlength="160" autocomplete="off" placeholder="Ej. SCT, Junta de Caminos, concesionaria">
           </div>
         </div>
         </details>
@@ -706,7 +750,7 @@
 
         <div class="form-group">
           <label for="incTitulo">Título breve *</label>
-          <input type="text" id="incTitulo" maxlength="80" placeholder="Ej. Bache grande en Av. Juárez">
+          <input type="text" id="incTitulo" maxlength="80" autocomplete="off" placeholder="Ej. Bache grande en Av. Juárez">
         </div>
 
         <div class="form-group">
@@ -743,7 +787,7 @@
             <span class="chip-zona u-oculto" id="incZonaBadge"></span>
           </div>
           <div class="loc-status u-oculto" id="locStatus"></div>
-          <input class="campo-linea u-mt-8" type="text" id="incCoordsTexto" placeholder="O pega coordenadas (lat, lng)" data-change="incidencias:coords">
+          <input class="campo-linea u-mt-8" type="text" id="incCoordsTexto" autocomplete="off" placeholder="O pega coordenadas (lat, lng)" data-change="incidencias:coords">
         </div>
 
         <div class="form-group">
@@ -839,7 +883,7 @@
         </div>
         <div class="form-group">
           <label for="conAsunto">Asunto *</label>
-          <input type="text" id="conAsunto" maxlength="160" placeholder="Ej. Luminaria apagada en la plaza">
+          <input type="text" id="conAsunto" maxlength="160" autocomplete="off" placeholder="Ej. Luminaria apagada en la plaza">
         </div>
         <div class="form-group">
           <label for="conMensaje">Mensaje *</label>
@@ -902,11 +946,11 @@
         <div class="filter-row">
           <div class="form-group">
             <label for="sugFolioConsulta">Folio</label>
-            <input type="text" id="sugFolioConsulta" maxlength="24" placeholder="SUG-20261022-ABC12">
+            <input type="text" id="sugFolioConsulta" maxlength="24" autocomplete="off" placeholder="SUG-20261022-ABC12">
           </div>
           <div class="form-group">
             <label for="sugCorreoConsulta">Correo (si lo dejaste)</label>
-            <input type="email" id="sugCorreoConsulta" maxlength="160" placeholder="tu@correo.mx">
+            <input type="email" id="sugCorreoConsulta" maxlength="160" autocomplete="email" placeholder="tu@correo.mx">
           </div>
         </div>
         <button class="btn btn-outline" type="submit"><i class="bi bi-search"></i> Consultar</button>
@@ -927,6 +971,11 @@
   <div class="modal-box lg u-max-1000">
     <div class="modal-head">
       <h3><i class="bi bi-chat-left-text-fill"></i> Bandeja del personal</h3>
+      <div class="bandeja-texto-controles" role="group" aria-label="Tamaño del texto de la bandeja">
+        <button type="button" class="btn btn-sm btn-outline" data-action="accesibilidad:textoMenos" title="Texto más pequeño" aria-label="Texto más pequeño">A−</button>
+        <button type="button" class="btn btn-sm btn-outline" data-action="accesibilidad:textoRestablecer" title="Tamaño normal" aria-label="Tamaño normal">A</button>
+        <button type="button" class="btn btn-sm btn-outline" data-action="accesibilidad:textoMas" title="Texto más grande" aria-label="Texto más grande">A+</button>
+      </div>
       <button class="modal-close" data-action="modal:cerrar" data-valor="modalBandeja">&times;</button>
     </div>
     <div class="modal-body">
@@ -934,6 +983,7 @@
         <button type="button" class="login-tab active" data-action="bandeja:tab" data-valor="mensajes">Mensajes</button>
         <button type="button" class="login-tab" data-action="bandeja:tab" data-valor="contacto">Contacto</button>
         <button type="button" class="login-tab" data-action="bandeja:tab" data-valor="directos">Contactos directos</button>
+        <button type="button" class="login-tab" data-action="bandeja:tab" data-valor="bloqueados">Bloqueados</button>
         <button type="button" class="login-tab" data-action="bandeja:tab" data-valor="sugerencias">Sugerencias</button>
       </div>
 
@@ -968,6 +1018,200 @@
       <div id="bandejaSugerencias" class="bandeja-panel u-oculto">
         <div id="bandejaSugerenciasLista"></div>
       </div>
+
+      <div id="bandejaBloqueados" class="bandeja-panel u-oculto">
+        <p class="campo-nota u-mb-10">
+          Al bloquear a una persona dejas de recibir sus mensajes y tampoco podrás
+          escribirle. Puedes desbloquearla cuando quieras; nadie recibe un aviso.
+        </p>
+        <div id="bandejaBloqueadosLista"></div>
+      </div>
+    </div>
+    <div class="modal-foot u-oculto" id="bandejaPie"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalVisorAdjunto">
+  <div class="modal-box lg u-max-900">
+    <div class="modal-head">
+      <h3><i class="bi bi-paperclip"></i> <span id="visorAdjuntoNombre">Archivo adjunto</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalVisorAdjunto">&times;</button>
+    </div>
+    <div class="modal-body" id="visorAdjuntoCuerpo"></div>
+    <div class="modal-foot">
+      <a class="btn btn-outline" id="visorAdjuntoDescargar" href="#" target="_blank" rel="noopener">
+        <i class="bi bi-download"></i> Abrir en otra pestaña
+      </a>
+      <button class="btn btn-primary" data-action="modal:cerrar" data-valor="modalVisorAdjunto">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalReporteConversacion">
+  <div class="modal-box lg u-max-820">
+    <div class="modal-head">
+      <h3><i class="bi bi-flag-fill"></i> Reportar esta conversación</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalReporteConversacion">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reporteConvCanal">
+      <input type="hidden" id="reporteConvId">
+      <p class="u-lh-15">
+        Puedes adjuntar al reporte los <strong>últimos 5 mensajes de cada persona</strong>,
+        incluidos los documentos e imágenes, para que la moderación pueda revisarlo.
+      </p>
+      <label class="check-line">
+        <input type="checkbox" id="reporteConvIncluirMensajes" checked data-change="reporteConv:incluirMensajes">
+        <span>Adjuntar los últimos mensajes de la conversación</span>
+      </label>
+      <p class="campo-nota" id="reporteConvAvisoMensajes">
+        Si no los adjuntas, la moderación solo verá tu descripción y puede no aplicar medidas.
+        La descripción del reporte siempre es obligatoria.
+      </p>
+      <p class="campo-nota" id="reporteConvResumen"></p>
+      <div class="filter-row">
+        <div class="form-group">
+          <label for="reporteConvMotivo">Motivo *</label>
+          <select id="reporteConvMotivo"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="reporteConvDetalle">Descripción de lo ocurrido *</label>
+        <textarea id="reporteConvDetalle" rows="3" maxlength="600" placeholder="Cuenta qué pasó y por qué quieres reportar la conversación"></textarea>
+      </div>
+      <h4 class="titulo-seccion u-mb-8" id="reporteConvMensajesTitulo">Mensajes que se adjuntarán</h4>
+      <div class="bandeja-reporte-mensajes" id="reporteConvMensajes"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalReporteConversacion">Cancelar</button>
+      <button class="btn btn-danger" data-action="bandeja:enviarReporte">
+        <i class="bi bi-flag-fill"></i> Enviar reporte
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalReporteResolver">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-shield-fill-check"></i> Resolver reporte de conversación</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalReporteResolver">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reporteResolverId">
+      <input type="hidden" id="reporteResolverObjetivo">
+      <p class="campo-nota" id="reporteResolverResumen"></p>
+      <div class="form-group">
+        <label for="reporteResolverAccion">Medida *</label>
+        <select id="reporteResolverAccion" data-change="reporteConv:accion">
+          <option value="suspender_mensajes">Restringir el envío de mensajes</option>
+          <option value="suspender_cuenta">Suspender la cuenta</option>
+          <option value="baja_cuenta">Dar de baja la cuenta</option>
+          <option value="descartar">Descartar el reporte</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="reporteResolverMotivo">Resolución *</label>
+        <textarea id="reporteResolverMotivo" rows="3" maxlength="600" placeholder="Explica la decisión; se avisará a las dos partes"></textarea>
+      </div>
+      <div class="form-group" id="reporteResolverFechaBox">
+        <label for="reporteResolverHasta">Fin de la medida (opcional)</label>
+        <input type="date" id="reporteResolverHasta">
+        <p class="campo-nota">Vacío significa sin fecha de fin hasta que se revierta.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalReporteResolver">Cancelar</button>
+      <button class="btn btn-danger" data-action="reporteConv:confirmar">
+        <i class="bi bi-check2-circle"></i> Aplicar medida
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalConversacionReporte">
+  <div class="modal-box lg u-max-820">
+    <div class="modal-head">
+      <h3><i class="bi bi-chat-left-quote-fill"></i> Conversación reportada</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalConversacionReporte">&times;</button>
+    </div>
+    <div class="modal-body" id="conversacionReporteCuerpo"></div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalConversacionReporte">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalReclamacion">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-megaphone-fill"></i> Reclamar la solución</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalReclamacion">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reclamacionIncidencia">
+      <p class="campo-nota" id="reclamacionResumen"></p>
+      <div class="form-group">
+        <label for="reclamacionMotivo">Motivo *</label>
+        <select id="reclamacionMotivo">
+          <option value="no_resuelta">La incidencia no quedó resuelta</option>
+          <option value="solucion_incompleta">La solución fue incompleta</option>
+          <option value="danos_no_reparados">Los daños siguen sin repararse</option>
+          <option value="otro">Otro motivo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="reclamacionDetalle">Explica qué falta *</label>
+        <textarea id="reclamacionDetalle" rows="4" maxlength="600" placeholder="Cuenta qué sigue pendiente y por qué consideras que no se resolvió"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalReclamacion">Cancelar</button>
+      <button class="btn btn-primary" data-action="reclamacion:enviar">
+        <i class="bi bi-send-fill"></i> Enviar reclamación
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalReclamacionResolver">
+  <div class="modal-box lg u-max-720">
+    <div class="modal-head">
+      <h3><i class="bi bi-megaphone-fill"></i> Reclamación</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalReclamacionResolver">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="reclamacionResolverId">
+      <div id="reclamacionResolverDetalle"></div>
+      <div id="reclamacionResolverAcciones" class="u-oculto">
+        <div class="form-group">
+          <label for="reclamacionDecision">Decisión *</label>
+          <select id="reclamacionDecision">
+            <option value="mantener">Mantener la incidencia resuelta</option>
+            <option value="revertir">Aceptar la reclamación y reabrir la incidencia</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="reclamacionRespuesta">Respuesta para las partes *</label>
+          <textarea id="reclamacionRespuesta" rows="3" maxlength="600" placeholder="Explica la decisión"></textarea>
+        </div>
+        <div class="form-group" id="reclamacionDelegarBox">
+          <label for="reclamacionDelegado">Delegar la decisión final (usuario del funcionario)</label>
+          <input type="text" id="reclamacionDelegado" maxlength="120" placeholder="Ej. jlopez">
+          <button class="btn btn-outline btn-sm u-mt-6" data-action="reclamacion:delegar">
+            <i class="bi bi-person-check"></i> Delegar
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="reclamacion:informe">
+        <i class="bi bi-filetype-pdf"></i> Informe preliminar
+      </button>
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalReclamacionResolver">Cerrar</button>
+      <button class="btn btn-primary" data-action="reclamacion:confirmar">
+        <i class="bi bi-check2-circle"></i> Guardar decisión
+      </button>
     </div>
   </div>
 </div>
@@ -1104,8 +1348,11 @@
       <div class="admin-tabs">
         <button class="admin-tab active" data-action="admin:tab" data-valor="stats" data-permiso="ver_metricas"><i class="bi bi-bar-chart-fill"></i> Estadísticas</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="incidencias" data-permiso="ver_incidencias_panel"><i class="bi bi-list-ul"></i> Incidencias</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="reparaciones" data-permiso="ver_reparaciones_panel"><i class="bi bi-tools"></i> Reparaciones</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="tipos" data-permiso="ver_tipos"><i class="bi bi-tags-fill"></i> Tipos</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="municipios" data-permiso="ver_municipios_panel"><i class="bi bi-geo-fill"></i> Municipios</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="mapas" data-permiso="ver_municipios_panel"><i class="bi bi-cloud-arrow-down-fill"></i> Mapas sin conexión</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="vialidades" data-permiso="gestionar_vialidades"><i class="bi bi-signpost-split-fill"></i> Vialidades</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="claves" id="tabClaves" data-permiso="ver_claves"><i class="bi bi-key-fill"></i> Claves de acceso</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="avisos-clave" id="tabAvisosClave" data-permiso="ver_avisos_clave"><i class="bi bi-bell-fill"></i> Avisos por clave</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="zonas" data-permiso="ver_zonas"><i class="bi bi-bounding-box-circles"></i> Zonas</button>
@@ -1116,10 +1363,14 @@
         <button class="admin-tab" data-action="admin:tab" data-valor="auditoria" data-permiso="ver_auditoria"><i class="bi bi-journal-text"></i> Auditoría</button>
         <button class="admin-tab" id="tabNotificaciones" data-action="admin:tab" data-valor="notificaciones" data-permiso="configurar_notificaciones"><i class="bi bi-bell-fill"></i> Notificaciones</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="moderacion" data-permiso="ver_moderacion"><i class="bi bi-shield-fill-check"></i> Moderación</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="reportes-conversacion" data-permiso="ver_moderacion"><i class="bi bi-flag-fill"></i> Conversaciones</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="reclamaciones" data-permiso="gestionar_reclamaciones"><i class="bi bi-megaphone-fill"></i> Reclamaciones</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="archivo" data-permiso="ver_incidencias_panel"><i class="bi bi-archive-fill"></i> Archivo</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="firmas" id="tabFirmas" data-permiso="ver_firmas"><i class="bi bi-pen-fill"></i> Firmas</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes-informe" id="tabSolicitudesInforme" data-permiso="gestionar_solicitudes_informe"><i class="bi bi-file-earmark-bar-graph-fill"></i> Solicitudes de informe</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="legal" id="tabLegal" data-permiso="gestionar_legal"><i class="bi bi-file-earmark-text-fill"></i> Legal</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="configuracion" id="tabConfiguracion" data-permiso="gestionar_configuracion"><i class="bi bi-sliders"></i> Configuración</button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="verificacion" id="tabVerificacion" data-permiso="gestionar_verificacion_cuentas"><i class="bi bi-shield-lock-fill"></i> Acceso y verificación</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="respaldos" id="tabRespaldos" data-permiso="gestionar_respaldos"><i class="bi bi-hdd-stack-fill"></i> Respaldos</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="simulador" id="tabSimulador" data-permiso="usar_simulador"><i class="bi bi-robot"></i> Simulador</button>
         <button class="admin-tab" data-action="admin:tab" data-valor="publicidad" id="tabPublicidad" data-permiso="gestionar_publicidad"><i class="bi bi-megaphone-fill"></i> Publicidad y campañas</button>
@@ -1171,7 +1422,7 @@
       <div class="admin-panel" id="panel-incidencias">
         <div id="peligrosasDestacadas"></div>
         <div class="u-fila-env u-mb-10">
-          <input type="text" class="filter-input u-max-280" id="adminBuscar" placeholder="Buscar…" data-input="admin:buscar">
+          <input type="text" class="filter-input u-max-280" id="adminBuscar" autocomplete="off" placeholder="Buscar…" data-input="admin:buscar">
           <button class="btn btn-outline btn-sm" data-action="admin:soloPeligrosas" id="btn-solo-peligrosas">
             <i class="bi bi-exclamation-triangle-fill"></i> Solo peligrosas
           </button>
@@ -1189,6 +1440,39 @@
             <tbody id="adminIncidenciasBody"></tbody>
           </table>
         </div>
+      </div>
+
+      <div class="admin-panel" id="panel-reparaciones">
+        <div class="panel-blanco u-mb-10">
+          <h4 class="titulo-seccion u-mb-8"><i class="bi bi-tools"></i> Reparaciones de campo</h4>
+          <p class="campo-nota u-mb-10">
+            Asigna una cuadrilla, sigue el inicio y fin del trabajo, revisa los documentos
+            oficiales del costo y valida la reparación antes de resolver la incidencia.
+          </p>
+          <div class="filter-row">
+            <div class="form-group">
+              <label for="repFiltroEstado">Estado</label>
+              <select id="repFiltroEstado">
+                <option value="todos">Todos</option>
+                <option value="sin_asignar">Sin asignar</option>
+                <option value="asignada">Asignadas</option>
+                <option value="en_reparacion">En reparación</option>
+                <option value="terminada">Terminadas</option>
+                <option value="validada">Validadas</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="repFiltroTexto">Buscar</label>
+              <input type="text" id="repFiltroTexto" autocomplete="off" placeholder="Título o descripción">
+            </div>
+            <div class="form-group u-flex-end">
+              <button type="button" class="btn btn-outline btn-sm" data-action="reparaciones:recargar">
+                <i class="bi bi-arrow-clockwise"></i> Actualizar
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="reparacionesLista"></div>
       </div>
 
       <div class="admin-panel" id="panel-tipos">
@@ -1212,12 +1496,30 @@
           <button class="btn btn-primary btn-sm" data-action="admin:cambiarMunicipio">
             <i class="bi bi-arrow-repeat"></i> Cambiar municipio
           </button>
+          <div class="mapa-offline-box" id="mapaOfflineBox">
+            <h5 class="mapa-offline-titulo"><i class="bi bi-cloud-download"></i> Mapa sin conexión</h5>
+            <p class="campo-nota" id="mapaOfflineEstado">Comprueba si el mapa de este municipio está descargado.</p>
+            <div class="u-fila-env">
+              <button class="btn btn-outline btn-sm" data-action="mapa:offlineDescargar">
+                <i class="bi bi-download"></i> Descargar mapa
+              </button>
+              <button class="btn btn-outline btn-sm u-oculto" id="mapaOfflineBorrar" data-action="mapa:offlineBorrar">
+                <i class="bi bi-trash3"></i> Borrar mapa
+              </button>
+              <button class="btn btn-outline btn-sm u-oculto" id="mapaOfflineCancelar" data-action="mapa:offlineCancelar">
+                <i class="bi bi-x-circle"></i> Cancelar
+              </button>
+            </div>
+            <progress id="mapaOfflineProgreso" class="mapa-offline-progreso u-oculto" max="100" value="0"></progress>
+            <p class="campo-nota u-mt-6" id="mapaOfflineCuota"></p>
+            <p class="campo-nota">Se guarda solo este municipio, hasta 20 MB; si añades otros se borra el que lleve más tiempo sin usarse.</p>
+          </div>
         </div>
         <div class="panel-blanco u-mb-10" id="municipiosFiltroBox">
           <div class="filter-row">
             <div class="form-group">
               <label for="municipiosBuscar">Buscar municipio</label>
-              <input type="text" id="municipiosBuscar" placeholder="Escribe el nombre…" data-input="admin:filtroMunicipios">
+              <input type="text" id="municipiosBuscar" autocomplete="off" placeholder="Escribe el nombre…" data-input="admin:filtroMunicipios">
             </div>
             <div class="form-group">
               <label for="municipiosEstado">Estado</label>
@@ -1235,6 +1537,144 @@
         <div id="municipiosLista"></div>
       </div>
 
+      <div class="admin-panel" id="panel-mapas">
+        <div class="panel-blanco u-mb-12">
+          <h4 class="titulo-seccion u-mb-10">
+            <i class="bi bi-cloud-arrow-down-fill"></i> Mapas guardados en este dispositivo
+          </h4>
+          <p class="campo-nota" id="mapasResumen">Cargando mapas descargados…</p>
+          <div class="filter-row">
+            <div class="form-group">
+              <label for="mapaNuevoMunicipio">Municipio para descargar</label>
+              <select id="mapaNuevoMunicipio" class="filter-select"></select>
+            </div>
+          </div>
+          <div class="u-fila-env">
+            <button class="btn btn-primary btn-sm" data-action="mapas:descargar">
+              <i class="bi bi-download"></i> Descargar mapa
+            </button>
+            <button class="btn btn-outline btn-sm" data-action="mapas:recargar">
+              <i class="bi bi-arrow-clockwise"></i> Actualizar lista
+            </button>
+            <button class="btn btn-danger btn-sm" data-action="mapas:borrarTodo">
+              <i class="bi bi-trash3"></i> Borrar todos
+            </button>
+          </div>
+          <progress id="mapasProgreso" class="mapa-offline-progreso u-oculto" max="100" value="0"></progress>
+          <div class="u-fila-env u-mt-6">
+            <button class="btn btn-outline btn-sm u-oculto" id="mapasCancelar" data-action="mapas:cancelar">
+              <i class="bi bi-x-circle"></i> Cancelar descarga
+            </button>
+          </div>
+          <p class="campo-nota u-mt-6" id="mapasEstado"></p>
+          <p class="campo-nota">
+            Cada mapa se guarda en este navegador (máximo 20 MB por municipio y tres municipios).
+            «Actualizar» vuelve a descargarlo y «Borrar» lo quita del dispositivo; el mapa del
+            servidor no se modifica.
+          </p>
+        </div>
+        <div class="panel-blanco">
+          <div id="mapasLista"></div>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="panel-vialidades">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Administra la red vial real como polígonos de calzada. El semáforo de colores se pinta
+          sobre las calles, caminos, carreteras y autopistas; el ancho permite generar el polígono
+          cuando la fuente solo trae el eje. Verifica cada tramo para saber si sus datos siguen
+          vigentes. Puedes capturar el enlace de Google Maps, importar KML/GeoJSON o cargar la red
+          real de OpenStreetMap.
+        </p>
+        <details class="panel-blanco u-mb-12">
+          <summary><strong><i class="bi bi-question-circle"></i> Cómo usar Google Maps, OSM y los datos locales</strong></summary>
+          <p class="campo-nota u-mt-6">
+            En Google Maps copia el enlace de la vía en el campo <em>Enlace de Google Maps</em>.
+            Para el trazado completo, abre Google My Maps, exporta la capa como <strong>KML</strong>
+            o usa un GeoJSON local y súbelo con <em>Importar archivo</em>. Si el archivo trae
+            polígonos, se respetan; si trae solo ejes, se genera el corredor de calzada con el
+            ancho indicado. La importación fusiona por clave/OSM y conserva notas y enlaces
+            manuales; marca «Reemplazar todo» solo si quieres descartar el trazado anterior.
+          </p>
+          <p class="campo-nota">
+            <strong>Semáforo:</strong> verde = buena o sin reportes, amarillo = leve, naranja =
+            regular, rojo = mala y negro = crítica. <strong>Verificada</strong> indica la última
+            revisión humana; <strong>Desactualizada</strong> avisa que pasaron más de 180 días.
+            Los datos de OpenStreetMap se muestran con atribución a sus colaboradores.
+          </p>
+        </details>
+        <div class="filter-row u-mb-8">
+          <div class="form-group">
+            <label for="vialidadesMunicipioFiltro">Municipio</label>
+            <select id="vialidadesMunicipioFiltro" class="filter-select"></select>
+          </div>
+          <div class="form-group">
+            <label for="vialidadesTipoFiltro">Tipo</label>
+            <select id="vialidadesTipoFiltro" class="filter-select">
+              <option value="">Todos</option>
+              <option value="calle">Calles</option>
+              <option value="avenida">Avenidas</option>
+              <option value="camino_rural">Caminos rurales</option>
+              <option value="carretera_estatal">Carreteras estatales</option>
+              <option value="carretera_federal">Carreteras federales</option>
+              <option value="autopista">Autopistas</option>
+              <option value="otra">Otras</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="vialidadesFuenteFiltro">Origen</label>
+            <select id="vialidadesFuenteFiltro" class="filter-select">
+              <option value="">Todos</option>
+              <option value="local">Dato local</option>
+              <option value="google_maps">Google Maps</option>
+              <option value="openstreetmap">OpenStreetMap</option>
+              <option value="geojson">GeoJSON</option>
+              <option value="manual">Captura manual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="vialidadesEstadoFiltro">Estado del dato</label>
+            <select id="vialidadesEstadoFiltro" class="filter-select">
+              <option value="">Todos</option>
+              <option value="desactualizadas">Desactualizadas</option>
+              <option value="sinVerificar">Sin verificar</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="vialidadesTexto">Buscar</label>
+            <input type="text" id="vialidadesTexto" class="filter-input" autocomplete="off" placeholder="Nombre, clave o nota">
+          </div>
+        </div>
+        <div class="u-fila-sep u-mb-10">
+          <div class="u-fila-env">
+            <button class="btn btn-primary btn-sm" data-action="vialidades:filtrar"><i class="bi bi-funnel"></i> Filtrar</button>
+            <button class="btn btn-outline btn-sm" data-action="vialidades:limpiar"><i class="bi bi-eraser"></i> Limpiar</button>
+            <button class="btn btn-outline btn-sm" data-action="vialidades:nueva"><i class="bi bi-plus-lg"></i> Nueva vialidad</button>
+            <button class="btn btn-outline btn-sm" data-action="vialidades:verMapa"><i class="bi bi-map"></i> Ver en el mapa</button>
+          </div>
+        </div>
+        <div class="panel-blanco u-mb-12">
+          <div class="u-fila-env u-mb-6">
+            <label class="campo-nota" for="vialidadesArchivo">Importar KML/GeoJSON</label>
+            <select id="vialidadesImportarFuente" class="filter-select">
+              <option value="google_maps">Google Maps</option>
+              <option value="local">Dato local</option>
+              <option value="geojson">GeoJSON</option>
+            </select>
+            <input type="file" id="vialidadesArchivo" accept=".kml,.json,.geojson,application/json,application/geo+json" data-change="vialidades:archivo">
+            <button class="btn btn-primary btn-sm" data-action="vialidades:importar"><i class="bi bi-upload"></i> Importar archivo</button>
+            <button class="btn btn-outline btn-sm" data-action="vialidades:importarOsm"><i class="bi bi-cloud-download"></i> Cargar red real (OSM)</button>
+          </div>
+          <label class="campo-nota u-fila-env u-mb-6">
+            <input type="checkbox" id="vialidadesReemplazar">
+            Reemplazar todo el trazado del municipio (descarta las vialidades que no vengan en el archivo)
+          </label>
+          <p class="campo-nota" id="vialidadesArchivoNota">Sin archivo seleccionado.</p>
+        </div>
+        <div id="vialidadesResumen" class="campo-nota u-mb-8"></div>
+        <div id="vialidadesLista"></div>
+      </div>
+
       <div class="admin-panel" id="panel-claves">
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Una clave cubre uno o varios estados y municipios, puede tener vigencia y usos limitados,
@@ -1248,7 +1688,11 @@
           <button class="btn btn-outline btn-sm" data-action="claves:recargar">
             <i class="bi bi-arrow-repeat"></i> Actualizar
           </button>
-          <input type="text" id="clavesBuscar" class="filter-input u-max-260" placeholder="Buscar por nombre, estado, municipio o usuario" data-input="claves:filtrar">
+          <input type="text" id="clavesBuscar" class="filter-input u-max-260" autocomplete="off" placeholder="Buscar por nombre, estado, municipio o usuario" data-input="claves:filtrar">
+        </div>
+        <div id="renovacionesClaveBox" class="u-oculto">
+          <h4 class="u-mb-8"><i class="bi bi-arrow-repeat"></i> Solicitudes de renovación de clave</h4>
+          <div id="renovacionesClaveLista"></div>
         </div>
         <div id="clavesLista"></div>
       </div>
@@ -1260,7 +1704,7 @@
           Si no eliges municipios, se usan todos los de la clave.
         </p>
         <div class="u-fila-sep u-mb-10">
-          <input type="text" id="avisosClaveBuscar" class="filter-input u-max-300" placeholder="Buscar clave o territorio" data-input="avisosClave:filtrar">
+          <input type="text" id="avisosClaveBuscar" class="filter-input u-max-300" autocomplete="off" placeholder="Buscar clave o territorio" data-input="avisosClave:filtrar">
           <button class="btn btn-outline btn-sm" data-action="avisosClave:recargar">
             <i class="bi bi-arrow-repeat"></i> Actualizar
           </button>
@@ -1345,6 +1789,56 @@
 
       <!-- Moderación: denuncias por atender, publicaciones ocultas y cuentas
            advertidas o suspendidas. Ver controllers/moderacion.controller.js. -->
+      <div class="admin-panel" id="panel-reclamaciones">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Reclamaciones de personas que consideran que su incidencia no quedó resuelta.
+          El funcionario del municipio y la administración pueden mediar; si se acepta,
+          la incidencia se reabre y ambas partes reciben el informe preliminar.
+        </p>
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="reclamacionesEstado">Estado</label>
+            <select id="reclamacionesEstado" data-change="reclamaciones:filtrar">
+              <option value="pendiente">Pendientes</option>
+              <option value="en_revision">En revisión</option>
+              <option value="resuelta">Aceptadas</option>
+              <option value="rechazada">Rechazadas</option>
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>&nbsp;</label>
+            <button class="btn btn-outline btn-sm" data-action="reclamaciones:recargar">
+              <i class="bi bi-arrow-clockwise"></i> Actualizar
+            </button>
+          </div>
+        </div>
+        <div id="reclamacionesLista"></div>
+      </div>
+
+      <div class="admin-panel" id="panel-archivo">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Incidencias resueltas hace más de un día. Se agrupan por mes y día para consultar el
+          expediente completo con su historial, costo y documentos.
+        </p>
+        <div class="filter-row u-mb-12">
+          <input type="date" id="archivoDesde" aria-label="Archivo desde" autocomplete="off">
+          <input type="date" id="archivoHasta" aria-label="Archivo hasta" autocomplete="off">
+          <input type="text" id="archivoTexto" maxlength="160" placeholder="Folio, título o texto"
+                 aria-label="Buscar en el archivo" autocomplete="off">
+          <button type="button" class="btn btn-primary" data-action="archivo:filtrar">
+            <i class="bi bi-funnel"></i> Filtrar
+          </button>
+          <button type="button" class="btn btn-outline" data-action="archivo:limpiar">
+            <i class="bi bi-eraser"></i> Limpiar
+          </button>
+        </div>
+        <div id="archivoResumen" class="campo-nota u-mb-8"></div>
+        <div id="archivoLista">
+          <div id="archivoCarpetas"></div>
+        </div>
+      </div>
+
       <div class="admin-panel" id="panel-moderacion">
         <p class="u-fs-125px u-gris u-m-0 u-max-720 u-lh-145 u-mb-12">
           Los vecinos pueden <strong>denunciar</strong> publicaciones y comentarios que les parezcan
@@ -1371,6 +1865,16 @@
             <tbody id="sancionesBody"></tbody>
           </table>
         </div>
+      </div>
+
+      <div class="admin-panel" id="panel-reportes-conversacion">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Reportes de conversaciones entre cuentas. Cada reporte incluye copia de los últimos
+          cinco mensajes de cada persona con sus adjuntos. Con <strong>ver moderación</strong> se
+          consulta; con <strong>moderar</strong> se resuelve: restringir mensajes, suspender la
+          cuenta o darla de baja. La suspensión y la baja se pueden revertir.
+        </p>
+        <div id="reportesConvLista"></div>
       </div>
 
       <div class="admin-panel" id="panel-solicitudes">
@@ -1453,12 +1957,22 @@
         </p>
         <div class="filter-row u-mb-8">
           <div class="form-group">
-            <label for="auditoriaUsuario">Usuario</label>
-            <input type="text" id="auditoriaUsuario" class="filter-input" placeholder="Usuario o nombre">
+            <label for="auditoriaUsuario">Autor</label>
+            <input type="text" id="auditoriaUsuario" class="filter-input" autocomplete="off" placeholder="Usuario o nombre">
+          </div>
+          <div class="form-group">
+            <label for="auditoriaMetodo">Tipo de acción</label>
+            <select id="auditoriaMetodo" class="filter-select">
+              <option value="">Todas</option>
+              <option value="POST">Alta (POST)</option>
+              <option value="PUT">Reemplazo (PUT)</option>
+              <option value="PATCH">Cambio (PATCH)</option>
+              <option value="DELETE">Baja (DELETE)</option>
+            </select>
           </div>
           <div class="form-group">
             <label for="auditoriaAccion">Acción o ruta</label>
-            <input type="text" id="auditoriaAccion" class="filter-input" placeholder="Ej. POST /api/admin/claves">
+            <input type="text" id="auditoriaAccion" class="filter-input" autocomplete="off" placeholder="Ej. POST /api/admin/claves">
           </div>
           <div class="form-group">
             <label for="auditoriaDesde">Desde</label>
@@ -1470,16 +1984,50 @@
           </div>
         </div>
         <div class="u-fila-sep u-mb-10">
-          <button class="btn btn-primary btn-sm" data-action="auditoria:filtrar">
-            <i class="bi bi-funnel-fill"></i> Filtrar
-          </button>
-          <button class="btn btn-outline btn-sm" data-action="auditoria:limpiar">
-            <i class="bi bi-eraser"></i> Limpiar
-          </button>
-          <button class="btn btn-outline btn-sm" data-action="auditoria:recargar">
-            <i class="bi bi-arrow-repeat"></i> Actualizar
-          </button>
+          <div class="u-fila-env">
+            <button class="btn btn-primary btn-sm" data-action="auditoria:filtrar">
+              <i class="bi bi-funnel-fill"></i> Filtrar
+            </button>
+            <button class="btn btn-outline btn-sm" data-action="auditoria:limpiar">
+              <i class="bi bi-eraser"></i> Limpiar
+            </button>
+            <button class="btn btn-outline btn-sm" data-action="auditoria:recargar">
+              <i class="bi bi-arrow-repeat"></i> Actualizar
+            </button>
+          </div>
+          <div class="u-fila-env">
+            <button class="btn btn-outline btn-sm" data-action="auditoria:pdf">
+              <i class="bi bi-filetype-pdf"></i> Informe PDF
+            </button>
+            <button class="btn btn-outline btn-sm" data-action="auditoria:csv">
+              <i class="bi bi-filetype-csv"></i> Informe CSV
+            </button>
+          </div>
         </div>
+        <div id="auditoriaResumen" class="campo-nota u-mb-8"></div>
+        <details class="panel-blanco u-mb-12" id="auditoriaEnciclopedia">
+          <summary><strong><i class="bi bi-book"></i> Enciclopedia de la auditoría</strong></summary>
+          <div class="u-scroll-x u-mt-8">
+            <table class="data-table">
+              <thead><tr><th>Sección</th><th>Qué significa</th></tr></thead>
+              <tbody>
+                <tr><td>Fecha</td><td>Momento en que terminó la petición que modificó datos.</td></tr>
+                <tr><td>Actor</td><td>Usuario autenticado (o identidad del intento de acceso) y su rol.</td></tr>
+                <tr><td>Tipo</td><td>Alta (POST), reemplazo (PUT), cambio (PATCH) o baja (DELETE).</td></tr>
+                <tr><td>Acción / ruta</td><td>Método y endpoint ejecutado; el detalle muestra el cuerpo saneado.</td></tr>
+                <tr><td>Entidad</td><td>Recurso afectado y, cuando existe, su identificador.</td></tr>
+                <tr><td>HTTP</td><td>Resultado de la operación; los códigos 2xx se muestran en verde.</td></tr>
+                <tr><td>Clave</td><td>Clave de acceso con la que se abrió la sesión, si aplica.</td></tr>
+                <tr><td>Huella IP</td><td>SHA-256 parcial de la IP; no se guarda la dirección completa.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="campo-nota u-mt-8">
+            La bitácora registra las escrituras del sistema —incluidas las de la simulación— y las
+            consultas de contraseña. Nunca guarda contraseñas, tokens ni claves. Los informes PDF/CSV
+            usan exactamente los filtros activos.
+          </p>
+        </details>
         <div id="auditoriaLista"></div>
       </div>
 
@@ -1509,7 +2057,7 @@
           <button class="btn btn-outline btn-sm" data-action="firmasAdmin:recargar">
             <i class="bi bi-arrow-repeat"></i> Actualizar
           </button>
-          <input type="text" id="firmasAdminTexto" class="filter-input u-max-260" placeholder="Buscar por título, folio o municipio">
+          <input type="text" id="firmasAdminTexto" class="filter-input u-max-260" autocomplete="off" placeholder="Buscar por título, folio o municipio">
           <button class="btn btn-primary btn-sm" data-action="firmasAdmin:buscar">
             <i class="bi bi-search"></i> Buscar
           </button>
@@ -1526,7 +2074,7 @@
           generarlo, enviarlo por correo, rechazarlo o reintentarlo.
         </p>
         <div class="u-fila-sep u-mb-10">
-          <input type="text" id="solicitudesInformeTexto" class="filter-input u-max-260" placeholder="Buscar por folio o correo">
+          <input type="text" id="solicitudesInformeTexto" class="filter-input u-max-260" autocomplete="off" placeholder="Buscar por folio o correo">
           <select id="solicitudesInformeEstado" class="filter-select u-max-200">
             <option value="">Todos los estados</option>
             <option value="pendiente_verificacion">Pendiente de verificar</option>
@@ -1561,7 +2109,7 @@
         <div class="filter-row">
           <div class="form-group">
             <label for="legalTitulo">Título</label>
-            <input type="text" id="legalTitulo" maxlength="160">
+            <input type="text" id="legalTitulo" maxlength="160" autocomplete="off">
           </div>
           <div class="form-group">
             <label>Estado</label>
@@ -1616,6 +2164,19 @@
         </div>
       </div>
 
+      <div class="admin-panel" id="panel-verificacion">
+        <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
+          Define cómo se activan las cuentas y cuánto duran los enlaces de verificación y
+          recuperación. Los cambios se aplican en la siguiente operación, sin reiniciar.
+        </p>
+        <div id="verificacionLista"></div>
+        <div class="u-fila-sep u-mt-10">
+          <button class="btn btn-primary" data-action="verificacion:guardar">
+            <i class="bi bi-check2-circle"></i> Guardar cambios
+          </button>
+        </div>
+      </div>
+
       <div class="admin-panel" id="panel-respaldos">
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Copias de seguridad completas. Puedes crear un respaldo manual, buscarlo por nombre,
@@ -1625,7 +2186,7 @@
         <div class="filter-row u-mb-8">
           <div class="form-group">
             <label for="respaldosTexto">Buscar respaldo</label>
-            <input type="text" id="respaldosTexto" maxlength="160" placeholder="Nombre, archivo o nota">
+            <input type="text" id="respaldosTexto" maxlength="160" autocomplete="off" placeholder="Nombre, archivo o nota">
           </div>
           <div class="form-group">
             <label for="respaldosTipo">Tipo</label>
@@ -1648,7 +2209,7 @@
         <div class="filter-row u-mb-8">
           <div class="form-group">
             <label for="respaldosNombre">Nombre del nuevo respaldo</label>
-            <input type="text" id="respaldosNombre" maxlength="160" placeholder="Ej. Antes de publicar cambios">
+            <input type="text" id="respaldosNombre" maxlength="160" autocomplete="off" placeholder="Ej. Antes de publicar cambios">
           </div>
           <div class="form-group">
             <label class="check-line">
@@ -1687,7 +2248,7 @@
           </div>
           <div class="form-group">
             <label for="simuladorNotas">Nota de la sesión</label>
-            <input type="text" id="simuladorNotas" maxlength="200" placeholder="Ej. Probar flujo de firmas">
+            <input type="text" id="simuladorNotas" maxlength="200" autocomplete="off" placeholder="Ej. Probar flujo de firmas">
           </div>
         </div>
         <div class="u-fila-sep u-mb-10">
@@ -1703,6 +2264,47 @@
         </div>
         <div id="simuladorEstado"></div>
         <div id="simuladorAcciones"></div>
+        <h4 class="titulo-seccion u-mt-12">Simulación de estado de vialidades</h4>
+        <div class="panel-blanco">
+          <p class="campo-nota">
+            Distribuye los tramos del municipio en porcentajes para comparar escenarios sin
+            modificar la condición real. Los porcentajes deben sumar 100%.
+          </p>
+          <div class="sim-vialidades-grid u-mb-8">
+            <div class="form-group">
+              <label for="simViaBueno">Bueno %</label>
+              <input type="number" id="simViaBueno" min="0" max="100" step="0.1" value="20" data-input="simulador:vialidadesTotal">
+            </div>
+            <div class="form-group">
+              <label for="simViaLeve">Leve %</label>
+              <input type="number" id="simViaLeve" min="0" max="100" step="0.1" value="20" data-input="simulador:vialidadesTotal">
+            </div>
+            <div class="form-group">
+              <label for="simViaRegular">Regular %</label>
+              <input type="number" id="simViaRegular" min="0" max="100" step="0.1" value="20" data-input="simulador:vialidadesTotal">
+            </div>
+            <div class="form-group">
+              <label for="simViaMalo">Malo %</label>
+              <input type="number" id="simViaMalo" min="0" max="100" step="0.1" value="20" data-input="simulador:vialidadesTotal">
+            </div>
+            <div class="form-group">
+              <label for="simViaCritico">Crítico %</label>
+              <input type="number" id="simViaCritico" min="0" max="100" step="0.1" value="20" data-input="simulador:vialidadesTotal">
+            </div>
+          </div>
+          <div class="u-fila-sep u-mb-8">
+            <span class="campo-nota" id="simViaTotal">Total: 100%</span>
+            <div class="u-fila-env">
+              <button class="btn btn-primary btn-sm" data-action="simulador:vialidades">
+                <i class="bi bi-palette"></i> Aplicar en el mapa
+              </button>
+              <button class="btn btn-outline btn-sm" data-action="simulador:vialidadesLimpiar">
+                <i class="bi bi-arrow-counterclockwise"></i> Restaurar condición real
+              </button>
+            </div>
+          </div>
+          <div id="simuladorVialidadesResultado" class="campo-nota"></div>
+        </div>
         <h4 class="titulo-seccion u-mt-12">Journal de operaciones</h4>
         <div id="simuladorJournal"></div>
         <h4 class="titulo-seccion u-mt-12">Sesiones recientes</h4>
@@ -1750,7 +2352,7 @@
                 <div class="pe-detalle-cuerpo">
                   <div class="form-group">
                     <label for="publicidadTitulo">Gancho / título <span class="pe-contador" id="publicidadContTitulo">0/160</span></label>
-                    <input type="text" id="publicidadTitulo" maxlength="160" placeholder="Título de la publicación" data-input="publicidad:vivo">
+                    <input type="text" id="publicidadTitulo" maxlength="160" autocomplete="off" placeholder="Título de la publicación" data-input="publicidad:vivo">
                   </div>
                   <div class="form-group">
                     <label for="publicidadTexto">Desarrollo <span class="pe-contador" id="publicidadContTexto">0/1800</span></label>
@@ -1759,11 +2361,11 @@
                   <div class="filter-row u-mb-8">
                     <div class="form-group">
                       <label for="publicidadCta">Llamado a la acción</label>
-                      <input type="text" id="publicidadCta" maxlength="80" placeholder="Ej. Reporta aquí" data-input="publicidad:vivo">
+                      <input type="text" id="publicidadCta" maxlength="80" autocomplete="off" placeholder="Ej. Reporta aquí" data-input="publicidad:vivo">
                     </div>
                     <div class="form-group">
                       <label for="publicidadHashtags">Hashtags</label>
-                      <input type="text" id="publicidadHashtags" maxlength="300" placeholder="#MiMunicipio #Reporta" data-input="publicidad:vivo">
+                      <input type="text" id="publicidadHashtags" maxlength="300" autocomplete="off" placeholder="#MiMunicipio #Reporta" data-input="publicidad:vivo">
                     </div>
                   </div>
                 </div>
@@ -1810,11 +2412,11 @@
                   <div class="filter-row u-mb-8">
                     <div class="form-group">
                       <label for="publicidadKicker">Etiqueta superior</label>
-                      <input type="text" id="publicidadKicker" maxlength="48" placeholder="Ej. NUEVO EN TU MUNICIPIO" data-input="publicidad:vivo">
+                      <input type="text" id="publicidadKicker" maxlength="48" autocomplete="off" placeholder="Ej. NUEVO EN TU MUNICIPIO" data-input="publicidad:vivo">
                     </div>
                     <div class="form-group">
                       <label for="publicidadPie">Texto al pie (vacío = enlace)</label>
-                      <input type="text" id="publicidadPie" maxlength="80" placeholder="incidencias.tu-municipio.mx" data-input="publicidad:vivo">
+                      <input type="text" id="publicidadPie" maxlength="80" autocomplete="off" placeholder="incidencias.tu-municipio.mx" data-input="publicidad:vivo">
                     </div>
                   </div>
                   <div class="pe-paletas" id="publicidadPaletas" aria-label="Paletas rápidas"></div>
@@ -1835,7 +2437,7 @@
                   <div class="pe-grid-qr u-mb-8">
                     <div class="form-group pe-campo-ancho">
                       <label for="publicidadQrContenido">Enlace o texto del QR</label>
-                      <input type="text" id="publicidadQrContenido" maxlength="1500" data-input="publicidad:vivo">
+                      <input type="text" id="publicidadQrContenido" maxlength="1500" autocomplete="off" data-input="publicidad:vivo">
                       <p class="pe-campo-nota">Si lo dejas vacío se usa el enlace del sistema.</p>
                     </div>
                     <div class="form-group">
@@ -1852,7 +2454,7 @@
                     </div>
                     <div class="form-group">
                       <label for="publicidadQrEtiqueta">Etiqueta</label>
-                      <input type="text" id="publicidadQrEtiqueta" maxlength="60" value="Escanea y participa" data-input="publicidad:vivo">
+                      <input type="text" id="publicidadQrEtiqueta" maxlength="60" value="Escanea y participa" autocomplete="off" data-input="publicidad:vivo">
                     </div>
                   </div>
                 </div>
@@ -1986,31 +2588,31 @@
           </div>
           <div class="form-group u-oculto" data-qr-campo="wifi">
             <label for="qrWifiSsid">Red Wi-Fi (SSID)</label>
-            <input type="text" id="qrWifiSsid" maxlength="120" data-input="qr:vivo">
+            <input type="text" id="qrWifiSsid" maxlength="120" autocomplete="off" data-input="qr:vivo">
             <label for="qrWifiPass">Contraseña</label>
-            <input type="text" id="qrWifiPass" maxlength="120" data-input="qr:vivo">
+            <input type="text" id="qrWifiPass" maxlength="120" autocomplete="off" data-input="qr:vivo">
             <label for="qrWifiEnc">Seguridad</label>
             <select id="qrWifiEnc" data-change="qr:vivo"><option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="nopass">Sin contraseña</option></select>
           </div>
           <div class="form-group u-oculto" data-qr-campo="vcard">
-            <label for="qrVcardNombre">Nombre</label><input type="text" id="qrVcardNombre" maxlength="120" data-input="qr:vivo">
-            <label for="qrVcardTel">Teléfono</label><input type="tel" id="qrVcardTel" maxlength="40" data-input="qr:vivo">
-            <label for="qrVcardEmail">Correo</label><input type="email" id="qrVcardEmail" maxlength="120" data-input="qr:vivo">
+            <label for="qrVcardNombre">Nombre</label><input type="text" id="qrVcardNombre" maxlength="120" autocomplete="off" data-input="qr:vivo">
+            <label for="qrVcardTel">Teléfono</label><input type="tel" id="qrVcardTel" maxlength="40" autocomplete="off" data-input="qr:vivo">
+            <label for="qrVcardEmail">Correo</label><input type="email" id="qrVcardEmail" maxlength="120" autocomplete="off" data-input="qr:vivo">
           </div>
           <div class="form-group u-oculto" data-qr-campo="email">
-            <label for="qrEmailTo">Destinatario</label><input type="email" id="qrEmailTo" maxlength="120" data-input="qr:vivo">
-            <label for="qrEmailAsunto">Asunto</label><input type="text" id="qrEmailAsunto" maxlength="160" data-input="qr:vivo">
+            <label for="qrEmailTo">Destinatario</label><input type="email" id="qrEmailTo" maxlength="120" autocomplete="off" data-input="qr:vivo">
+            <label for="qrEmailAsunto">Asunto</label><input type="text" id="qrEmailAsunto" maxlength="160" autocomplete="off" data-input="qr:vivo">
           </div>
           <div class="form-group u-oculto" data-qr-campo="sms whatsapp">
-            <label for="qrTelefono">Teléfono</label><input type="tel" id="qrTelefono" maxlength="40" data-input="qr:vivo" placeholder="5215512345678">
+            <label for="qrTelefono">Teléfono</label><input type="tel" id="qrTelefono" maxlength="40" autocomplete="off" data-input="qr:vivo" placeholder="5215512345678">
             <label for="qrMensaje">Mensaje</label><textarea id="qrMensaje" rows="2" maxlength="500" data-input="qr:vivo"></textarea>
           </div>
           <div class="form-group u-oculto" data-qr-campo="tel">
-            <label for="qrSoloTelefono">Teléfono</label><input type="tel" id="qrSoloTelefono" maxlength="40" data-input="qr:vivo">
+            <label for="qrSoloTelefono">Teléfono</label><input type="tel" id="qrSoloTelefono" maxlength="40" autocomplete="off" data-input="qr:vivo">
           </div>
           <div class="form-group u-oculto" data-qr-campo="geo">
-            <label for="qrLat">Latitud</label><input type="text" id="qrLat" maxlength="20" data-input="qr:vivo">
-            <label for="qrLng">Longitud</label><input type="text" id="qrLng" maxlength="20" data-input="qr:vivo">
+            <label for="qrLat">Latitud</label><input type="text" id="qrLat" maxlength="20" autocomplete="off" data-input="qr:vivo">
+            <label for="qrLng">Longitud</label><input type="text" id="qrLng" maxlength="20" autocomplete="off" data-input="qr:vivo">
           </div>
           <p class="campo-nota" id="qrAviso"></p>
         </div>
@@ -2020,7 +2622,7 @@
           <div class="form-group"><label for="qrColor">Color</label><input type="color" id="qrColor" value="#0b1020" data-change="qr:vivo"></div>
           <div class="form-group"><label for="qrNivel">Corrección</label><select id="qrNivel" data-change="qr:vivo"><option value="M" selected>M</option><option value="L">L</option><option value="Q">Q</option><option value="H">H</option></select></div>
           <div class="form-group"><label for="qrMargen">Margen</label><input type="number" id="qrMargen" min="0" max="8" value="1" data-input="qr:vivo"></div>
-          <div class="form-group"><label for="qrEtiqueta">Etiqueta inferior</label><input type="text" id="qrEtiqueta" maxlength="60" placeholder="Escanea y participa" data-input="qr:vivo"></div>
+          <div class="form-group"><label for="qrEtiqueta">Etiqueta inferior</label><input type="text" id="qrEtiqueta" maxlength="60" autocomplete="off" placeholder="Escanea y participa" data-input="qr:vivo"></div>
           <div class="form-group"><label for="qrLogo">Logo central (PNG/JPG)</label><input type="file" id="qrLogo" accept="image/png,image/jpeg,image/webp" data-change="qr:logo"></div>
           <div class="pe-acciones">
             <button class="btn btn-primary btn-sm" data-action="qr:generar"><i class="bi bi-qr-code"></i> Generar</button>
@@ -2050,7 +2652,7 @@
           <div class="filter-row u-mb-8">
             <div class="form-group">
               <label for="publicidadTextoBuscar">Buscar publicación</label>
-              <input type="text" id="publicidadTextoBuscar" maxlength="160" placeholder="Título, texto o hashtag">
+              <input type="text" id="publicidadTextoBuscar" maxlength="160" autocomplete="off" placeholder="Título, texto o hashtag">
             </div>
           </div>
           <div class="u-fila-sep u-mb-8">
@@ -2123,7 +2725,7 @@
         <div class="filter-row u-mb-8">
           <div class="form-group">
             <label for="correosTexto">Buscar correo</label>
-            <input type="text" id="correosTexto" maxlength="160" placeholder="Correo, dependencia o cargo">
+            <input type="text" id="correosTexto" maxlength="160" autocomplete="off" placeholder="Correo, dependencia o cargo">
           </div>
           <div class="form-group">
             <label for="correosEstado">Estado</label>
@@ -2191,7 +2793,7 @@
     <div class="modal-body">
       <div class="form-group">
         <label for="firmaEnviarDestino">Funcionario o dependencia *</label>
-        <input type="text" id="firmaEnviarDestino" maxlength="160" placeholder="Nombre del funcionario o correo">
+        <input type="text" id="firmaEnviarDestino" maxlength="160" autocomplete="off" placeholder="Nombre del funcionario o correo">
       </div>
       <div class="form-group">
         <label for="firmaEnviarNota">Nota</label>
@@ -2249,11 +2851,11 @@
       <div class="filter-row">
         <div class="form-group">
           <label for="correoInstitucionalCorreo">Correo *</label>
-          <input type="email" id="correoInstitucionalCorreo" maxlength="160" placeholder="contacto@municipio.gob.mx">
+          <input type="email" id="correoInstitucionalCorreo" maxlength="160" autocomplete="email" placeholder="contacto@municipio.gob.mx">
         </div>
         <div class="form-group">
           <label for="correoInstitucionalEstado">Estado *</label>
-          <input type="text" id="correoInstitucionalEstado" maxlength="120" placeholder="Michoacán">
+          <input type="text" id="correoInstitucionalEstado" maxlength="120" autocomplete="off" placeholder="Michoacán">
         </div>
       </div>
       <div class="filter-row">
@@ -2263,17 +2865,17 @@
         </div>
         <div class="form-group">
           <label for="correoInstitucionalDependencia">Dependencia</label>
-          <input type="text" id="correoInstitucionalDependencia" maxlength="160" placeholder="Ayuntamiento">
+          <input type="text" id="correoInstitucionalDependencia" maxlength="160" autocomplete="off" placeholder="Ayuntamiento">
         </div>
       </div>
       <div class="filter-row">
         <div class="form-group">
           <label for="correoInstitucionalCargo">Cargo</label>
-          <input type="text" id="correoInstitucionalCargo" maxlength="120" placeholder="Atención ciudadana">
+          <input type="text" id="correoInstitucionalCargo" maxlength="120" autocomplete="off" placeholder="Atención ciudadana">
         </div>
         <div class="form-group">
           <label for="correoInstitucionalTelefono">Teléfono</label>
-          <input type="text" id="correoInstitucionalTelefono" maxlength="40">
+          <input type="text" id="correoInstitucionalTelefono" maxlength="40" autocomplete="tel">
         </div>
       </div>
       <div class="form-group">
@@ -2329,7 +2931,7 @@
       <p class="campo-nota">Se invitará a los correos que coincidan con los filtros actuales (o solo al seleccionado).</p>
       <div class="form-group">
         <label for="correosInvitacionAsunto">Asunto</label>
-        <input type="text" id="correosInvitacionAsunto" maxlength="160">
+        <input type="text" id="correosInvitacionAsunto" maxlength="160" autocomplete="off">
       </div>
       <div class="form-group">
         <label for="correosInvitacionMensaje">Mensaje</label>
@@ -2359,11 +2961,11 @@
           <div class="filter-row">
             <div class="form-group">
               <label for="campNombre">Nombre interno *</label>
-              <input type="text" id="campNombre" maxlength="160" placeholder="Promoción de octubre">
+              <input type="text" id="campNombre" maxlength="160" autocomplete="off" placeholder="Promoción de octubre">
             </div>
             <div class="form-group">
               <label for="campAsunto">Asunto del correo *</label>
-              <input type="text" id="campAsunto" maxlength="200" placeholder="Conoce el sistema de incidencias">
+              <input type="text" id="campAsunto" maxlength="200" autocomplete="off" placeholder="Conoce el sistema de incidencias">
             </div>
           </div>
 
@@ -2405,7 +3007,7 @@
               </div>
               <div class="form-group">
                 <label for="campTitular">Titular</label>
-                <input type="text" id="campTitular" maxlength="160" data-input="campanas:campos">
+                <input type="text" id="campTitular" maxlength="160" autocomplete="off" data-input="campanas:campos">
               </div>
               <div class="form-group">
                 <label for="campIntro">Introducción (separa párrafos con una línea en blanco)</label>
@@ -2418,11 +3020,11 @@
               <div class="filter-row">
                 <div class="form-group">
                   <label for="campBoton">Texto del botón</label>
-                  <input type="text" id="campBoton" maxlength="60" data-input="campanas:campos">
+                  <input type="text" id="campBoton" maxlength="60" autocomplete="off" data-input="campanas:campos">
                 </div>
                 <div class="form-group">
                   <label for="campEnlace">Enlace del botón (https://…)</label>
-                  <input type="url" id="campEnlace" maxlength="300" data-input="campanas:campos">
+                  <input type="url" id="campEnlace" maxlength="300" autocomplete="off" data-input="campanas:campos">
                 </div>
               </div>
               <div class="filter-row">
@@ -2475,7 +3077,7 @@
 
           <h4 class="moderacion-titulo"><i class="bi bi-send-check-fill"></i> Enviar una prueba</h4>
           <div class="u-fila-env">
-            <input type="email" id="campPruebaCorreo" maxlength="160" class="filter-input u-max-320"
+            <input type="email" id="campPruebaCorreo" maxlength="160" autocomplete="email" class="filter-input u-max-320"
               placeholder="tu@correo.mx">
             <button class="btn btn-outline btn-sm u-oculto" id="btnCampPrueba" data-action="campanas:prueba">
               <i class="bi bi-envelope-fill"></i> Enviar prueba
@@ -2597,7 +3199,7 @@
           </div>
           <div class="form-group">
             <label for="solInformeMensaje">Mensaje o motivo (opcional)</label>
-            <input type="text" id="solInformeMensaje" maxlength="600" placeholder="Para qué necesitas el informe">
+            <input type="text" id="solInformeMensaje" maxlength="600" autocomplete="off" placeholder="Para qué necesitas el informe">
           </div>
         </div>
 
@@ -2618,11 +3220,11 @@
           <div class="filter-row">
             <div class="form-group">
               <label for="solInformeFolioConsulta">Folio</label>
-              <input type="text" id="solInformeFolioConsulta" maxlength="24" placeholder="INF-20261026-ABC123">
+              <input type="text" id="solInformeFolioConsulta" maxlength="24" autocomplete="off" placeholder="INF-20261026-ABC123">
             </div>
             <div class="form-group">
               <label for="solInformeCorreoConsulta">Correo</label>
-              <input type="email" id="solInformeCorreoConsulta" maxlength="160" placeholder="El mismo de la solicitud">
+              <input type="email" id="solInformeCorreoConsulta" maxlength="160" autocomplete="email" placeholder="El mismo de la solicitud">
             </div>
           </div>
           <button class="btn btn-outline btn-sm" type="submit">
@@ -2651,6 +3253,17 @@
       <button class="modal-close" data-action="ticketsModal:cerrar">&times;</button>
     </div>
     <div class="modal-body">
+      <div class="login-tabs" id="ticketsModalTabs" role="tablist" aria-label="Tickets y bandeja">
+        <button type="button" class="login-tab active" id="ticketsModalTabMis"
+                role="tab" aria-selected="true" data-action="ticketsModal:tab" data-valor="mis">
+          <i class="bi bi-person"></i> Mis tickets
+        </button>
+        <button type="button" class="login-tab u-oculto" id="ticketsModalTabBandeja"
+                role="tab" aria-selected="false" data-action="ticketsModal:tab" data-valor="bandeja">
+          <i class="bi bi-tools"></i> Bandeja de soporte
+        </button>
+      </div>
+
       <div class="publico-msg info u-oculto" id="ticketsModalBloqueo">
         <strong>Necesitas una cuenta registrada para enviar tickets.</strong>
         <p class="u-mt-4">
@@ -2659,43 +3272,93 @@
         </p>
       </div>
       <div class="publico-msg info u-oculto" id="ticketsModalAviso" role="status"></div>
-      <form id="formTicketModal" class="u-oculto" data-submit="ticketsModal:enviar">
-        <div class="form-group">
-          <label for="ticketsModalAsunto">Asunto *</label>
-          <input type="text" id="ticketsModalAsunto" maxlength="200" placeholder="Resumen del problema">
-        </div>
-        <div class="filter-row">
+
+      <div id="ticketsModalPanelMis">
+        <form id="formTicketModal" class="u-oculto" data-submit="ticketsModal:enviar">
           <div class="form-group">
-            <label for="ticketsModalCategoria">Categoría</label>
-            <select id="ticketsModalCategoria">
-              <option value="error">Error del sistema</option>
-              <option value="acceso">Problema de acceso</option>
-              <option value="datos">Datos incorrectos</option>
-              <option value="sugerencia">Sugerencia</option>
-              <option value="otro">Otro</option>
+            <label for="ticketsModalAsunto">Asunto *</label>
+            <input type="text" id="ticketsModalAsunto" maxlength="200" autocomplete="off" placeholder="Resumen del problema">
+          </div>
+          <div class="filter-row">
+            <div class="form-group">
+              <label for="ticketsModalCategoria">Categoría</label>
+              <select id="ticketsModalCategoria">
+                <option value="error">Error del sistema</option>
+                <option value="acceso">Problema de acceso</option>
+                <option value="datos">Datos incorrectos</option>
+                <option value="sugerencia">Sugerencia</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+          </div>
+          <p class="campo-nota u-mb-10">
+            <i class="bi bi-info-circle"></i> La prioridad la define el equipo de soporte o un administrador.
+          </p>
+          <div class="form-group">
+            <label for="ticketsModalCuerpo">Descripción *</label>
+            <textarea id="ticketsModalCuerpo" rows="4" maxlength="4000" placeholder="Explica qué pasó y en qué pantalla"></textarea>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit">
+            <i class="bi bi-send"></i> Enviar ticket
+          </button>
+        </form>
+        <div id="ticketsModalContenido" class="u-oculto">
+          <h4 class="titulo-seccion u-mt-14">Mis tickets</h4>
+          <div id="ticketsModalLista"></div>
+          <div id="ticketsModalDetalle" class="u-mt-10"></div>
+        </div>
+      </div>
+
+      <div id="ticketsModalPanelBandeja" hidden>
+        <div class="publico-msg info u-oculto" id="ticketsAtencionAviso" role="status"></div>
+        <div class="soporte-filtros" id="ticketsAtencionFiltros">
+          <div class="form-group">
+            <label for="ticketsAtencionEstado">Estado</label>
+            <select id="ticketsAtencionEstado" data-change="ticketsAtencion:filtro">
+              <option value="">Todos</option>
+              <option value="abierto">Abierto</option>
+              <option value="en_revision">En revisión</option>
+              <option value="respondido">Respondido</option>
+              <option value="cerrado">Cerrado</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="ticketsAtencionPrioridad">Prioridad</label>
+            <select id="ticketsAtencionPrioridad" data-change="ticketsAtencion:filtro">
+              <option value="">Todas</option>
+              <option value="alta">Alta</option>
+              <option value="media">Media</option>
+              <option value="baja">Baja</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ticketsAtencionAsignacion">Asignación</label>
+            <select id="ticketsAtencionAsignacion" data-change="ticketsAtencion:filtro">
+              <option value="">Todas</option>
+              <option value="sin">Sin asignar</option>
+              <option value="mios">Asignados a mí</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ticketsAtencionBuscar">Buscar</label>
+            <input type="text" id="ticketsAtencionBuscar" maxlength="120" autocomplete="off"
+                   placeholder="Folio, asunto o texto">
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" data-action="ticketsAtencion:filtro">
+            <i class="bi bi-search"></i> Buscar
+          </button>
         </div>
-        <p class="campo-nota u-mb-10">
-          <i class="bi bi-info-circle"></i> La prioridad la define el equipo de soporte o un administrador.
-        </p>
-        <div class="form-group">
-          <label for="ticketsModalCuerpo">Descripción *</label>
-          <textarea id="ticketsModalCuerpo" rows="4" maxlength="4000" placeholder="Explica qué pasó y en qué pantalla"></textarea>
+        <div class="soporte-layout u-mt-10">
+          <div class="soporte-lista" id="ticketsAtencionLista"></div>
+          <div class="soporte-detalle" id="ticketsAtencionDetalle">
+            <p class="u-fs-12px u-suave">Carga la bandeja para ver los tickets.</p>
+          </div>
         </div>
-        <button class="btn btn-primary btn-sm" type="submit">
-          <i class="bi bi-send"></i> Enviar ticket
-        </button>
-      </form>
-      <div id="ticketsModalContenido" class="u-oculto">
-        <h4 class="titulo-seccion u-mt-14">Mis tickets</h4>
-        <div id="ticketsModalLista"></div>
-        <div id="ticketsModalDetalle" class="u-mt-10"></div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" data-action="ticketsModal:actualizar">
-        <i class="bi bi-arrow-clockwise"></i> Actualizar
+        <i class="bi bi-arrow-clockwise"></i> <span id="ticketsModalActualizarTexto">Actualizar</span>
       </button>
       <button class="btn btn-outline" data-action="ticketsModal:cerrar">Cerrar</button>
     </div>
@@ -2718,11 +3381,11 @@
       <div class="filter-row">
         <div class="form-group">
           <label for="demoInformeNombre">Nombre *</label>
-          <input type="text" id="demoInformeNombre" maxlength="120" placeholder="Tu nombre">
+          <input type="text" id="demoInformeNombre" maxlength="120" autocomplete="name" placeholder="Tu nombre">
         </div>
         <div class="form-group">
           <label for="demoInformeCorreo">Correo *</label>
-          <input type="email" id="demoInformeCorreo" maxlength="160" placeholder="tu@correo.mx">
+          <input type="email" id="demoInformeCorreo" maxlength="160" autocomplete="email" placeholder="tu@correo.mx">
         </div>
       </div>
       <div class="form-group">
@@ -2790,7 +3453,7 @@
       </p>
       <div class="form-group">
         <label for="demoTicketAsunto">Asunto *</label>
-        <input type="text" id="demoTicketAsunto" maxlength="200" placeholder="Resumen del problema">
+        <input type="text" id="demoTicketAsunto" maxlength="200" autocomplete="off" placeholder="Resumen del problema">
       </div>
       <div class="filter-row">
         <div class="form-group">
@@ -2911,6 +3574,104 @@
     <div class="modal-body">
       <div class="stats-grid" id="reporteStats"></div>
 
+      <div class="panel-blanco u-mt-16" id="reporteConstructor">
+        <h4 class="titulo-seccion u-mb-8">
+          <i class="bi bi-sliders2"></i> Constructor de informe
+        </h4>
+        <p class="campo-nota u-mb-10">
+          Elige qué incidencias entran, con qué se comparan y qué gráficas quieres.
+          La vista previa se actualiza sin descargar nada.
+        </p>
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="informeAlcance">Alcance territorial</label>
+            <select id="informeAlcance" data-change="reportes:alcance">
+              <option value="todos">Todas las incidencias de mi ámbito</option>
+              <option value="estados">Uno o varios estados</option>
+              <option value="municipios">Uno o varios municipios</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="informeComparar">Comparar por</label>
+            <select id="informeComparar">
+              <option value="ninguna">Sin comparación</option>
+              <option value="municipio">Municipio</option>
+              <option value="estado">Estado</option>
+              <option value="tipo">Tipo de incidencia</option>
+              <option value="ambito">Ámbito / vía</option>
+              <option value="mes">Mes</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group u-oculto" id="informeEstadosBox">
+          <label for="informeEstados">Estados (uno o varios)</label>
+          <select id="informeEstados" multiple size="5"></select>
+          <p class="campo-nota">Mantén Ctrl (o Cmd en Mac) para elegir varios.</p>
+        </div>
+        <div class="form-group u-oculto" id="informeMunicipiosBox">
+          <label for="informeMunicipios">Municipios (uno o varios)</label>
+          <select id="informeMunicipios" multiple size="5"></select>
+          <p class="campo-nota">Se listan los municipios de los estados elegidos; sin estados, los de tu ámbito. Usa Ctrl (o Cmd) para varios.</p>
+        </div>
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="informeTiposModo">Tipos de incidencia</label>
+            <select id="informeTiposModo" data-change="reportes:tiposModo">
+              <option value="todos">Todos los tipos</option>
+              <option value="uno">Un solo tipo</option>
+              <option value="varios">Varios tipos específicos</option>
+            </select>
+          </div>
+          <div class="form-group u-oculto" id="informeTipoUnicoBox">
+            <label for="informeTipoUnico">Tipo</label>
+            <select id="informeTipoUnico"></select>
+          </div>
+          <div class="form-group u-oculto" id="informeTiposBox">
+            <label for="informeTipos">Tipos específicos</label>
+            <select id="informeTipos" multiple size="4"></select>
+          </div>
+        </div>
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="informeDesde">Desde</label>
+            <input type="date" id="informeDesde">
+          </div>
+          <div class="form-group">
+            <label for="informeHasta">Hasta</label>
+            <input type="date" id="informeHasta">
+          </div>
+        </div>
+        <div class="filter-row" id="informeGraficosBox">
+          <label class="check-line"><input type="checkbox" id="informeGraficoBarras" checked> <span>Barras</span></label>
+          <label class="check-line"><input type="checkbox" id="informeGraficoPastel" checked> <span>Pastel</span></label>
+          <label class="check-line"><input type="checkbox" id="informeGraficoSerie" checked> <span>Tendencia mensual</span></label>
+          <label class="check-line"><input type="checkbox" id="informeGraficoComparacion" checked> <span>Tabla de comparación</span></label>
+          <label class="check-line"><input type="checkbox" id="informeIncluirDetalle" checked> <span>Detalle de incidencias</span></label>
+        </div>
+        <div class="u-fila-env">
+          <button class="btn btn-primary btn-sm" data-action="reportes:previsualizar">
+            <i class="bi bi-eye"></i> Vista previa
+          </button>
+          <button class="btn btn-outline btn-sm" data-action="reportes:pdf">
+            <i class="bi bi-filetype-pdf"></i> PDF
+          </button>
+          <button class="btn btn-outline btn-sm" data-action="reportes:csv">
+            <i class="bi bi-filetype-csv"></i> CSV
+          </button>
+          <button class="btn btn-outline btn-sm" data-action="reportes:imprimible">
+            <i class="bi bi-printer"></i> Imprimir
+          </button>
+        </div>
+        <p class="campo-nota u-mt-6" id="informeResumenFiltros"></p>
+      </div>
+
+      <div class="panel-blanco u-mt-16" id="informePreviewBox">
+        <h4 class="titulo-seccion u-mb-8"><i class="bi bi-file-earmark-richtext"></i> Vista previa del informe</h4>
+        <div id="informeVistaPrevia">
+          <p class="campo-nota">Pulsa «Vista previa» para ver el informe con los filtros elegidos.</p>
+        </div>
+      </div>
+
       <div class="panel-blanco u-mt-16" id="reporteDisenoPanel" hidden>
         <h4 class="titulo-seccion u-mb-8">
           <i class="bi bi-brush-fill"></i> Diseño del reporte
@@ -2944,20 +3705,41 @@
         <input type="hidden" id="reporteLogoUrl">
         <div class="filter-row u-mt-10">
           <div class="form-group">
+            <label for="reporteColorAcento">Color de acento</label>
+            <input type="color" id="reporteColorAcento" value="#006657">
+          </div>
+          <div class="form-group">
+            <label for="reporteEvidenciaColumnas">Evidencias por fila</label>
+            <select id="reporteEvidenciaColumnas">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="reporteEvidenciaPosicion">Posición de las evidencias</label>
+            <select id="reporteEvidenciaPosicion">
+              <option value="final" selected>Al final, como anexo</option>
+              <option value="despues_descripcion">Justo después de la descripción</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-row u-mt-10">
+          <div class="form-group">
             <label for="reporteMargenSuperior">Margen superior (mm)</label>
-            <input type="number" id="reporteMargenSuperior" min="5" max="50" step="1" value="18">
+            <input type="number" id="reporteMargenSuperior" min="12" max="50" step="1" value="18">
           </div>
           <div class="form-group">
             <label for="reporteMargenDerecho">Margen derecho (mm)</label>
-            <input type="number" id="reporteMargenDerecho" min="5" max="50" step="1" value="15">
+            <input type="number" id="reporteMargenDerecho" min="10" max="50" step="1" value="15">
           </div>
           <div class="form-group">
             <label for="reporteMargenInferior">Margen inferior (mm)</label>
-            <input type="number" id="reporteMargenInferior" min="5" max="50" step="1" value="18">
+            <input type="number" id="reporteMargenInferior" min="14" max="50" step="1" value="18">
           </div>
           <div class="form-group">
             <label for="reporteMargenIzquierdo">Margen izquierdo (mm)</label>
-            <input type="number" id="reporteMargenIzquierdo" min="5" max="50" step="1" value="15">
+            <input type="number" id="reporteMargenIzquierdo" min="10" max="50" step="1" value="15">
           </div>
         </div>
         <div class="filter-row">
@@ -2981,6 +3763,9 @@
           <button class="btn btn-outline btn-sm" data-action="reportes:quitarLogo">
             <i class="bi bi-eraser"></i> Quitar logo
           </button>
+          <button class="btn btn-outline btn-sm" data-action="reportes:restablecerDiseno">
+            <i class="bi bi-arrow-counterclockwise"></i> Restablecer diseño
+          </button>
         </div>
       </div>
 
@@ -2990,7 +3775,7 @@
             <i class="bi bi-filetype-csv"></i> Exportar CSV
           </h4>
           <p class="u-fs-12px u-gris u-mb-10">
-            Descarga todas las incidencias en formato compatible con Excel.
+            Descarga las incidencias con los filtros del constructor (alcance, tipos y fechas).
           </p>
           <button class="btn btn-primary btn-block" data-action="reportes:csv">
             <i class="bi bi-download"></i> Descargar CSV
@@ -3012,7 +3797,7 @@
             <i class="bi bi-printer-fill"></i> Reporte imprimible
           </h4>
           <p class="u-fs-12px u-gris u-mb-10">
-            Genera un reporte imprimible con estadísticas y detalle.
+            Genera el informe con logo, estadísticas y gráficas según los filtros del constructor.
           </p>
           <button class="btn btn-primary btn-block" data-action="reportes:imprimible">
             <i class="bi bi-file-pdf"></i> Ver reporte
@@ -3091,12 +3876,13 @@
       <div class="filter-row">
         <div class="form-group">
           <label for="rolEspecialNombre">Nombre *</label>
-          <input type="text" id="rolEspecialNombre" maxlength="120" placeholder="Ej. Gestor de usuarios del municipio">
+          <input type="text" id="rolEspecialNombre" maxlength="120" autocomplete="off" placeholder="Ej. Gestor de usuarios del municipio">
         </div>
         <div class="form-group" id="rolEspecialBaseBox">
           <label for="rolEspecialBase">Plantilla (rol base) *</label>
           <select id="rolEspecialBase">
             <option value="funcionario">Funcionario</option>
+            <option value="cuadrilla">Cuadrilla de campo</option>
             <option value="auditor">Auditor</option>
             <option value="enlace_estatal">Enlace estatal</option>
             <option value="enlace_federal">Enlace federal</option>
@@ -3117,7 +3903,7 @@
       </div>
       <div class="form-group">
         <label for="rolEspecialDescripcion">Descripción</label>
-        <input type="text" id="rolEspecialDescripcion" maxlength="400" placeholder="Para qué sirve este rol">
+        <input type="text" id="rolEspecialDescripcion" maxlength="400" autocomplete="off" placeholder="Para qué sirve este rol">
       </div>
       <div class="form-group">
         <label>Permisos del rol</label>
@@ -3144,6 +3930,88 @@
 </div>
 
 <!-- ============================================================
+     MODAL: VERSIÓN DEL PDF
+     ============================================================ -->
+<div class="modal-overlay" id="modalElegirPdf">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-file-earmark-pdf"></i> Versión del PDF</h3>
+      <button type="button" class="modal-close" data-action="pdfVersion:cerrar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="campo-nota u-mb-12">
+        Elige el diseño que se usará para generar este documento.
+      </p>
+      <div class="filter-row">
+        <button type="button" class="btn btn-primary" data-action="pdfVersion:elegir" data-valor="v2">
+          <i class="bi bi-stars"></i> Rediseñado
+        </button>
+        <button type="button" class="btn btn-outline" data-action="pdfVersion:elegir" data-valor="v1">
+          <i class="bi bi-file-earmark"></i> Clásico
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: ASIGNAR REPARACIÓN
+     ============================================================ -->
+<div class="modal-overlay" id="modalAsignarReparacion">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-person-plus-fill"></i> Asignar reparación</h3>
+      <button type="button" class="modal-close" data-action="modal:cerrar" data-valor="modalAsignarReparacion">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formAsignarReparacion" data-submit="reparaciones:asignarConfirmar" method="post">
+        <input type="hidden" id="asignarIncidenciaId">
+        <div class="form-group">
+          <label for="asignarCuadrilla">Cuadrilla *</label>
+          <select id="asignarCuadrilla" required></select>
+        </div>
+        <div class="form-group">
+          <label for="asignarNotas">Indicaciones para la cuadrilla</label>
+          <textarea id="asignarNotas" rows="3" maxlength="2000" placeholder="Ej. Revisar el carril derecho y llevar concreto"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">
+          <i class="bi bi-check2-circle"></i> Asignar
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: DOCUMENTOS DE REPARACIÓN
+     ============================================================ -->
+<div class="modal-overlay" id="modalDocumentosReparacion">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-paperclip"></i> Documentos oficiales de la reparación</h3>
+      <button type="button" class="modal-close" data-action="modal:cerrar" data-valor="modalDocumentosReparacion">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="documentosIncidenciaId">
+      <p class="campo-nota u-mb-8">
+        Sube facturas, oficios, notas de materiales o cualquier documento que avale el costo.
+        Se conservarán en el expediente de la incidencia.
+      </p>
+      <div id="reparacionDocumentosLista" class="u-mb-10"></div>
+      <button type="button" class="btn btn-outline btn-sm" data-action="reparaciones:elegirDocumentos">
+        <i class="bi bi-cloud-arrow-up-fill"></i> Elegir documentos
+      </button>
+      <input class="u-oculto" type="file" id="reparacionDocumentos" multiple
+             accept="application/pdf,image/*" data-change="reparaciones:documentosSeleccionados">
+      <div id="reparacionDocumentosPendientes" class="evidence-list u-mt-8"></div>
+      <button type="button" class="btn btn-primary btn-block u-mt-10" data-action="reparaciones:subirDocumentos">
+        <i class="bi bi-upload"></i> Subir documentos
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      MODAL: MI CUENTA Y PERMISOS
      ============================================================ -->
 <div class="modal-overlay" id="modalPerfil">
@@ -3154,19 +4022,110 @@
     </div>
     <div class="modal-body">
       <div id="perfilResumen" class="u-mb-12"></div>
-      <h4 class="titulo-seccion u-mb-8">Solicitar permisos extra</h4>
-      <p class="campo-nota u-mb-8">
-        Marca solo los permisos que necesitas y explica para qué. El administrador de tu
-        territorio recibirá la solicitud y decidirá si la aprueba.
-      </p>
-      <div class="permisos-grid" id="perfilPermisos"></div>
-      <div class="form-group u-mt-8">
-        <label for="perfilMotivo">Motivo de la solicitud *</label>
-        <textarea id="perfilMotivo" rows="3" maxlength="600" placeholder="Ej. Necesito dar de alta al personal de mi municipio"></textarea>
+      <div id="perfilAnonimoBox" class="u-oculto">
+        <p class="campo-nota u-mb-8">
+          Estás usando la aplicación como anónimo. Puedes reportar incidencias, pero para
+          cambiar tus datos o recibir avisos necesitas una cuenta.
+        </p>
+        <div class="filter-row u-mb-12">
+          <button type="button" class="btn btn-primary btn-sm"
+                  data-action="perfil:irAlLogin" data-valor="registro">
+            <i class="bi bi-person-plus-fill"></i> Crear una cuenta
+          </button>
+          <button type="button" class="btn btn-outline btn-sm"
+                  data-action="perfil:irAlLogin" data-valor="login">
+            <i class="bi bi-box-arrow-in-right"></i> Iniciar sesión
+          </button>
+        </div>
       </div>
-      <button class="btn btn-primary btn-sm" data-action="perfil:solicitar">
-        <i class="bi bi-send-fill"></i> Enviar solicitud
-      </button>
+      <div id="perfilPermisosBox">
+        <h4 class="titulo-seccion u-mb-8">Solicitar permisos extra</h4>
+        <p class="campo-nota u-mb-8">
+          Marca solo los permisos que necesitas y explica para qué. El administrador de tu
+          territorio recibirá la solicitud y decidirá si la aprueba.
+        </p>
+        <div class="permisos-grid" id="perfilPermisos"></div>
+        <div class="form-group u-mt-8">
+          <label for="perfilMotivo">Motivo de la solicitud *</label>
+          <textarea id="perfilMotivo" rows="3" maxlength="600" placeholder="Ej. Necesito dar de alta al personal de mi municipio"></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" data-action="perfil:solicitar">
+          <i class="bi bi-send-fill"></i> Enviar solicitud
+        </button>
+      </div>
+      <div id="perfilClaveBox" class="u-oculto">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Mi clave de acceso</h4>
+        <div id="perfilClaveEstado" class="u-mb-8"></div>
+        <div class="form-group">
+          <label for="perfilClaveMotivo">Motivo de la renovación (opcional)</label>
+          <textarea id="perfilClaveMotivo" rows="2" maxlength="600" placeholder="Ej. Mi clave vence pronto y necesito seguir entrando"></textarea>
+        </div>
+        <button class="btn btn-outline btn-sm" data-action="cuenta:solicitarRenovacion">
+          <i class="bi bi-arrow-repeat"></i> Solicitar renovación de mi clave
+        </button>
+        <p class="campo-nota u-mt-6">
+          La clave está ligada a tu cuenta y a tu territorio. Si vence, no podrás entrar hasta que
+          la administración la renueve.
+        </p>
+      </div>
+      <div id="perfilCiudadanoBox" class="u-oculto">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Mi correo</h4>
+        <p class="campo-nota u-mb-8">
+          Correo actual: <strong id="perfilCorreoActual">—</strong>. Al cambiarlo recibirás un
+          enlace de confirmación en la dirección nueva; hasta confirmarlo no podrás volver a entrar.
+        </p>
+        <form id="formCambiarCorreo" data-submit="perfil:cambiarCorreo" method="post">
+          <div class="form-group">
+            <label for="perfilCorreoUsuario">Cuenta</label>
+            <input type="text" id="perfilCorreoUsuario" name="username" autocomplete="username"
+                   readonly aria-readonly="true">
+          </div>
+          <div class="form-group">
+            <label for="perfilNuevoCorreo">Correo nuevo *</label>
+            <input type="email" id="perfilNuevoCorreo" name="correo" autocomplete="email"
+                   maxlength="160" placeholder="tu@correo.mx" required>
+          </div>
+          <div class="form-group">
+            <label for="perfilCorreoPassword">Contraseña actual *</label>
+            <input type="password" id="perfilCorreoPassword" name="password"
+                   autocomplete="current-password" placeholder="Tu contraseña actual" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-envelope-check-fill"></i> Cambiar correo
+          </button>
+        </form>
+      </div>
+
+      <div id="perfilCiudadanoPasswordBox" class="u-oculto">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Cambiar mi contraseña</h4>
+        <form id="formCambiarPassword" data-submit="perfil:cambiarPassword" method="post">
+          <div class="form-group">
+            <label for="perfilPasswordUsuario">Cuenta</label>
+            <input type="text" id="perfilPasswordUsuario" name="username" autocomplete="username"
+                   readonly aria-readonly="true">
+          </div>
+          <div class="form-group">
+            <label for="perfilPasswordActual">Contraseña actual *</label>
+            <input type="password" id="perfilPasswordActual" name="passwordActual"
+                   autocomplete="current-password" placeholder="Tu contraseña actual" required>
+          </div>
+          <div class="form-group">
+            <label for="perfilPasswordNueva">Nueva contraseña *</label>
+            <input type="password" id="perfilPasswordNueva" name="passwordNueva"
+                   autocomplete="new-password" minlength="8" placeholder="Al menos 8 caracteres" required>
+          </div>
+          <div class="form-group">
+            <label for="perfilPasswordNueva2">Repite la nueva contraseña *</label>
+            <input type="password" id="perfilPasswordNueva2" name="passwordNueva2"
+                   autocomplete="new-password" minlength="8" placeholder="Vuelve a escribirla" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-shield-lock-fill"></i> Cambiar contraseña
+          </button>
+          <p class="campo-nota u-mt-6">Al cambiarla se cerrarán todas las sesiones, incluida esta.</p>
+        </form>
+      </div>
+
       <div id="perfilPasswordBox">
         <h4 class="titulo-seccion u-mt-16 u-mb-8">Cambiar mi contraseña</h4>
         <p class="campo-nota u-mb-8">
@@ -3182,12 +4141,121 @@
         </button>
         <div id="perfilSolicitudesPassword" class="u-mt-8"></div>
       </div>
-      <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes de baja</h4>
-      <div id="perfilSolicitudesBaja"></div>
-      <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes de alta</h4>
-      <div id="perfilSolicitudesAlta"></div>
-      <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes</h4>
-      <div id="perfilSolicitudes"></div>
+      <div id="perfilCuentaBox" class="u-oculto">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Estado de mi cuenta</h4>
+        <p class="campo-nota u-mb-8">
+          Puedes congelar tu cuenta durante 7, 30 o 90 días, o eliminarla definitivamente.
+          La eliminación anonimiza tus datos y no se puede deshacer.
+        </p>
+        <div id="perfilCuentaEstado" class="u-mb-10"></div>
+        <div class="filter-row">
+          <button class="btn btn-outline btn-sm" data-action="cuenta:congelarAbrir">
+            <i class="bi bi-snow2"></i> Congelar mi cuenta
+          </button>
+          <button class="btn btn-danger btn-sm" data-action="cuenta:eliminarAbrir">
+            <i class="bi bi-person-x-fill"></i> Eliminar mi cuenta
+          </button>
+        </div>
+      </div>
+      <div id="perfilSolicitudesBajaBox">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes de baja</h4>
+        <div id="perfilSolicitudesBaja"></div>
+      </div>
+      <div id="perfilSolicitudesAltaBox">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes de alta</h4>
+        <div id="perfilSolicitudesAlta"></div>
+      </div>
+      <div id="perfilSolicitudesBox">
+        <h4 class="titulo-seccion u-mt-16 u-mb-8">Mis solicitudes</h4>
+        <div id="perfilSolicitudes"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: CONGELAR MI CUENTA
+     ============================================================ -->
+<div class="modal-overlay" id="modalCongelarCuenta">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-snow2"></i> Congelar mi cuenta</h3>
+      <button type="button" class="modal-close" data-action="modal:cerrar" data-valor="modalCongelarCuenta">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formCongelarCuenta" data-submit="cuenta:congelar" method="post">
+        <p class="u-lh-15">
+          Mientras la cuenta esté congelada no podrás iniciar sesión. Se reactivará
+          automáticamente al cumplirse el plazo que elijas.
+        </p>
+        <div class="form-group">
+          <label for="congelarDias">Tiempo de congelación *</label>
+          <select id="congelarDias" name="dias">
+            <option value="7">7 días</option>
+            <option value="30">30 días</option>
+            <option value="90">90 días</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="congelarUsuario">Cuenta</label>
+          <input type="text" id="congelarUsuario" name="username" autocomplete="username"
+                 readonly aria-readonly="true">
+        </div>
+        <div class="form-group">
+          <label for="congelarPassword">Confirma tu contraseña *</label>
+          <input type="password" id="congelarPassword" name="password" autocomplete="current-password"
+                 placeholder="Tu contraseña actual">
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-outline" data-action="modal:cerrar" data-valor="modalCongelarCuenta">Cancelar</button>
+      <button type="submit" form="formCongelarCuenta" class="btn btn-primary">
+        <i class="bi bi-snow2"></i> Congelar cuenta
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: ELIMINAR MI CUENTA
+     ============================================================ -->
+<div class="modal-overlay" id="modalEliminarCuenta">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-person-x-fill"></i> Eliminar mi cuenta</h3>
+      <button type="button" class="modal-close" data-action="modal:cerrar" data-valor="modalEliminarCuenta">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formEliminarCuenta" data-submit="cuenta:eliminar" method="post">
+        <p class="u-lh-15">
+          Esta acción es <strong>definitiva</strong>. Tu nombre y correo quedarán libres,
+          tus datos personales se anonimizarán y tus reportes históricos se conservarán
+          sin tu nombre.
+        </p>
+        <div class="form-group">
+          <label for="eliminarUsuario">Cuenta</label>
+          <input type="text" id="eliminarUsuario" name="username" autocomplete="username"
+                 readonly aria-readonly="true">
+        </div>
+        <div class="form-group">
+          <label for="eliminarPassword">Confirma tu contraseña *</label>
+          <input type="password" id="eliminarPassword" name="password" autocomplete="current-password"
+                 placeholder="Tu contraseña actual">
+        </div>
+        <div class="form-group">
+          <label for="eliminarConfirmacion">Escribe tu nombre para confirmar *</label>
+          <input type="text" id="eliminarConfirmacion" name="confirmacion" autocomplete="off"
+                 placeholder="Escribe exactamente tu nombre">
+          <p class="campo-nota" id="eliminarNombreNota"></p>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-outline" data-action="modal:cerrar" data-valor="modalEliminarCuenta">Cancelar</button>
+      <button type="submit" form="formEliminarCuenta" class="btn btn-danger">
+        <i class="bi bi-trash"></i> Eliminar definitivamente
+      </button>
     </div>
   </div>
 </div>
@@ -3211,22 +4279,22 @@
         </div>
         <div class="form-group">
           <label for="fichaTelefono">Teléfono</label>
-          <input type="text" id="fichaTelefono" maxlength="80" placeholder="Ej. 447 123 4567">
+          <input type="text" id="fichaTelefono" maxlength="80" autocomplete="tel" placeholder="Ej. 447 123 4567">
         </div>
       </div>
       <div class="filter-row">
         <div class="form-group">
           <label for="fichaCorreo">Correo de contacto</label>
-          <input type="email" id="fichaCorreo" maxlength="160" placeholder="contacto@municipio.gob.mx">
+          <input type="email" id="fichaCorreo" maxlength="160" autocomplete="email" placeholder="contacto@municipio.gob.mx">
         </div>
         <div class="form-group">
           <label for="fichaHorario">Horario de atención</label>
-          <input type="text" id="fichaHorario" maxlength="200" placeholder="Lunes a viernes, 9:00 a 16:00">
+          <input type="text" id="fichaHorario" maxlength="200" autocomplete="off" placeholder="Lunes a viernes, 9:00 a 16:00">
         </div>
       </div>
       <div class="form-group">
         <label for="fichaDireccion">Dirección</label>
-        <input type="text" id="fichaDireccion" maxlength="300" placeholder="Calle, número, colonia">
+        <input type="text" id="fichaDireccion" maxlength="300" autocomplete="off" placeholder="Calle, número, colonia">
       </div>
       <div class="form-group">
         <label for="fichaNotas">Información adicional</label>
@@ -3269,11 +4337,12 @@
           <p class="campo-nota">Así entra en la pestaña «Personal» (junto a la clave del municipio).</p>
         </div>
         <div class="form-group" id="usuarioClaveAccesoBox">
-          <label for="usuarioClaveAcceso">Clave de acceso (opcional)</label>
+          <label for="usuarioClaveAcceso">Clave de acceso *</label>
           <select id="usuarioClaveAcceso" data-change="admin:usuarioClave"></select>
           <p class="campo-nota">
-            Si eliges una clave, el rol, el territorio y los permisos de la cuenta se toman de ella.
-            La clave también limita cada permiso a esos municipios o estados al iniciar sesión.
+            Toda cuenta de funcionario debe quedar vinculada a una clave. Elige una existente con
+            cupo y vigencia, o genera una nueva abajo. Sin clave vinculada la cuenta no podrá entrar.
+            Si eliges una clave, el rol, el territorio y los permisos se toman de ella.
           </p>
           <details class="ayuda-clave">
             <summary>Ver un ejemplo práctico</summary>
@@ -3290,12 +4359,13 @@
         </div>
         <div class="form-group">
           <label for="usuarioNombre">Nombre completo *</label>
-          <input type="text" id="usuarioNombre" maxlength="80" placeholder="Ej. Juan López">
+          <input type="text" id="usuarioNombre" maxlength="80" autocomplete="name" placeholder="Ej. Juan López">
         </div>
         <div class="form-group">
           <label for="usuarioRol">Rol *</label>
           <select id="usuarioRol" data-change="admin:usuarioRol">
             <option value="funcionario">Funcionario municipal (escritura)</option>
+            <option value="cuadrilla">Cuadrilla de campo (reparaciones)</option>
             <option value="auditor">Auditor (solo lectura)</option>
             <option value="enlace_estatal">Enlace estatal (solo lectura)</option>
             <option value="enlace_federal">Enlace federal (solo lectura)</option>
@@ -3346,25 +4416,23 @@
         <div class="form-group" id="usuarioClaveBox">
           <label class="check-line">
             <input type="checkbox" id="usuarioGenerarClave">
-            <span>Generar una clave de acceso para esta cuenta</span>
+            <span>Generar una clave nueva para esta cuenta (cupo de 1 funcionario)</span>
           </label>
           <div class="filter-row u-mt-8" id="usuarioClaveOpciones">
             <div class="form-group">
-              <label for="usuarioClaveUsos">Usos máximos</label>
-              <input type="number" id="usuarioClaveUsos" min="1" placeholder="Sin límite">
-            </div>
-            <div class="form-group">
-              <label for="usuarioClaveExpira">Expira en</label>
-              <input type="date" id="usuarioClaveExpira">
+              <label for="usuarioClaveExpira">Vencimiento de la clave nueva *</label>
+              <input type="date" id="usuarioClaveExpira" required>
             </div>
           </div>
           <p class="campo-nota">
-            Se genera con los municipios asignados. El código se muestra una sola vez al guardar.
+            La clave se vincula a esta cuenta y se muestra una sola vez al guardar. Al vencer, la
+            cuenta pedirá una clave nueva y la administración podrá renovarla desde la fila del
+            usuario. Una clave nunca debe compartirse entre funcionarios.
           </p>
         </div>
         <div class="form-group">
           <label for="usuarioCorreo">Correo de contacto (opcional)</label>
-          <input type="email" id="usuarioCorreo" maxlength="160" placeholder="no se usa para entrar">
+          <input type="email" id="usuarioCorreo" maxlength="160" autocomplete="email" placeholder="no se usa para entrar">
         </div>
         <div class="form-group" id="usuarioPasswordBox">
           <label for="usuarioPassword">Contraseña *</label>
@@ -3398,7 +4466,7 @@
       <form data-submit="tipos:guardar">
         <div class="form-group">
           <label for="nuevoTipoNombre">Nombre del concepto *</label>
-          <input type="text" id="nuevoTipoNombre" maxlength="60" placeholder="Ej. Semáforo descompuesto">
+          <input type="text" id="nuevoTipoNombre" maxlength="60" autocomplete="off" placeholder="Ej. Semáforo descompuesto">
         </div>
         <div class="form-group">
           <label>Icono *</label>
@@ -3458,8 +4526,29 @@
           <label for="resolverTexto">Descripción de la solución *</label>
           <textarea id="resolverTexto" rows="3" placeholder="Describe brevemente cómo se resolvió la incidencia…"></textarea>
         </div>
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="resolverCosto">Costo de reparación (MXN)</label>
+            <input type="number" id="resolverCosto" min="0" step="0.01" placeholder="0.00">
+            <p class="campo-nota">Opcional. Queda en el historial y en el PDF de la incidencia.</p>
+          </div>
+        </div>
         <div class="form-group">
-          <label>Evidencia de la solución (oficio, foto o PDF)</label>
+          <label>Desglose por concepto</label>
+          <div id="resolverDesglose"></div>
+          <div class="u-fila-sep u-mt-6">
+            <button type="button" class="btn btn-outline btn-sm" data-action="resolver:agregarConcepto">
+              <i class="bi bi-plus-circle"></i> Agregar concepto
+            </button>
+            <span class="campo-nota">Total del desglose: <strong id="resolverDesgloseTotal">$0.00</strong></span>
+          </div>
+          <p class="campo-nota u-mt-4">
+            La suma de los conceptos debe coincidir con el costo de reparación. Si dejas el costo
+            vacío, se usará la suma del desglose.
+          </p>
+        </div>
+        <div class="form-group">
+          <label>Documentos y evidencia de la solución (oficio, foto o PDF)</label>
           <div class="evidence-drop" data-action="incidencias:elegirArchivosResolucion">
             <i class="bi bi-cloud-arrow-up-fill"></i>
             <p>Haz clic o arrastra archivos aquí</p>
@@ -3676,7 +4765,7 @@
       <div class="filter-row u-mb-8">
         <div class="form-group">
           <label for="foliosTexto">Buscar</label>
-          <input type="text" id="foliosTexto" maxlength="160" placeholder="Folio o título…" data-submit="folios:buscar">
+          <input type="text" id="foliosTexto" maxlength="160" autocomplete="off" placeholder="Folio o título…" data-submit="folios:buscar">
         </div>
         <div class="form-group">
           <label for="foliosTipo">Tipo</label>
@@ -3735,7 +4824,7 @@
       <div class="filter-row u-mb-10">
         <div class="form-group">
           <label for="historialNotifTexto">Buscar</label>
-          <input type="text" id="historialNotifTexto" maxlength="120" placeholder="Título o mensaje…" data-submit="notificaciones:historialBuscar">
+          <input type="text" id="historialNotifTexto" maxlength="120" autocomplete="off" placeholder="Título o mensaje…" data-submit="notificaciones:historialBuscar">
         </div>
         <div class="form-group">
           <label for="historialNotifEvento">Evento</label>
@@ -3818,6 +4907,88 @@
 <!-- ============================================================
      MODAL: CLAVE DE ACCESO MULTI-MUNICIPIO
      ============================================================ -->
+<div class="modal-overlay" id="modalVialidad">
+  <div class="modal-box lg u-max-720">
+    <div class="modal-head">
+      <h3><i class="bi bi-signpost-split"></i> <span id="vialidadTitulo">Nueva vialidad</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalVialidad">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="formVialidad" data-submit="vialidades:guardar" method="post">
+        <input type="hidden" id="vialidadId">
+        <input type="hidden" id="vialidadGeometria">
+        <input type="hidden" id="vialidadEje">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="vialidadMunicipio">Municipio *</label>
+            <select id="vialidadMunicipio" required></select>
+          </div>
+          <div class="form-group">
+            <label for="vialidadTipo">Tipo *</label>
+            <select id="vialidadTipo" required></select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="vialidadNombre">Nombre de la vialidad *</label>
+            <input type="text" id="vialidadNombre" maxlength="160" required autocomplete="off" placeholder="Ej. Avenida Juárez">
+          </div>
+          <div class="form-group">
+            <label for="vialidadClave">Clave interna</label>
+            <input type="text" id="vialidadClave" maxlength="160" autocomplete="off" placeholder="Se genera del nombre si se deja vacía">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="vialidadFuente">Origen del dato *</label>
+            <select id="vialidadFuente" required></select>
+          </div>
+          <div class="form-group">
+            <label for="vialidadAncho">Ancho de calzada (m)</label>
+            <input type="number" id="vialidadAncho" min="2" max="60" step="0.1" autocomplete="off" placeholder="Se calcula por tipo de vía">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="vialidadGoogleMaps">Enlace de Google Maps</label>
+          <input type="url" id="vialidadGoogleMaps" maxlength="500" autocomplete="off" placeholder="https://maps.google.com/…">
+        </div>
+        <fieldset class="form-group">
+          <legend>Eje y polígono de la vialidad</legend>
+          <p class="campo-nota">Captura el inicio y el fin. El servidor genera el polígono de calzada con el ancho indicado. Si editas solo textos, se conserva el trazado importado.</p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="vialidadLatInicio">Latitud inicio</label>
+              <input type="number" id="vialidadLatInicio" step="any" min="-90" max="90" autocomplete="off" placeholder="19.8916">
+            </div>
+            <div class="form-group">
+              <label for="vialidadLngInicio">Longitud inicio</label>
+              <input type="number" id="vialidadLngInicio" step="any" min="-180" max="180" autocomplete="off" placeholder="-100.4416">
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="vialidadLatFin">Latitud fin</label>
+              <input type="number" id="vialidadLatFin" step="any" min="-90" max="90" autocomplete="off" placeholder="19.8920">
+            </div>
+            <div class="form-group">
+              <label for="vialidadLngFin">Longitud fin</label>
+              <input type="number" id="vialidadLngFin" step="any" min="-180" max="180" autocomplete="off" placeholder="-100.4410">
+            </div>
+          </div>
+        </fieldset>
+        <div class="form-group">
+          <label for="vialidadNotas">Notas de actualización</label>
+          <textarea id="vialidadNotas" rows="3" maxlength="2000" placeholder="Fuente, fecha de verificación o cambios del tramo…"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-outline" data-action="modal:cerrar" data-valor="modalVialidad">Cancelar</button>
+      <button type="submit" class="btn btn-primary" form="formVialidad">Guardar vialidad</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalClave">
   <div class="modal-box">
     <div class="modal-head">
@@ -3827,12 +4998,13 @@
     <div class="modal-body">
       <div class="form-group">
         <label for="claveNombre">Nombre *</label>
-        <input type="text" id="claveNombre" maxlength="160" placeholder="Ej. Funcionarios Maravatío">
+        <input type="text" id="claveNombre" maxlength="160" autocomplete="off" placeholder="Ej. Funcionarios Maravatío">
       </div>
       <div class="form-group">
         <label for="claveRol">Rol sugerido</label>
         <select id="claveRol" data-change="claves:rol">
           <option value="funcionario">Funcionario municipal</option>
+          <option value="cuadrilla">Cuadrilla de campo</option>
           <option value="auditor">Auditor</option>
           <option value="soporte">Soporte técnico</option>
           <option value="enlace_estatal">Enlace estatal</option>
@@ -3857,14 +5029,20 @@
       </div>
       <div class="filter-row">
         <div class="form-group">
-          <label for="claveUsos">Usos máximos</label>
-          <input type="number" id="claveUsos" min="1" placeholder="Sin límite">
+          <label for="claveUsos">Cupo de funcionarios *</label>
+          <input type="number" id="claveUsos" min="1" placeholder="Ej. 5" required>
+          <p class="campo-nota">Máximo de cuentas activas que pueden usar esta clave.</p>
         </div>
         <div class="form-group">
-          <label for="claveExpira">Expira en</label>
-          <input type="date" id="claveExpira">
+          <label for="claveExpira">Vencimiento de la clave *</label>
+          <input type="date" id="claveExpira" required>
+          <p class="campo-nota">A partir de esta fecha la clave deja de servir y habrá que renovarla.</p>
         </div>
       </div>
+      <p class="campo-nota">
+        La clave queda ligada a su territorio y a las cuentas que la usan. No se puede compartir
+        con funcionarios de otro municipio ni usar fuera del territorio configurado.
+      </p>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalClave">Cancelar</button>
@@ -3883,8 +5061,9 @@
     </div>
     <div class="modal-body">
       <p class="u-lh-15">
-        Entrega este código a la persona junto con su usuario y contraseña. Es su segundo
-        factor para entrar al panel y <strong>no se volverá a mostrar</strong>.
+        Entrega este código a la persona junto con su usuario y contraseña. Es la clave de
+        <strong>activación</strong>: se usa una sola vez y <strong>no se volverá a mostrar</strong>.
+        Al vencer, la cuenta pedirá una clave nueva.
       </p>
       <div class="clave-codigo">
         <code id="claveGeneradaCodigo">—</code>
@@ -3896,6 +5075,113 @@
     </div>
     <div class="modal-foot">
       <button class="btn btn-primary" data-action="modal:cerrar" data-valor="modalClaveGenerada">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalClaveUsuario">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-shield-lock-fill"></i> Clave de activación</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalClaveUsuario">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="u-lh-15">Cuenta: <strong id="claveUsuarioNombre">—</strong></p>
+      <div id="claveUsuarioEstado" class="campo-nota"></div>
+      <p class="campo-nota">
+        La clave se usa una sola vez para activar la cuenta. Si vence o se consume,
+        la cuenta pedirá una clave nueva y la administración puede renovarla desde aquí.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalClaveUsuario">Cerrar</button>
+      <button class="btn btn-primary" id="btnRenovarClaveUsuario" data-action="admin:claveUsuarioRenovar">
+        <i class="bi bi-arrow-repeat"></i> Renovar clave
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalRenovarClave">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3><i class="bi bi-arrow-repeat"></i> <span id="renovarClaveTitulo">Renovar clave</span></h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalRenovarClave">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="u-lh-15" id="renovarClaveResumen"></p>
+      <div class="form-group">
+        <label for="renovarClaveExpira">Nuevo vencimiento *</label>
+        <input type="date" id="renovarClaveExpira" required>
+      </div>
+      <div class="form-group" id="renovarClaveCupoBox">
+        <label for="renovarClaveCupo">Cupo de funcionarios *</label>
+        <input type="number" id="renovarClaveCupo" min="1" required>
+        <p class="campo-nota">No puede ser menor que las cuentas ya vinculadas.</p>
+      </div>
+      <p class="campo-nota" id="renovarClaveNota"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalRenovarClave">Cancelar</button>
+      <button class="btn btn-primary" data-action="claves:renovarConfirmar">
+        <i class="bi bi-check2-circle"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Aprobación de solicitudes: la cuenta debe quedar ligada a una clave -->
+<div class="modal-overlay" id="modalAprobarSolicitud">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3><i class="bi bi-key-fill"></i> Vincular clave y aprobar</h3>
+      <button class="modal-close" data-action="modal:cerrar" data-valor="modalAprobarSolicitud">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="panel-blanco u-mb-12" id="aprobarSolicitudDetalle">
+        <p class="u-lh-15" id="aprobarSolicitudResumen"></p>
+      </div>
+      <div class="form-group u-oculto" id="aprobarRolBox">
+        <label for="aprobarRol">Rol de la cuenta *</label>
+        <select id="aprobarRol" data-change="admin:aprobarRol">
+          <option value="funcionario">Funcionario municipal</option>
+          <option value="cuadrilla">Cuadrilla de campo</option>
+          <option value="auditor">Auditor</option>
+          <option value="enlace_estatal">Enlace estatal</option>
+          <option value="enlace_federal">Enlace federal</option>
+        </select>
+        <p class="campo-nota">
+          El sistema propone un rol según el territorio. Puedes cambiarlo antes de aprobar;
+          el servidor volverá a validar que el rol y la clave sean compatibles.
+        </p>
+      </div>
+      <div class="form-group">
+        <label for="aprobarClaveSelect">Clave de acceso *</label>
+        <select id="aprobarClaveSelect" data-change="admin:aprobarClave"></select>
+        <p class="campo-nota" id="aprobarClavePreview"></p>
+      </div>
+      <div class="form-group">
+        <label class="check-line">
+          <input type="checkbox" id="aprobarGenerarClave" data-change="admin:aprobarClave">
+          <span>Generar una clave nueva para esta cuenta</span>
+        </label>
+        <div class="filter-row u-mt-8" id="aprobarClaveNuevaOpciones">
+          <div class="form-group">
+            <label for="aprobarClaveExpira">Vencimiento de la clave nueva *</label>
+            <input type="date" id="aprobarClaveExpira" required>
+          </div>
+        </div>
+      </div>
+      <p class="campo-nota">
+        La cuenta quedará vinculada a esta clave y no podrá usar otra. Una clave nunca debe
+        compartirse entre funcionarios de municipios distintos ni fuera de su territorio.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-action="modal:cerrar" data-valor="modalAprobarSolicitud">Cancelar</button>
+      <button class="btn btn-primary" data-action="solicitudes:aprobarConfirmar">
+        <i class="bi bi-check2-circle"></i> Aprobar y crear cuenta
+      </button>
     </div>
   </div>
 </div>
@@ -4023,7 +5309,7 @@
       <div class="filter-row">
         <div class="form-group">
           <label for="altaUsuarioNombre">Nombre completo *</label>
-          <input type="text" id="altaUsuarioNombre" maxlength="160" placeholder="Ej. Juana López Martínez">
+          <input type="text" id="altaUsuarioNombre" maxlength="160" autocomplete="name" placeholder="Ej. Juana López Martínez">
         </div>
         <div class="form-group">
           <label for="altaUsuarioUsername">Usuario de acceso *</label>
@@ -4034,11 +5320,11 @@
       <div class="filter-row">
         <div class="form-group">
           <label for="altaUsuarioCorreo">Correo de contacto</label>
-          <input type="email" id="altaUsuarioCorreo" maxlength="160" placeholder="correo@ejemplo.mx">
+          <input type="email" id="altaUsuarioCorreo" maxlength="160" autocomplete="email" placeholder="correo@ejemplo.mx">
         </div>
         <div class="form-group">
           <label for="altaUsuarioTelefono">Teléfono</label>
-          <input type="tel" id="altaUsuarioTelefono" maxlength="40" placeholder="Ej. 555 123 4567">
+          <input type="tel" id="altaUsuarioTelefono" maxlength="40" autocomplete="tel" placeholder="Ej. 555 123 4567">
         </div>
       </div>
       <div class="form-group">

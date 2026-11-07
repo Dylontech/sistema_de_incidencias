@@ -6,6 +6,7 @@
  * error de escritura inactive una función sin que nadie lo note.
  */
 import { AppError } from '../utils/AppError.js';
+import { config } from '../config/index.js';
 
 export const CONFIGURACION_POR_DEFECTO = Object.freeze({
   'firmas.max_por_usuario': 10,
@@ -17,6 +18,10 @@ export const CONFIGURACION_POR_DEFECTO = Object.freeze({
   'informes.max_meses': 24,
   'informes.fecha_minima': '2020-01-01',
   'informes.max_registros': 1500,
+  'informes.color_acento': '#006657',
+  'informes.evidencia_columnas': 2,
+  'informes.evidencia_posicion': 'final',
+  'informes.motor_pdf': 'v2',
   'informes.margen_superior': 18,
   'informes.margen_derecho': 15,
   'informes.margen_inferior': 18,
@@ -39,7 +44,14 @@ export const CONFIGURACION_POR_DEFECTO = Object.freeze({
   'respaldos.max_manuales': 20,
   'general.sitio_nombre': 'Sistema de Incidencias Municipales',
   'general.correo_contacto': '',
-  'general.url_base': ''
+  'general.url_base': '',
+  // Valores iniciales tomados del entorno; el panel puede cambiarlos en
+  // caliente sin reiniciar el servidor.
+  'cuentas.activacion_ciudadano': config.cuentas.verificarCorreo ? 'correo' : 'automatica',
+  'cuentas.token_verificacion_horas': config.cuentas.tokenVerificacionHoras,
+  'cuentas.token_recuperacion_minutos': config.cuentas.tokenRecuperacionMinutos,
+  'cuentas.congelar_inactivas': config.cuentas.congelarInactivas,
+  'cuentas.dias_inactividad': config.cuentas.diasInactividad
 });
 
 const NUMERICAS = new Map([
@@ -49,6 +61,7 @@ const NUMERICAS = new Map([
   ['firmas.meta_default', { min: 1, max: 1000000 }],
   ['informes.max_meses', { min: 1, max: 120 }],
   ['informes.max_registros', { min: 1, max: 50000 }],
+  ['informes.evidencia_columnas', { min: 1, max: 3 }],
   ['informes.margen_superior', { min: 5, max: 50 }],
   ['informes.margen_derecho', { min: 5, max: 50 }],
   ['informes.margen_inferior', { min: 5, max: 50 }],
@@ -63,18 +76,27 @@ const NUMERICAS = new Map([
   ['notificaciones.historial_dias', { min: 1, max: 3650 }],
   ['respaldos.intervalo_horas', { min: 1, max: 720 }],
   ['respaldos.retencion', { min: 1, max: 365 }],
-  ['respaldos.max_manuales', { min: 1, max: 500 }]
+  ['respaldos.max_manuales', { min: 1, max: 500 }],
+  ['cuentas.token_verificacion_horas', { min: 1, max: 720 }],
+  ['cuentas.token_recuperacion_minutos', { min: 5, max: 1440 }],
+  ['cuentas.dias_inactividad', { min: 1, max: 365 }]
 ]);
 
 const BOOLEANAS = new Set([
   'firmas.permitir_anonimas',
   'firmas.notificar_meta',
   'respaldos.activo',
-  'respaldos.incluir_simulados'
+  'respaldos.incluir_simulados',
+  'cuentas.congelar_inactivas'
 ]);
 
 const FECHAS = new Set(['informes.fecha_minima']);
 const POSICIONES_LOGO = new Set(['izquierda', 'derecha', 'centro']);
+const ENUMS = new Map([
+  ['cuentas.activacion_ciudadano', new Set(['correo', 'automatica'])],
+  ['informes.motor_pdf', new Set(['v1', 'v2', 'preguntar'])],
+  ['informes.evidencia_posicion', new Set(['final', 'despues_descripcion'])]
+]);
 
 function error(campo, mensaje) {
   return AppError.solicitudInvalida('Configuración inválida', [{ campo, mensaje }]);
@@ -102,6 +124,20 @@ function validar(clave, valor) {
     }
     return String(valor);
   }
+  if (clave === 'informes.color_acento') {
+    const texto = String(valor || '').trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(texto)) {
+      throw error(clave, 'Usa un color hexadecimal de seis dígitos, por ejemplo #006657');
+    }
+    return texto.toLowerCase();
+  }
+  if (ENUMS.has(clave)) {
+    const texto = String(valor || '').trim();
+    if (!ENUMS.get(clave).has(texto)) {
+      throw error(clave, 'Valor no permitido');
+    }
+    return texto;
+  }
   if (typeof valor !== 'string') throw error(clave, 'Debe ser texto');
   const texto = valor.trim().slice(0, 500);
   if (clave === 'informes.logo_posicion' && !POSICIONES_LOGO.has(texto)) {
@@ -121,6 +157,19 @@ export async function valor(repositorio, clave) {
   const fila = await repositorio.configuracion(clave);
   if (!fila) return CONFIGURACION_POR_DEFECTO[clave];
   return validar(clave, fila.valor);
+}
+
+/**
+ * Motor de PDF efectivo. `preguntar` deja elegir v1/v2 en cada descarga; una
+ * versión fija ignora la preferencia del cliente. Cualquier valor inesperado
+ * cae en v2, que es el motor recomendado.
+ */
+export async function motorPdf(repositorio, solicitado = null) {
+  const configurado = await valor(repositorio, 'informes.motor_pdf');
+  if (configurado === 'preguntar') {
+    return solicitado === 'v1' || solicitado === 'v2' ? solicitado : 'v2';
+  }
+  return configurado === 'v1' ? 'v1' : 'v2';
 }
 
 /** Todas las claves, con defaults aplicados. */
@@ -231,4 +280,36 @@ export async function guardar(repositorio, actor, cambios = {}) {
     await repositorio.guardarConfiguracion(clave, valorNormalizado, actor?.username || null);
   }
   return todas(repositorio);
+}
+
+/** Claves que puede editar la pestaña de verificación y activación de cuentas. */
+export const CLAVES_VERIFICACION = Object.freeze([
+  'cuentas.activacion_ciudadano',
+  'cuentas.token_verificacion_horas',
+  'cuentas.token_recuperacion_minutos',
+  'cuentas.congelar_inactivas',
+  'cuentas.dias_inactividad'
+]);
+
+/** Subconjunto de configuración de acceso y verificación. */
+export async function verificacion(repositorio) {
+  return (await todas(repositorio)).filter((fila) =>
+    CLAVES_VERIFICACION.includes(fila.clave)
+  );
+}
+
+/** Guarda solo las claves de verificación; rechaza cualquier otra. */
+export async function guardarVerificacion(repositorio, actor, cambios = {}) {
+  const entradas = Object.entries(cambios || {});
+  if (!entradas.length) {
+    throw AppError.solicitudInvalida('No hay cambios de verificación de cuentas');
+  }
+  const ajenas = entradas
+    .filter(([clave]) => !CLAVES_VERIFICACION.includes(clave))
+    .map(([clave]) => ({ campo: clave, mensaje: 'Clave no editable desde esta vista' }));
+  if (ajenas.length) {
+    throw AppError.solicitudInvalida('Configuración de verificación inválida', ajenas);
+  }
+  await guardar(repositorio, actor, Object.fromEntries(entradas));
+  return verificacion(repositorio);
 }

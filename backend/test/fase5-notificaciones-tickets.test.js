@@ -28,13 +28,15 @@ async function crearSoporte(admin, { username = 'soporte1', eventos } = {}) {
     nombre: 'Sofía Soporte',
     rol: 'soporte',
     municipios: [MUNICIPIO_MARAVATIO],
-    password: 'segura1234'
+    password: 'segura1234',
+    generarClave: true,
+    claveExpiraEn: '2030-12-31'
   });
   assert.equal(alta.status, 201, JSON.stringify(alta.body));
   const entrada = await Api.entrarFuncionario(app, {
     username,
     password: 'segura1234',
-    claveMunicipio: MUNICIPIO_MARAVATIO
+    claveAcceso: alta.body.clave.codigo
   });
   assert.equal(entrada.status, 200, JSON.stringify(entrada.body));
   return { api: new Api(app, entrada.body.token), usuario: entrada.body.usuario, eventos };

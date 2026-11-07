@@ -24,8 +24,11 @@ import {
 } from '../models/usuario.model.js';
 import { coincideClave } from '../models/municipio.model.js';
 import { MUNICIPIO_DEFAULT, ROLES_ADMIN, ROLES_PERSONAL } from '../config/constantes.js';
+import { config } from '../config/index.js';
 import { permisosDe } from './permisos.service.js';
+import { valor as valorConfig } from './configuracion.service.js';
 import * as claves from './claves.service.js';
+import * as cuentas from './cuenta.service.js';
 import { cifrarPassword } from '../utils/cifrado.js';
 
 const PATRON_ANON = /^[a-zA-Z0-9_-]{6,64}$/;
@@ -57,9 +60,42 @@ async function claveValida(repositorio, codigo) {
 async function exigirCuentaHabilitada(repositorio, cuenta) {
   if (suspensionVencida(cuenta)) {
     await repositorio.actualizarUsuario(cuenta.id, limpiarSancion());
-    return;
+    return false;
   }
-  if (estaSuspendido(cuenta)) throw AppError.prohibido(mensajeSuspension(cuenta));
+  if (estaSuspendido(cuenta)) {
+    // La congelación por inactividad se levanta con el login correcto; las
+    // sanciones de moderación y la congelación voluntaria siguen bloqueando.
+    if (cuenta.suspendidoOrigen === 'inactividad') {
+      await repositorio.actualizarUsuario(cuenta.id, limpiarSancion());
+      return true;
+    }
+    throw AppError.prohibido(mensajeSuspension(cuenta));
+  }
+  return false;
+}
+
+/** El correo es obligatorio para las cuentas que se registran por su cuenta. */
+function exigirCorreoVerificado(cuenta) {
+  if (cuenta?.correoVerificado === false) {
+    throw new AppError(403, 'Confirma tu correo para activar la cuenta', [
+      {
+        codigo: 'correo_no_verificado',
+        correo: cuenta.correo || null,
+        puedeReenviar: true
+      }
+    ]);
+  }
+}
+
+/** Busca una cuenta por su nombre de usuario o por su correo. */
+async function usuarioPorIdentificador(repositorio, identificador) {
+  const texto = String(identificador || '').trim();
+  if (!texto) return null;
+  if (texto.includes('@')) {
+    const correo = normalizarCorreo(texto);
+    return correo ? repositorio.usuarioPorCorreo(correo) : null;
+  }
+  return repositorio.usuarioPorUsername(texto);
 }
 
 /** Contexto del usuario que se inyecta en `req.usuario`. */
@@ -87,6 +123,7 @@ function sesion({ usuario, municipioActivo = null, claveId = null }) {
       claveId: claveId || null
     }),
     usuario: {
+      id: usuario.id || null,
       username: usuario.username,
       nombre: usuario.nombre,
       rol: usuario.rol,
@@ -94,6 +131,13 @@ function sesion({ usuario, municipioActivo = null, claveId = null }) {
       correo: usuario.correo || null,
       userKey: usuario.userKey,
       claveId: claveId || null,
+      claveActivadaEn: usuario.claveActivadaEn || null,
+      claveVigenteHasta: usuario.claveVigenteHasta || null,
+      claveObligatoria: usuario.claveObligatoria === true,
+      correoVerificado: usuario.correoVerificado !== false,
+      suspendidoHasta: usuario.suspendidoHasta || null,
+      suspendidoOrigen: usuario.suspendidoOrigen || null,
+      creadoEn: usuario.creadoEn || null,
       pseudonimo: usuario.pseudonimo === true,
       esAnonimo: usuario.rol === 'anonimo',
       esPersonal,
@@ -163,7 +207,15 @@ async function contextoPersonal(repositorio, cuenta) {
     permisos: cuenta.permisos || {},
     rolPersonalizado: cuenta.rolPersonalizado || null,
     municipios,
-    estados: asignaciones.estados
+    estados: asignaciones.estados,
+    claveId: cuenta.claveId || null,
+    claveActivadaEn: cuenta.claveActivadaEn || null,
+    claveVigenteHasta: cuenta.claveVigenteHasta || null,
+    claveObligatoria: cuenta.claveObligatoria === true,
+    correoVerificado: cuenta.correoVerificado !== false,
+    suspendidoHasta: cuenta.suspendidoHasta || null,
+    suspendidoOrigen: cuenta.suspendidoOrigen || null,
+    creadoEn: cuenta.creadoEn || null
   };
 }
 
@@ -209,6 +261,7 @@ function usernameCiudadano() {
 /** Contexto de sesión de una cuenta ciudadana ya guardada. */
 function contextoCiudadano(usuario) {
   return {
+    id: usuario.id || null,
     username: usuario.username,
     nombre: usuario.nombre,
     rol: 'ciudadano',
@@ -216,6 +269,10 @@ function contextoCiudadano(usuario) {
     correo: usuario.correo || null,
     userKey: usuario.username,
     pseudonimo: usuario.pseudonimo === true,
+    correoVerificado: usuario.correoVerificado !== false,
+    suspendidoHasta: usuario.suspendidoHasta || null,
+    suspendidoOrigen: usuario.suspendidoOrigen || null,
+    creadoEn: usuario.creadoEn || null,
     permisos: usuario.permisos || {}
   };
 }
@@ -243,12 +300,14 @@ async function pseudonimoLibre(repositorio) {
  */
 export async function registrarCiudadano(repositorio, datos = {}) {
   const limpio = validarRegistro(datos);
+  const activacion = await valorConfig(repositorio, 'cuentas.activacion_ciudadano');
+  const exigirVerificacion = activacion === 'correo';
 
   // El correo es único: si ya está registrado, los avisos llegarían a otra
   // persona. Se comprueba antes de crear la cuenta (y la base lo respalda).
   if (await repositorio.usuarioPorCorreo(limpio.correo)) {
     throw AppError.conflicto(
-      'Ese correo ya está registrado en otra cuenta. Usa otro correo o entra con tu nombre de usuario.'
+      'Ese correo ya está registrado en otra cuenta. Usa otro correo o entra con tu nombre o correo.'
     );
   }
 
@@ -269,7 +328,10 @@ export async function registrarCiudadano(repositorio, datos = {}) {
     // Copia cifrada para que la administración pueda consultarla o
     // restablecerla con registro en auditoría (V2.11).
     passwordCifrada: cifrarPassword(limpio.password),
-    pseudonimo: limpio.pseudonimo
+    pseudonimo: limpio.pseudonimo,
+    correoVerificado: !exigirVerificacion,
+    correoVerificadoEn: exigirVerificacion ? null : new Date().toISOString(),
+    claveObligatoria: false
   });
 
   try {
@@ -279,10 +341,23 @@ export async function registrarCiudadano(repositorio, datos = {}) {
     // puede pasar en ambas y la base rechaza la segunda.
     if (error?.code === 'ER_DUP_ENTRY' && /correo/i.test(error.message || '')) {
       throw AppError.conflicto(
-        'Ese correo ya está registrado en otra cuenta. Usa otro correo o entra con tu nombre de usuario.'
+        'Ese correo ya está registrado en otra cuenta. Usa otro correo o entra con tu nombre o correo.'
       );
     }
     throw error;
+  }
+
+  if (exigirVerificacion) {
+    await cuentas.emitirVerificacionCuenta(repositorio, usuario, {
+      ip: datos.ip || null,
+      userAgent: datos.userAgent || ''
+    });
+    return {
+      pendienteVerificacion: true,
+      correo: usuario.correo,
+      nombre: usuario.nombre,
+      username: usuario.username
+    };
   }
 
   // La cuenta nueva se queda en el municipio que el ciudadano estaba viendo.
@@ -303,14 +378,24 @@ export async function entrarCiudadano(
   repositorio,
   { nombre, correo, password, municipioId } = {}
 ) {
-  const identificador = String(nombre || '').trim();
-  const email = normalizarCorreo(correo);
+  const identificador = String(nombre || correo || '').trim();
+  const pareceCorreo = identificador.includes('@');
+  const email = normalizarCorreo(pareceCorreo ? identificador : correo);
   if (!password || (!identificador && !email)) {
-    throw AppError.solicitudInvalida('Escribe tu nombre y tu contraseña');
+    throw AppError.solicitudInvalida('Escribe tu nombre, correo y contraseña');
   }
 
-  let candidatos = identificador ? await repositorio.usuariosPorNombre(identificador) : [];
-  if (!candidatos.length && email) {
+  // El nombre/pseudónimo sigue siendo válido para las cuentas antiguas; el
+  // correo es la vía nueva y la única que puede resolver cuentas sin nombre
+  // público recordado. Los correos inválidos no se usan como nombre.
+  let candidatos = [];
+  if (pareceCorreo) {
+    const porCorreo = email ? await repositorio.usuarioPorCorreo(email) : null;
+    candidatos = porCorreo ? [porCorreo] : [];
+  } else if (identificador) {
+    candidatos = await repositorio.usuariosPorNombre(identificador);
+  }
+  if (!candidatos.length && email && !pareceCorreo) {
     const porCorreo = await repositorio.usuarioPorCorreo(email);
     candidatos = porCorreo ? [porCorreo] : [];
   }
@@ -323,15 +408,16 @@ export async function entrarCiudadano(
       break;
     }
   }
-  if (!encontrado) throw AppError.noAutenticado('Nombre o contraseña incorrectos');
-  await exigirCuentaHabilitada(repositorio, encontrado);
+  if (!encontrado) throw AppError.noAutenticado('Nombre, correo o contraseña incorrectos');
+  exigirCorreoVerificado(encontrado);
+  const reactivada = await exigirCuentaHabilitada(repositorio, encontrado);
 
   const usuario = contextoCiudadano(encontrado);
   // El ciudadano conserva el municipio que estaba viendo en este dispositivo.
   const activo =
     (municipioId ? await repositorio.municipioPorId(municipioId) : null) ||
     (await municipioSugerido(repositorio, usuario));
-  return sesion({ usuario, municipioActivo: activo });
+  return { ...sesion({ usuario, municipioActivo: activo }), reactivada };
 }
 
 /** Login de funcionario, auditor o enlace (personal no administrador). */
@@ -343,49 +429,119 @@ export async function entrarFuncionario(
     throw AppError.solicitudInvalida('Completa todos los campos');
   }
 
-  const encontrado = await repositorio.usuarioPorUsername(username);
+  // El campo acepta el usuario o el correo de la cuenta. Así una persona que
+  // fue promovida desde una cuenta ciudadana no tiene que recordar un
+  // username interno que nunca vio.
+  const encontrado = await usuarioPorIdentificador(repositorio, username);
   if (
     !encontrado ||
     !ROLES_PERSONAL.includes(encontrado.rol) ||
     ROLES_ADMIN.includes(encontrado.rol) ||
     encontrado.activo === false
   ) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
+    throw AppError.noAutenticado('Usuario, correo o contraseña incorrectos');
   }
   if (!(await verificarPassword(encontrado, password))) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
+    throw AppError.noAutenticado('Usuario, correo o contraseña incorrectos');
   }
-  await exigirCuentaHabilitada(repositorio, encontrado);
+  exigirCorreoVerificado(encontrado);
+  const reactivada = await exigirCuentaHabilitada(repositorio, encontrado);
 
   const usuario = await contextoPersonal(repositorio, encontrado);
 
-  // Clave nueva (puede cubrir varios municipios). Si viene, se valida y se
-  // registra el uso. Las cuentas municipales siguen aceptando la clave legada
-  // de un municipio asignado, así que si el código no es una clave de acceso se
-  // deja pasar para probarlo como clave geoestadística.
-  const clave = claveAcceso ? await claveValida(repositorio, claveAcceso) : null;
-  if (clave) {
-    // La clave manda: recorta el territorio y los permisos efectivos de la
-    // cuenta a lo que la clave autoriza. Si la cuenta no tenía territorio,
-    // simplemente lo adopta.
-    Object.assign(usuario, claves.aplicarClaveAUsuario(usuario, clave));
-    await claves.registrarUso(repositorio, clave, {
-      usuarioId: encontrado.id,
-      ip
-    });
+  const claveGuardada = encontrado.claveId
+    ? await repositorio.claveAccesoPorId(encontrado.claveId)
+    : null;
+  const ahora = Date.now();
+  const cuentaActiva =
+    Boolean(claveGuardada) &&
+    claves.claveVigente(claveGuardada) &&
+    Boolean(encontrado.claveVigenteHasta) &&
+    new Date(encontrado.claveVigenteHasta).getTime() > ahora;
+
+  // Las cuentas nuevas de personal no reciben acceso hasta que la
+  // administración les vincule una clave.
+  if (encontrado.claveObligatoria === true && !encontrado.claveId) {
+    throw new AppError(
+      403,
+      'Tu cuenta aún no tiene una clave de acceso vinculada. Pide a la administración que te asigne una.',
+      [{ codigo: 'clave_no_asignada' }]
+    );
   }
 
+  let clave = null;
+  if (claveAcceso) {
+    // La clave escrita manda: activa la cuenta, la renueva o cambia a la clave
+    // de una renovación. Una cuenta nueva obligatoria no se auto-vincula.
+    try {
+      clave = await claves.validarActivacion(repositorio, encontrado, claveAcceso, {
+        ip,
+        permitirVinculoInicial:
+          encontrado.claveObligatoria !== true && !encontrado.claveId
+      });
+    } catch (error) {
+      // El formulario histórico enviaba la clave geoestadística en el mismo
+      // campo. Solo se prueba esa vía si el código no corresponde a ninguna
+      // clave: una clave real expirada o revocada debe bloquear la entrada.
+      const esLegada = !encontrado.claveId && encontrado.claveObligatoria !== true;
+      const noEsClave =
+        error?.estado === 401 && error?.detalles?.[0]?.codigo === 'clave_invalida';
+      if (!esLegada || !claveMunicipio || !noEsClave) throw error;
+      clave = null;
+    }
+  } else if (encontrado.claveId) {
+    if (!claveGuardada) {
+      throw new AppError(403, 'Tu clave de acceso ya no está disponible', [
+        { codigo: 'clave_revocada' }
+      ]);
+    }
+    if (claveGuardada.activa === false) {
+      throw new AppError(403, 'Tu clave de acceso fue revocada', [
+        { codigo: 'clave_revocada' }
+      ]);
+    }
+    if (claveGuardada.expiraEn && new Date(claveGuardada.expiraEn).getTime() <= ahora) {
+      throw new AppError(
+        403,
+        `Tu clave venció el ${String(claveGuardada.expiraEn).slice(0, 10)}. Ingresa la nueva clave que te entregó la administración.`,
+        [{ codigo: 'clave_vencida', venceEn: claveGuardada.expiraEn }]
+      );
+    }
+    if (!cuentaActiva) {
+      throw new AppError(400, 'Escribe la clave de activación de tu cuenta', [
+        {
+          campo: 'claveAcceso',
+          codigo: 'clave_requerida',
+          venceEn: claveGuardada.expiraEn || null
+        }
+      ]);
+    }
+  }
+
+  if (clave) {
+    // La clave define el alcance de la sesión y sus permisos.
+    Object.assign(usuario, claves.aplicarClaveAUsuario(usuario, clave));
+  }
+
+  const claveSesion = clave?.id || encontrado.claveId || null;
+
   if (usuario.rol === 'funcionario' || usuario.rol === 'auditor') {
-    if (clave) {
+    if (clave || cuentaActiva) {
       const municipio = await municipioSugerido(repositorio, usuario);
-      if (!municipio) throw AppError.prohibido('La clave no cubre ningún municipio válido');
+      if (!municipio) {
+        throw AppError.prohibido(
+          clave ? 'La clave no cubre ningún municipio válido' : 'La cuenta no tiene un municipio válido'
+        );
+      }
       usuario.municipioId = municipio.id;
-      return sesion({ usuario, municipioActivo: municipio, claveId: clave.id });
+      return {
+        ...sesion({ usuario, municipioActivo: municipio, claveId: claveSesion }),
+        reactivada
+      };
     }
 
+    // Compatibilidad con cuentas legadas sin clave.
     if (!claveMunicipio) {
-      // Si escribió algo pero no era una clave de acceso vigente, es un fallo
-      // de credenciales (401), no un campo vacío (400).
       throw claveAcceso
         ? AppError.noAutenticado('Clave de acceso incorrecta')
         : AppError.solicitudInvalida('Escribe la clave de tu municipio');
@@ -396,20 +552,26 @@ export async function entrarFuncionario(
       throw AppError.prohibido('No tienes acceso a este municipio');
     }
     usuario.municipioId = municipio.id;
-    return sesion({ usuario, municipioActivo: municipio });
+    return {
+      ...sesion({ usuario, municipioActivo: municipio, claveId: claveSesion }),
+      reactivada
+    };
   }
 
   // Enlace estatal/federal y soporte: con clave se acotan a su territorio;
-  // sin clave se mantiene el comportamiento anterior (sugerir uno de su ámbito).
+  // sin clave se mantiene el comportamiento anterior.
   if (clave) {
     const municipio = await municipioSugerido(repositorio, usuario);
     usuario.municipioId = municipio?.id || null;
-    return sesion({ usuario, municipioActivo: municipio || null, claveId: clave.id });
+    return {
+      ...sesion({ usuario, municipioActivo: municipio || null, claveId: claveSesion }),
+      reactivada
+    };
   }
 
   const activo = await municipioSugerido(repositorio, usuario);
   usuario.municipioId = activo ? activo.id : null;
-  return sesion({ usuario, municipioActivo: activo });
+  return { ...sesion({ usuario, municipioActivo: activo, claveId: claveSesion }), reactivada };
 }
 
 /** Login de administrador (sin municipio fijo: ve todos hasta elegir uno). */
@@ -418,18 +580,19 @@ export async function entrarAdmin(repositorio, { username, password }) {
     throw AppError.solicitudInvalida('Completa todos los campos');
   }
 
-  const encontrado = await repositorio.usuarioPorUsername(username);
+  const encontrado = await usuarioPorIdentificador(repositorio, username);
   if (!encontrado || !ROLES_ADMIN.includes(encontrado.rol) || encontrado.activo === false) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
+    throw AppError.noAutenticado('Usuario, correo o contraseña incorrectos');
   }
   if (!(await verificarPassword(encontrado, password))) {
-    throw AppError.noAutenticado('Credenciales incorrectas');
+    throw AppError.noAutenticado('Usuario, correo o contraseña incorrectos');
   }
-  await exigirCuentaHabilitada(repositorio, encontrado);
+  exigirCorreoVerificado(encontrado);
+  const reactivada = await exigirCuentaHabilitada(repositorio, encontrado);
 
   const usuario = await contextoPersonal(repositorio, encontrado);
   const municipioActivo = await municipioSugerido(repositorio, usuario);
-  return sesion({ usuario, municipioActivo });
+  return { ...sesion({ usuario, municipioActivo }), reactivada };
 }
 
 /** Reconstruye el contexto desde el payload de un token válido. */
@@ -478,6 +641,10 @@ export async function cambiarMunicipioActivo(repositorio, usuario, { municipioId
       if (!clave || !claves.claveVigente(clave)) {
         throw AppError.noAutenticado('Tu clave de acceso ya no es válida');
       }
+      await claves.exigirCobertura(repositorio, clave, {
+        municipios: ctx.municipios,
+        estados: ctx.estados
+      });
       ctx = claves.aplicarClaveAUsuario(ctx, clave);
     }
 

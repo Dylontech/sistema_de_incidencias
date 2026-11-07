@@ -2,8 +2,9 @@
 import { registrarAcciones } from '../core/eventos.js';
 import { abrirModal, cerrarModal, loading, modalAbierto, preguntar, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
-import { debounce } from '../core/utils.js';
+import { $, debounce, descargar, formatoBytes } from '../core/utils.js';
 import { api } from '../core/api.js';
+import { verAdjunto } from '../core/visor-adjunto.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { zonaDePunto, dentroDelMunicipio, parsearCoordenadas } from '../core/geocerca.js';
@@ -12,10 +13,13 @@ import * as offline from '../core/offline.js';
 import { incidenciasService } from '../services/incidencias.service.js';
 import { firmasService } from '../services/firmas.service.js';
 import { catalogosService } from '../services/catalogos.service.js';
+import { elegirVersionPdf } from './versionPdf.controller.js';
 import * as aplicacion from '../core/aplicacion.js';
 import * as formView from '../views/incidenciaForm.view.js';
 import * as detalleView from '../views/detalle.view.js';
 import * as mapa from '../map/mapa.js';
+import * as vialidadesMapa from '../map/vialidades.js';
+import * as mapaOffline from '../map/mapa-offline.js';
 
 const FORMULARIO_INICIAL = {
   editarId: null,
@@ -29,6 +33,21 @@ const FORMULARIO_INICIAL = {
   evidenciaArchivos: [],
   evidenciaResolver: []
 };
+
+/** Descarga y pinta la red vial real del municipio activo. */
+async function consultarCapaVialidades() {
+  const municipio = store.estado.municipioActivo;
+  if (!municipio) return null;
+  if (!(store.estado.zonas || []).length) await aplicacion.cargarZonas(municipio.id);
+  const datos = await incidenciasService.vialidades({ municipio: municipio.id });
+  vialidadesMapa.dibujar(datos, store.estado.zonas || []);
+  return datos;
+}
+
+/** Permite que el panel administrativo refresque el mapa tras importar. */
+export async function recargarVialidades() {
+  return consultarCapaVialidades();
+}
 
 /** Recarga todo lo que puede haber cambiado tras una operación. */
 async function refrescarDatos() {
@@ -289,6 +308,52 @@ async function guardarIncidencia() {
 
 /* ------------------------------ detalle ----------------------------- */
 
+let temporizadorComentario = null;
+
+/** Detiene la cuenta atrás de la espera entre comentarios. */
+function detenerEsperaComentario() {
+  if (temporizadorComentario) {
+    clearInterval(temporizadorComentario);
+    temporizadorComentario = null;
+  }
+}
+
+/**
+ * Inicia la cuenta atrás cuando el servidor indica que la espera anti-spam
+ * sigue activa. Así el botón no sube una imagen que luego sería rechazada.
+ */
+function programarEsperaComentario(segundos, motivo = '') {
+  detenerEsperaComentario();
+  let restantes = Math.max(0, Math.ceil(Number(segundos) || 0));
+  if (!restantes) {
+    detalleView.actualizarEsperaComentario(0);
+    return;
+  }
+  detalleView.actualizarEsperaComentario(restantes, motivo);
+  temporizadorComentario = setInterval(() => {
+    if (!modalAbierto('modalDetalle')) {
+      detenerEsperaComentario();
+      return;
+    }
+    restantes -= 1;
+    if (restantes <= 0) {
+      detenerEsperaComentario();
+      detalleView.actualizarEsperaComentario(0);
+      return;
+    }
+    detalleView.actualizarEsperaComentario(restantes);
+  }, 1000);
+}
+
+/** Reinicia la espera según el estado que devolvió el detalle. */
+function aplicarEstadoComentario(incidencia) {
+  detenerEsperaComentario();
+  const estado = incidencia?.permisos?.comentario;
+  if (estado && estado.puede === false && estado.codigo === 'espera' && estado.esperaSegundos > 0) {
+    programarEsperaComentario(estado.esperaSegundos, estado.motivo);
+  }
+}
+
 async function abrirDetalle(id, { nested = false } = {}) {
   const { incidencia } = await incidenciasService.obtener(id);
   let firmas = null;
@@ -303,6 +368,7 @@ async function abrirDetalle(id, { nested = false } = {}) {
     usuario: store.estado.usuario,
     firmas
   });
+  aplicarEstadoComentario(incidencia);
   aplicacion.cerrarSidebar();
   abrirModal('modalDetalle', { nested });
 }
@@ -343,6 +409,65 @@ export async function aplicarMarcaPeligro(id, { peligrosa, motivo = '' } = {}) {
     peligrosa ? '⚠️ Incidencia marcada como peligrosa' : 'Se retiró la marca de peligro',
     'ok'
   );
+}
+
+/* ------------------------- mapa sin conexión ------------------------- */
+
+/** Pinta el avance de la descarga de teselas. */
+function pintarProgresoMapa({ estado, descargadas = 0, total = 0, bytes = 0 } = {}) {
+  const barra = $('mapaOfflineProgreso');
+  const texto = $('mapaOfflineEstado');
+  const cancelar = $('mapaOfflineCancelar');
+  const descargando = estado === 'descargando';
+  const pct = total ? Math.round((descargadas / total) * 100) : 0;
+  if (barra) {
+    barra.classList.toggle('u-oculto', !descargando);
+    barra.value = pct;
+  }
+  if (cancelar) cancelar.classList.toggle('u-oculto', !descargando);
+  const fab = $('fabMapaOffline');
+  if (fab) {
+    fab.classList.toggle('descargando', descargando);
+    const etiqueta = descargando
+      ? `Descargando el mapa del municipio… ${pct} %`
+      : 'Descargar el mapa del municipio para verlo sin conexión';
+    fab.title = etiqueta;
+    fab.setAttribute('aria-label', etiqueta);
+  }
+  if (texto && descargando) {
+    texto.textContent = `Descargando ${descargadas}/${total} (${pct} %) · ${formatoBytes(bytes)}`;
+  }
+}
+
+/**
+ * Refresca el estado del mapa descargado del municipio activo. Se llama al
+ * cambiar de municipio, al abrir el panel y al terminar una descarga.
+ */
+export async function actualizarEstadoMapaOffline() {
+  const municipio = store.estado.municipioActivo;
+  if (!municipio) return;
+  const descargado = mapaOffline.mapaDescargado(municipio.id);
+  const texto = $('mapaOfflineEstado');
+  const borrar = $('mapaOfflineBorrar');
+  const barra = $('mapaOfflineProgreso');
+  const cuota = $('mapaOfflineCuota');
+  const fab = $('fabMapaOffline');
+  if (texto) texto.textContent = mapaOffline.describir(municipio.id);
+  if (borrar) borrar.classList.toggle('u-oculto', !descargado);
+  if (barra && !mapaOffline.enDescarga()) barra.classList.add('u-oculto');
+  if (fab) {
+    fab.classList.toggle('descargado', Boolean(descargado));
+    fab.classList.remove('descargando');
+    fab.title = 'Descargar el mapa del municipio para verlo sin conexión';
+    fab.setAttribute('aria-label', fab.title);
+  }
+  if (cuota) {
+    const uso = await mapaOffline.cuota();
+    cuota.textContent = uso?.quota
+      ? `Usado en este dispositivo: ${formatoBytes(uso.usage)} de ${formatoBytes(uso.quota)}.`
+      : '';
+  }
+  if (descargado) mapaOffline.tocar(municipio.id);
 }
 
 export function registrar() {
@@ -398,6 +523,28 @@ export function registrar() {
         toast('Ubicación centrada', 'ok');
       }),
 
+    'mapa:vialidades': () =>
+      intentar(async () => {
+        const municipio = store.estado.municipioActivo;
+        if (!municipio) return toast('Elige un municipio primero', 'err');
+        const { visible } = vialidadesMapa.alternar();
+        const boton = $('btnVialidades');
+        if (boton) boton.setAttribute('aria-pressed', String(visible));
+        const texto = $('btnVialidadesTexto');
+        if (texto) texto.textContent = visible ? 'Ocultar semáforo vial' : 'Mostrar semáforo vial';
+        if (!visible) {
+          toast('Capa de vialidades oculta', 'info');
+          return;
+        }
+        loading(true, 'Calculando condición de vialidades…');
+        try {
+          await consultarCapaVialidades();
+        } finally {
+          loading(false);
+        }
+        toast('Semáforo vial visible', 'info');
+      }),
+
     'mapa:zonas': () =>
       intentar(async () => {
         const activo = store.estado.municipioActivo;
@@ -416,6 +563,55 @@ export function registrar() {
         const visibles = mapa.alternarZonas();
         toast(visibles ? 'Zonas visibles' : 'Zonas ocultas', 'info');
       }),
+
+    /* ------------------- mapa del municipio sin conexión ------------------- */
+    'mapa:offlineDescargar': () =>
+      intentar(async () => {
+        const municipio = store.estado.municipioActivo;
+        if (!municipio) return toast('Elige un municipio primero', 'err');
+        if (mapaOffline.enDescarga()) return toast('Ya hay una descarga en curso', 'info');
+        const ya = mapaOffline.mapaDescargado(municipio.id);
+        const estimado = ya ? ya.bytes : 0;
+        if (
+          !(await preguntar(
+            ya
+              ? `Ya tienes el mapa de ${municipio.nombre}. ¿Volver a descargarlo?`
+              : `¿Descargar el mapa de ${municipio.nombre} para verlo sin conexión? Se guardará en este dispositivo (máximo 20 MB por municipio).`
+          ))
+        ) {
+          return;
+        }
+        try {
+          toast(`Descargando el mapa de ${municipio.nombre}. Puedes seguir usando la app.`, 'info');
+          const resultado = await mapaOffline.descargarMunicipio(municipio, {
+            alProgreso: pintarProgresoMapa
+          });
+          if (resultado) {
+            toast(
+              `Mapa de ${municipio.nombre} listo: ${resultado.teselas} teselas (${formatoBytes(resultado.bytes)})`,
+              'ok'
+            );
+          }
+        } finally {
+          await actualizarEstadoMapaOffline();
+        }
+        if (estimado) mapaOffline.tocar(municipio.id);
+      }),
+    'mapa:offlineBorrar': () =>
+      intentar(async () => {
+        const municipio = store.estado.municipioActivo;
+        if (!municipio) return;
+        if (!(await preguntar(`¿Borrar el mapa de ${municipio.nombre} de este dispositivo?`))) {
+          return;
+        }
+        await mapaOffline.borrarMunicipio(municipio.id);
+        await actualizarEstadoMapaOffline();
+        toast('Mapa borrado del dispositivo', 'info');
+      }),
+    'mapa:offlineCancelar': () => {
+      mapaOffline.cancelar();
+      toast('Descarga cancelada', 'info');
+    },
 
     /* ----------------------- formulario ---------------------------- */
     'incidencias:reportar': () => abrirFormulario(null),
@@ -607,15 +803,55 @@ export function registrar() {
     /* ---------------------------- detalle -------------------------- */
     'detalle:abrir': ({ id }) => intentar(() => abrirDetalle(id)),
 
-    'detalle:cerrar': () => cerrarModal('modalDetalle'),
+    'detalle:cerrar': () => {
+      detenerEsperaComentario();
+      cerrarModal('modalDetalle');
+    },
 
     'detalle:verMapa': ({ valor }) => {
       const [lat, lng] = String(valor).split(',').map(Number);
       mapa.fijarVista(lat, lng, 17);
+      detenerEsperaComentario();
       cerrarModal('modalDetalle');
     },
 
     'detalle:verImagen': ({ id }) => window.open(id, '_blank'),
+
+    /** PDF de la incidencia con historial, costo y documentos (personal). */
+    'detalle:pdf': ({ id }) =>
+      intentar(async () => {
+        const motor = await elegirVersionPdf();
+        if (!motor) return;
+        const query = motor === 'auto' ? '' : `?pdf=${encodeURIComponent(motor)}`;
+        const blob = await api.blob(`/incidencias/${encodeURIComponent(id)}/pdf${query}`);
+        descargar(blob, `incidencia-${String(id).slice(0, 8)}.pdf`, 'application/pdf');
+        toast('PDF descargado', 'ok');
+      }),
+
+    /** Actualiza la vista previa al elegir una imagen. */
+    'detalle:archivoComentario': ({ elemento }) => {
+      const archivo = elemento?.files?.[0] || null;
+      if (!archivo) {
+        detalleView.quitarAdjuntoComentario();
+        return;
+      }
+      if (!detalleView.archivoComentarioValido(archivo)) {
+        toast('Adjunta una imagen PNG, JPG, WEBP o GIF de hasta 5 MB', 'err');
+        elemento.value = '';
+        return;
+      }
+      detalleView.seleccionarAdjuntoComentario(archivo);
+    },
+
+    'detalle:quitarAdjunto': () => detalleView.quitarAdjuntoComentario(),
+
+    /** Abre la imagen publicada en el visor interno del sistema. */
+    'detalle:verAdjunto': ({ elemento }) =>
+      verAdjunto({
+        url: elemento?.dataset.url || '',
+        tipo: elemento?.dataset.tipo || '',
+        nombre: elemento?.dataset.nombre || 'Imagen adjunta'
+      }),
 
     'detalle:comentar': ({ id }) =>
       intentar(async () => {
@@ -625,13 +861,43 @@ export function registrar() {
           toast('Escribe un comentario o adjunta una imagen', 'err');
           return;
         }
-        let adjuntos = [];
-        if (archivo) {
-          const subida = await api.subir('/adjuntos/comentario', [archivo], { campo: 'archivo' });
-          adjuntos = [subida.adjunto.id];
+        if (!detalleView.puedeEnviarComentario()) {
+          toast('No puedes comentar en este momento; revisa el aviso del formulario', 'err');
+          return;
         }
-        await incidenciasService.comentar(id, texto, adjuntos);
-        await refrescarDatos();
+
+        detalleView.marcarEnvioComentario(true);
+        let adjuntoId = detalleView.adjuntoComentarioPendiente();
+        try {
+          // Si ya se subió en un intento anterior (por ejemplo, un 409), se
+          // reutiliza el adjunto en lugar de subir la imagen otra vez.
+          if (archivo && !adjuntoId) {
+            const subida = await api.subir('/adjuntos/comentario', [archivo], {
+              campo: 'archivo'
+            });
+            adjuntoId = subida.adjunto.id;
+            detalleView.guardarAdjuntoComentarioPendiente(adjuntoId);
+          }
+          await incidenciasService.comentar(id, texto, adjuntoId ? [adjuntoId] : []);
+        } catch (error) {
+          detalleView.marcarEnvioComentario(false);
+          if (error?.estado === 409) {
+            const detalle = (error.detalles || []).find((d) => d?.campo === 'reintentarEn');
+            programarEsperaComentario(Number(detalle?.mensaje) || 30, error.message);
+            toast(error.message, 'err');
+            return;
+          }
+          throw error;
+        }
+
+        detalleView.limpiarComentario();
+        detalleView.marcarEnvioComentario(false);
+        try {
+          await refrescarDatos();
+        } catch {
+          // El detalle es lo importante: si falla la lista, el comentario ya
+          // está publicado y se verá al recargar.
+        }
         await abrirDetalle(id);
         toast('Comentario agregado', 'ok');
       }),
@@ -720,15 +986,21 @@ export function registrar() {
       abrirModal('modalResolver', { nested: true });
     },
 
+    'resolver:agregarConcepto': () => formView.agregarConceptoResolver(),
+    'resolver:quitarConcepto': ({ elemento }) => formView.quitarConceptoResolver(elemento),
+    'resolver:calcular': () => formView.actualizarTotalDesglose(),
+
     'incidencias:resolver': () =>
       intentar(async () => {
-        const { id, texto } = formView.leerResolver();
+        const { id, texto, costo, desglose } = formView.leerResolver();
         if (!texto) {
           toast('Describe la solución aplicada', 'err');
           return;
         }
         await incidenciasService.resolver(id, {
           solucion: texto,
+          costoReparacion: costo === '' ? null : Number(costo),
+          desgloseCostos: desglose,
           evidenciaSolucion: store.estado.formulario.evidenciaResolver
         });
         cerrarModal('modalResolver');

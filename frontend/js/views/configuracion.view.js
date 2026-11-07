@@ -21,6 +21,10 @@ const ETIQUETAS = {
   'informes.logo_desplazamiento_x': 'Ajuste horizontal del logo (px)',
   'informes.logo_desplazamiento_y': 'Ajuste vertical del logo (px)',
   'informes.pie_texto': 'Texto del pie de página',
+  'informes.color_acento': 'Color institucional del informe',
+  'informes.evidencia_columnas': 'Imágenes de evidencia por fila',
+  'informes.evidencia_posicion': 'Orden de la evidencia',
+  'informes.motor_pdf': 'Versión del PDF de informes',
   'comentarios.max_por_dia': 'Comentarios por cuenta al día',
   'comentarios.espera_segundos': 'Espera entre comentarios (segundos)',
   'comentarios.max_enlaces': 'Enlaces permitidos por comentario',
@@ -45,6 +49,18 @@ const GRUPOS = {
   'general.': 'General'
 };
 
+const OPCIONES = {
+  'informes.motor_pdf': [
+    ['v2', 'Rediseñado (recomendado)'],
+    ['v1', 'Clásico (anterior)'],
+    ['preguntar', 'Preguntar en cada descarga']
+  ],
+  'informes.evidencia_posicion': [
+    ['final', 'Al final, como anexo'],
+    ['despues_descripcion', 'Justo después de la descripción']
+  ]
+};
+
 function grupoDe(clave) {
   const prefijo = Object.keys(GRUPOS).find((p) => clave.startsWith(p));
   return prefijo ? GRUPOS[prefijo] : 'Otros';
@@ -58,10 +74,37 @@ function campo(clave, valor) {
       <span>${esc(ETIQUETAS[clave] || clave)}</span>
     </label>`;
   }
-  const tipo = clave === 'informes.fecha_minima' ? 'date' : typeof valor === 'number' ? 'number' : 'text';
+  const opciones = OPCIONES[clave];
+  if (opciones) {
+    const actual = String(valor ?? '');
+    const nota =
+      clave === 'informes.motor_pdf'
+        ? 'v2 usa el diseño nuevo; v1 conserva el anterior; preguntar muestra la elección en cada descarga.'
+        : clave;
+    return `<div class="form-group">
+      <label for="${id}">${esc(ETIQUETAS[clave] || clave)}</label>
+      <select id="${id}" data-config-key="${esc(clave)}">
+        ${opciones
+          .map(
+            ([opcion, texto]) =>
+              `<option value="${esc(opcion)}" ${actual === opcion ? 'selected' : ''}>${esc(texto)}</option>`
+          )
+          .join('')}
+      </select>
+      <p class="campo-nota">${esc(nota)}</p>
+    </div>`;
+  }
+  const tipo =
+    clave === 'informes.fecha_minima'
+      ? 'date'
+      : clave === 'informes.color_acento'
+        ? 'color'
+        : typeof valor === 'number'
+          ? 'number'
+          : 'text';
   return `<div class="form-group">
     <label for="${id}">${esc(ETIQUETAS[clave] || clave)}</label>
-    <input type="${tipo}" id="${id}" data-config-key="${esc(clave)}" value="${esc(String(valor ?? ''))}">
+    <input type="${tipo}" id="${id}" autocomplete="off" data-config-key="${esc(clave)}" value="${esc(String(valor ?? ''))}">
     <p class="campo-nota">${esc(clave)}</p>
   </div>`;
 }

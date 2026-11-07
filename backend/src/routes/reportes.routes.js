@@ -16,6 +16,8 @@ router.get('/stats/panel', requiereEmpleado, requierePermiso('ver_metricas'), st
 router.get('/stats/informes', requiereEmpleado, requierePermiso('ver_metricas'), stats.informes);
 router.get('/exportacion', requiereEmpleado, requierePermiso('exportar'), stats.exportacion);
 router.get('/informes/exportar', requiereEmpleado, requierePermiso('exportar'), informes.exportar);
+router.get('/informes/datos', requiereEmpleado, requierePermiso('exportar'), informes.datos);
+router.get('/informes/motor-pdf', requiereEmpleado, informes.motorPdf);
 router.get('/informes/estilo.css', informes.estilo);
 router.post(
   '/admin/informes/logo',

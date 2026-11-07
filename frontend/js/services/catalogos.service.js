@@ -68,5 +68,13 @@ export const catalogosService = {
   /** Genera una contraseña temporal nueva (o fija la indicada). */
   restablecerPassword(id, datos = {}) {
     return api.post(`/usuarios/${id}/password/restablecer`, datos);
+  },
+  /** Estado de la clave de activación de una cuenta. */
+  claveUsuario(id) {
+    return api.get(`/usuarios/${id}/clave`);
+  },
+  /** Renueva la clave de activación (solo administración). */
+  renovarClaveUsuario(id, datos = {}) {
+    return api.post(`/usuarios/${id}/clave/renovar`, datos);
   }
 };

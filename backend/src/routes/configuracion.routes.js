@@ -19,4 +19,17 @@ router.put(
   configuracion.guardar
 );
 
+router.get(
+  '/admin/verificacion-cuentas',
+  requiereAdmin,
+  requierePermiso('gestionar_verificacion_cuentas'),
+  configuracion.verificacion
+);
+router.put(
+  '/admin/verificacion-cuentas',
+  requiereAdmin,
+  requierePermiso('gestionar_verificacion_cuentas'),
+  configuracion.guardarVerificacion
+);
+
 export default router;

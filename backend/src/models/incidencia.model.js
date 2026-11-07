@@ -224,6 +224,15 @@ export function construirIncidencia({
     peligrosaPor: null,
     peligrosaFecha: null,
     peligrosaMotivo: '',
+    asignadaA: null,
+    asignadaNombre: null,
+    reparacionEstado: 'sin_asignar',
+    reparacionNotas: '',
+    asignadaEn: null,
+    reparacionIniciadaEn: null,
+    reparacionTerminadaEn: null,
+    desgloseCostos: [],
+    documentosReparacion: [],
     // Ocultamiento por moderación: el personal la retira del listado público
     // (ver `moderacion.service.ocultarIncidencia`). Nace visible.
     oculta: false,

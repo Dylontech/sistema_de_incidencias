@@ -1,5 +1,6 @@
 /** Vista del panel de administración (6 pestañas). */
 import { $, esc, textoAntiguedad, etiquetaEstado, fmtFechaCorta, aplicarEstilosDinamicos } from '../core/utils.js';
+import { urlPrivada } from '../core/api.js';
 import { crearSelectorTerritorial } from '../core/selector-territorial.js';
 import { crearSelectorTerritorialPorEstado } from '../core/selector-territorial-bloques.js';
 import { renderListaTipos } from './tipos.view.js';
@@ -770,6 +771,7 @@ export function renderSolicitudesBaja(solicitudes = []) {
 export function renderSolicitudesAlta(solicitudes = []) {
   const contenedor = $('solicitudesAltaLista');
   if (!contenedor) return;
+  moduleState.solicitudesAlta = solicitudes;
   if (!solicitudes.length) {
     contenedor.innerHTML =
       '<p class="campo-nota">No hay solicitudes de alta pendientes ni recientes.</p>';
@@ -943,6 +945,7 @@ export function renderUsuarios(
     puedeSolicitarPassword = false,
     puedeSolicitarAlta = false,
     puedeReactivar = false,
+    puedeGestionarClaves = false,
     usuarioActualId = null
   } = {}
 ) {
@@ -966,7 +969,8 @@ export function renderUsuarios(
     puedeRevelar ||
     puedeSolicitarBaja ||
     puedeSolicitarPassword ||
-    puedeReactivar;
+    puedeReactivar ||
+    puedeGestionarClaves;
   contenedor.innerHTML = `
     <div class="u-scroll-x">
       <table class="data-table">
@@ -1033,6 +1037,13 @@ export function renderUsuarios(
                            puedeRevelar
                              ? `<button class="btn btn-sm btn-outline" data-action="password:ver" data-id="${esc(u.id)}" title="Consultar contraseña (queda en auditoría)">
                                   <i class="bi bi-key"></i>
+                                </button>`
+                             : ''
+                         }
+                         ${
+                           puedeGestionarClaves && !esCuentaAdmin
+                             ? `<button class="btn btn-sm btn-outline" data-action="admin:claveUsuarioVer" data-id="${esc(u.id)}" title="Ver o renovar la clave de activación">
+                                  <i class="bi bi-shield-lock"></i>
                                 </button>`
                              : ''
                          }
@@ -1174,10 +1185,10 @@ export function prepararModalUsuario({
   $('btnCrearRolEspecial')?.classList.toggle('u-oculto', !permiteRol);
 
   // La clave solo se elige al dar de alta: define rol, territorio y permisos.
-  // Solo la administración puede generar claves.
+  // Solo la administración puede generar claves y nunca al editar una cuenta.
   const claveBox = $('usuarioClaveAccesoBox');
   if (claveBox) claveBox.classList.toggle('u-oculto', edicion || !permiteClaves);
-  $('usuarioClaveBox')?.classList.toggle('u-oculto', !permiteClaves);
+  $('usuarioClaveBox')?.classList.toggle('u-oculto', edicion || !permiteClaves);
   const claveSelect = $('usuarioClaveAcceso');
   if (claveSelect) claveSelect.value = '';
   renderClavesUsuario(edicion ? [] : claves);
@@ -1445,14 +1456,11 @@ export function leerPermisosClave() {
 
 function claveEstaVigente(clave = {}) {
   if (clave.activa === false) return false;
-  if (clave.expiraEn && new Date(clave.expiraEn).getTime() <= Date.now()) return false;
-  if (
-    clave.usosMaximos !== null &&
-    clave.usosMaximos !== undefined &&
-    Number(clave.usos) >= Number(clave.usosMaximos)
-  ) {
-    return false;
-  }
+  // Sin vencimiento ni cupo la clave está incompleta: no puede asignarse a
+  // una cuenta hasta que la administración la complete.
+  if (!clave.expiraEn || clave.usosMaximos === null || clave.usosMaximos === undefined) return false;
+  if (new Date(clave.expiraEn).getTime() <= Date.now()) return false;
+  if (Number(clave.usos) >= Number(clave.usosMaximos)) return false;
   return true;
 }
 
@@ -1463,15 +1471,21 @@ export function renderClavesUsuario(claves = []) {
   moduleState.clavesUsuario = claves;
   const disponibles = (claves || []).filter(claveEstaVigente);
   selector.innerHTML =
-    '<option value="">— Sin clave: definir rol, territorio y permisos a mano —</option>' +
+    '<option value="">— Sin clave existente: genera una nueva abajo —</option>' +
     disponibles
-      .map(
-        (clave) =>
-          `<option value="${esc(clave.id)}">${esc(clave.nombre || clave.codigo)} · ${
-            esc(clave.rolSugerido || 'sin rol')
-          } · ${esc((clave.permisos || []).length)} permiso(s)</option>`
-      )
+      .map((clave) => {
+        const vinculados = Number(clave.usos || 0);
+        const cupo = `${vinculados}/${clave.usosMaximos}`;
+        const vence = String(clave.expiraEn || '').slice(0, 10) || 'sin fecha';
+        return `<option value="${esc(clave.id)}">${esc(clave.nombre || clave.codigo)} · ${
+          esc(clave.rolSugerido || 'sin rol')
+        } · ${esc((clave.permisos || []).length)} permiso(s) · cupo ${esc(cupo)} · vence ${esc(vence)}</option>`;
+      })
       .join('');
+  if (!disponibles.length) {
+    selector.options[0].textContent =
+      '— No hay claves completas y vigentes: genera una nueva abajo —';
+  }
 }
 
 /** Clave seleccionada en el alta (o null). */
@@ -1501,15 +1515,18 @@ export function actualizarPreviewClave() {
   const clave = claveUsuarioSeleccionada();
   if (!clave) {
     nota.textContent =
-      'Sin clave: la cuenta se configura a mano con el rol, el territorio y la matriz de permisos.';
+      'Sin clave existente: para que la cuenta pueda entrar debes generar una clave nueva abajo. La clave quedará ligada a esta cuenta y no podrá usarse en otra.';
     return;
   }
   const territorio = (clave.estados || []).length
     ? `${(clave.estados || []).length} estado(s)`
     : `${(clave.municipios || []).length} municipio(s)`;
+  const cupo = `${Number(clave.usos || 0)}/${clave.usosMaximos}`;
   nota.textContent = `Clave «${clave.nombre || clave.codigo}»: rol ${
     clave.rolSugerido || 'sin rol'
-  }, ${territorio} y ${(clave.permisos || []).length} permiso(s).`;
+  }, ${territorio}, ${(clave.permisos || []).length} permiso(s), cupo ${cupo} y vence el ${
+    String(clave.expiraEn || '').slice(0, 10) || 'sin fecha'
+  }. Al guardar, la cuenta quedará vinculada a esta clave.`;
 }
 
 export function aplicarClaveFormulario(clave = null) {
@@ -1602,7 +1619,7 @@ export function agregarClaveLista(clave) {
   renderClaves(moduleState.claves, moduleState.municipiosClaves || []);
 }
 
-export function renderClaves(claves = [], municipios = [], { puedeEliminar = true } = {}) {
+export function renderClaves(claves = [], municipios = [], { puedeEliminar = true, puedeEditar = true } = {}) {
   const contenedor = $('clavesLista');
   if (!contenedor) return;
   moduleState.claves = claves;
@@ -1691,6 +1708,21 @@ export function renderClaves(claves = [], municipios = [], { puedeEliminar = tru
               <td><span class="inc-badge badge-${badge}">${estado}</span></td>
               <td class="u-nowrap">
                 ${
+                  puedeEditar
+                    ? `<button class="btn btn-sm btn-outline" data-action="${
+                        c.configuracionPendiente ? 'claves:completar' : 'claves:renovar'
+                      }" data-id="${esc(c.id)}" title="${
+                        c.configuracionPendiente
+                          ? 'Completar cupo y vencimiento'
+                          : 'Extender el vencimiento de la clave'
+                      }">
+                         <i class="bi bi-arrow-repeat"></i> ${
+                           c.configuracionPendiente ? 'Completar' : 'Renovar'
+                         }
+                       </button>`
+                    : ''
+                }
+                ${
                   puedeEliminar
                     ? `<button class="btn btn-sm btn-outline" data-action="claves:eliminar" data-id="${esc(c.id)}" title="Eliminar clave y cerrar sus sesiones">
                          <i class="bi bi-trash"></i> Eliminar
@@ -1704,6 +1736,96 @@ export function renderClaves(claves = [], municipios = [], { puedeEliminar = tru
         </tbody>
       </table>
     </div>`;
+}
+
+export function prepararModalRenovarClave({ clave = {}, modo = 'renovar', solicitud = null } = {}) {
+  moduleState.claveRenovar = { clave, modo, solicitud };
+  const completar = modo === 'completar';
+  const solicitudRenovacion = modo === 'solicitud';
+  if ($('renovarClaveTitulo')) {
+    $('renovarClaveTitulo').textContent = completar
+      ? 'Completar clave'
+      : solicitudRenovacion
+        ? 'Aprobar renovación'
+        : 'Renovar clave';
+  }
+  if ($('renovarClaveResumen')) {
+    $('renovarClaveResumen').textContent = solicitudRenovacion
+      ? `Solicitud de ${solicitud?.solicitadoPor || 'una cuenta'} para la clave «${
+          clave.nombre || clave.codigo || '—'
+        }». ${solicitud?.motivo ? `Motivo: ${solicitud.motivo}` : ''}`
+      : `Clave «${clave.nombre || clave.codigo || '—'}» · ${
+          (clave.usuariosVinculados || []).length
+        } cuenta(s) vinculada(s) · cupo actual ${clave.usosMaximos ?? 'sin definir'}.`;
+  }
+  if ($('renovarClaveExpira')) $('renovarClaveExpira').value = '';
+  if ($('renovarClaveCupo')) {
+    $('renovarClaveCupo').value = clave.usosMaximos ?? Math.max(1, Number(clave.usos || 0));
+  }
+  $('renovarClaveCupoBox')?.classList.toggle('u-oculto', solicitudRenovacion);
+  if ($('renovarClaveNota')) {
+    $('renovarClaveNota').textContent = completar
+      ? 'Completa el cupo y el vencimiento. Hasta completarlos, la clave no puede asignarse a nuevas cuentas.'
+      : solicitudRenovacion
+        ? 'Al aprobar, la clave y todas sus cuentas vinculadas quedarán vigentes hasta la nueva fecha.'
+        : 'La clave y sus cuentas vinculadas quedarán vigentes hasta la nueva fecha. El código no cambia.';
+  }
+}
+
+export function valoresRenovarClave() {
+  return {
+    id:
+      moduleState.claveRenovar?.clave?.id ||
+      moduleState.claveRenovar?.solicitud?.claveId ||
+      null,
+    modo: moduleState.claveRenovar?.modo || 'renovar',
+    solicitudId: moduleState.claveRenovar?.solicitud?.id || null,
+    expiraEn: $('renovarClaveExpira')?.value || null,
+    usosMaximos: $('renovarClaveCupo')?.value ? Number($('renovarClaveCupo').value) : null
+  };
+}
+
+/** Lista de solicitudes de renovación que esperan a la administración. */
+export function renderRenovacionesClave(solicitudes = []) {
+  const caja = $('renovacionesClaveBox');
+  const contenedor = $('renovacionesClaveLista');
+  if (!caja || !contenedor) return;
+  moduleState.renovacionesClave = solicitudes;
+  caja.classList.toggle('u-oculto', !solicitudes.length);
+  if (!solicitudes.length) {
+    contenedor.innerHTML = '';
+    return;
+  }
+  contenedor.innerHTML = `
+    <div class="u-scroll-x">
+      <table class="data-table">
+        <thead><tr><th>Cuenta</th><th>Clave</th><th>Motivo</th><th>Solicitada</th><th></th></tr></thead>
+        <tbody>
+          ${solicitudes
+            .map(
+              (s) => `<tr>
+                <td><strong>${esc(s.solicitadoPor || '—')}</strong></td>
+                <td class="u-fs-11px">${esc(s.clave?.nombre || s.claveId || '—')}${
+                  s.clave?.expiraEn
+                    ? `<div class="campo-nota">vence ${fmtFechaCorta(s.clave.expiraEn)}</div>`
+                    : ''
+                }</td>
+                <td class="u-fs-12px">${esc(s.motivo || '—')}</td>
+                <td class="u-fs-11px">${esc(fmtFechaCorta(s.creadoEn))}</td>
+                <td class="u-acciones-tabla">
+                  <button class="btn btn-success btn-sm" data-action="claves:renovacionAprobar" data-id="${esc(s.id)}">Aprobar</button>
+                  <button class="btn btn-outline btn-sm" data-action="claves:renovacionRechazar" data-id="${esc(s.id)}">Rechazar</button>
+                </td>
+              </tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+export function renovacionClavePorId(id) {
+  return (moduleState.renovacionesClave || []).find((s) => String(s.id) === String(id)) || null;
 }
 
 /**
@@ -1728,10 +1850,50 @@ export function claveGeneradaTexto() {
   return $('claveGeneradaCodigo')?.textContent?.trim() || '';
 }
 
+/** Pinta el estado de la clave de activación de una cuenta. */
+export function mostrarEstadoClaveUsuario({ cuenta = {}, clave = {} } = {}) {
+  const nombre = $('claveUsuarioNombre');
+  if (nombre) {
+    nombre.textContent = `${cuenta.nombre || cuenta.username || 'la cuenta'} (${cuenta.username || '—'})`;
+  }
+  const boton = $('btnRenovarClaveUsuario');
+  if (boton) boton.dataset.id = cuenta.id || '';
+
+  const estado = $('claveUsuarioEstado');
+  if (!estado) return;
+  if (!clave) {
+    estado.innerHTML =
+      '<p>Esta cuenta no tiene una clave de activación asignada. Puedes generar una nueva.</p>';
+    return;
+  }
+
+  const partes = [
+    `<p><strong>Código:</strong> <code>${esc(clave.codigo || '—')}</code></p>`,
+    `<p><strong>Modo:</strong> ${
+      clave.modo === 'unica' ? 'Único por cuenta' : 'Compartido'
+    }</p>`,
+    `<p><strong>Estado:</strong> ${clave.activa === false ? 'Revocada' : 'Activa'} · ${
+      clave.usos || 0
+    } de ${clave.usosMaximos ?? '∞'} usos</p>`
+  ];
+  if (clave.expiraEn) {
+    partes.push(`<p><strong>Vence:</strong> ${fmtFechaCorta(clave.expiraEn)}</p>`);
+  }
+  if (cuenta.claveVigenteHasta) {
+    partes.push(
+      `<p><strong>Cuenta activa hasta:</strong> ${fmtFechaCorta(cuenta.claveVigenteHasta)}</p>`
+    );
+  }
+  if (clave.activadaEn) {
+    partes.push(`<p><strong>Activada:</strong> ${fmtFechaCorta(clave.activadaEn)}</p>`);
+  }
+  estado.innerHTML = partes.join('');
+}
+
 /* ------------------- contraseña consultable (V2.11) --------------------- */
 
 /** Pinta el modal de contraseña. El texto queda difuminado hasta pulsar «Mostrar». */
-export function mostrarPasswordUsuario({ usuario = {}, password = '', generada = false } = {}) {
+export function mostrarPasswordUsuario({ usuario = {}, password = '', generada = false, extra = '' } = {}) {
   moduleState.passwordUsuario = { usuario, password };
   const nombre = $('passwordUsuarioNombre');
   if (nombre) nombre.textContent = `la cuenta de ${usuario.nombre || usuario.username || ''}`;
@@ -1745,9 +1907,10 @@ export function mostrarPasswordUsuario({ usuario = {}, password = '', generada =
   if (etiqueta) etiqueta.textContent = 'Mostrar';
   const nota = $('passwordUsuarioNota');
   if (nota) {
-    nota.textContent = generada
+    const base = generada
       ? 'Esta contraseña temporal se generó ahora. Entrégala en mano: también queda guardada cifrada y su consulta se audita.'
       : 'La consulta quedó registrada en auditoría. La contraseña se guarda cifrada; el acceso se sigue validando con bcrypt.';
+    nota.textContent = extra ? `${base} ${extra}` : base;
   }
 }
 
@@ -1999,8 +2162,20 @@ function detalleAuditoria(valor) {
   }
 }
 
-export function renderAuditoria(registros = []) {
+const ETIQUETA_METODO = { POST: 'Alta', PUT: 'Reemplazo', PATCH: 'Cambio', DELETE: 'Baja' };
+
+export function renderAuditoria(registros = [], filtros = {}) {
   const contenedor = $('auditoriaLista');
+  const resumen = $('auditoriaResumen');
+  if (resumen) {
+    const partes = [`${registros.length} registro(s)`];
+    if (filtros.desde) partes.push(`desde ${filtros.desde}`);
+    if (filtros.hasta) partes.push(`hasta ${filtros.hasta}`);
+    if (filtros.metodo) partes.push(`tipo ${ETIQUETA_METODO[filtros.metodo] || filtros.metodo}`);
+    if (filtros.username) partes.push(`autor ${filtros.username}`);
+    if (filtros.accion) partes.push(`acción ${filtros.accion}`);
+    resumen.textContent = partes.join(' · ');
+  }
   if (!contenedor) return;
   if (!registros.length) {
     contenedor.innerHTML =
@@ -2011,7 +2186,7 @@ export function renderAuditoria(registros = []) {
   contenedor.innerHTML = `
     <div class="u-scroll-x">
       <table class="data-table">
-        <thead><tr><th>Fecha</th><th>Actor</th><th>Acción</th><th>Entidad</th><th>Resultado</th><th>Clave</th><th>Huella IP</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Actor</th><th>Tipo</th><th>Acción</th><th>Entidad</th><th>Resultado</th><th>Clave</th><th>Huella IP</th></tr></thead>
         <tbody>
           ${registros
             .map(
@@ -2022,6 +2197,7 @@ export function renderAuditoria(registros = []) {
                 <strong>${esc(r.username || r.userKey || '—')}</strong>
                 <div class="campo-nota">${esc(r.rol || 'sin rol')}</div>
               </td>
+              <td class="u-fs-11px">${esc(ETIQUETA_METODO[r.metodo] || r.metodo || '—')}</td>
               <td class="u-fs-11px">
                 <code>${esc(r.accion || r.ruta || '—')}</code>
                 ${r.detalle ? `<div class="campo-nota">${esc(detalleAuditoria(r.detalle).slice(0, 160))}</div>` : ''}
@@ -2284,6 +2460,7 @@ function renderSanciones(sanciones = []) {
 export function renderSolicitudesAcceso(solicitudes = []) {
   const contenedor = $('solicitudesAccesoLista');
   if (!contenedor) return;
+  moduleState.solicitudesAcceso = solicitudes;
   if (!solicitudes.length) {
     contenedor.innerHTML = '<p class="u-fs-12px u-suave">No hay solicitudes pendientes.</p>';
     return;
@@ -2292,19 +2469,49 @@ export function renderSolicitudesAcceso(solicitudes = []) {
   contenedor.innerHTML = `
     <div class="u-scroll-x">
       <table class="data-table">
-        <thead><tr><th>Folio</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Municipios</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Folio</th><th>Nombre</th><th>Correo</th><th>Rol sugerido</th><th>Municipios</th><th>Estados</th><th>Documentos</th><th>Acciones</th></tr></thead>
         <tbody>
           ${solicitudes
             .map(
               (s) => `
             <tr>
               <td class="u-fs-11px">${esc(s.folio)}</td>
-              <td>${esc(s.nombre)}</td>
+              <td>
+                ${esc(s.nombre)}
+                ${
+                  s.usuarioVinculado
+                    ? `<div class="u-fs-11px u-verde-oscuro">Cuenta vinculada: ${esc(
+                        s.usuarioVinculado.nombre || s.usuarioVinculado.username
+                      )}</div>`
+                    : ''
+                }
+              </td>
               <td class="u-fs-11px">${esc(s.correo)}</td>
-              <td><span class="inc-badge badge-amarillo">${esc(s.rolSolicitado)}</span></td>
-              <td class="u-fs-11px">${esc((s.municipios || []).join(', ') || '—')}</td>
+              <td><span class="inc-badge badge-amarillo">${esc(
+                s.rolSugerido || s.rolSolicitado || '—'
+              )}</span></td>
+              <td class="u-fs-11px">${
+                (s.municipiosNombres || []).length
+                  ? esc((s.municipiosNombres || []).join(', '))
+                  : (s.estadosNombres || s.estados || []).length
+                    ? 'Todo el estado'
+                    : '—'
+              }</td>
+              <td class="u-fs-11px">${esc(
+                (s.estadosNombres || s.estados || []).join(', ') || '—'
+              )}</td>
+              <td class="u-fs-11px">${
+                (s.documentos || []).length
+                  ? (s.documentos || [])
+                      .map(
+                        (documento) =>
+                          `<a href="${esc(urlPrivada(documento.url))}" target="_blank" rel="noopener">${esc(documento.nombre || 'Documento')}</a>`
+                      )
+                      .join('<br>')
+                  : '—'
+              }</td>
               <td class="u-fila-env">
-                <button class="btn btn-sm btn-primary" data-action="solicitudes:aprobar" data-id="${esc(s.id)}">Aprobar</button>
+                <button class="btn btn-sm btn-primary" data-action="solicitudes:aprobar" data-id="${esc(s.id)}">Revisar y aprobar</button>
                 <button class="btn btn-sm btn-outline" data-action="solicitudes:rechazar" data-id="${esc(s.id)}">Rechazar</button>
               </td>
             </tr>`
@@ -2313,6 +2520,343 @@ export function renderSolicitudesAcceso(solicitudes = []) {
         </tbody>
       </table>
     </div>`;
+}
+
+export function solicitudAccesoPorId(id) {
+  return (moduleState.solicitudesAcceso || []).find((s) => String(s.id) === String(id)) || null;
+}
+
+export function solicitudAltaPorId(id) {
+  return (moduleState.solicitudesAlta || []).find((s) => String(s.id) === String(id)) || null;
+}
+
+function textoClaveAprobacion(clave = null) {
+  if (!clave) return '';
+  const territorio = (clave.estados || []).length
+    ? `${(clave.estados || []).length} estado(s)`
+    : `${(clave.municipios || []).length} municipio(s)`;
+  return `Clave «${clave.nombre || clave.codigo}»: ${territorio}, cupo ${Number(
+    clave.usos || 0
+  )}/${clave.usosMaximos}, vence el ${String(clave.expiraEn || '').slice(0, 10) || 'sin fecha'}.`;
+}
+
+/**
+ * Prepara el modal de aprobación. La cuenta solo puede aprobarse si queda
+ * vinculada a una clave existente con cupo o a una clave nueva con vencimiento.
+ */
+export function prepararModalAprobacion({ tipo, solicitud, claves = [], resumen = '' } = {}) {
+  moduleState.aprobacion = { tipo, solicitud };
+  moduleState.clavesAprobacion = (claves || []).filter(
+    (clave) => claveEstaVigente(clave) && clave.modo !== 'unica'
+  );
+  const esAcceso = tipo === 'acceso';
+  const rolInicial =
+    (esAcceso && (solicitud?.rolSugerido || solicitud?.rolSolicitado)) || 'funcionario';
+  $('aprobarRolBox')?.classList.toggle('u-oculto', !esAcceso);
+  if ($('aprobarRol')) $('aprobarRol').value = rolInicial;
+  if ($('aprobarSolicitudResumen')) {
+    $('aprobarSolicitudResumen').textContent =
+      resumen || 'La cuenta se creará vinculada a la clave que elijas.';
+  }
+  if ($('aprobarClaveExpira')) $('aprobarClaveExpira').value = '';
+  actualizarRolAprobacion();
+}
+
+/** Reconstruye las claves compatibles cuando cambia el rol elegido. */
+export function actualizarRolAprobacion() {
+  const esAcceso = moduleState.aprobacion?.tipo === 'acceso';
+  const rol = esAcceso ? $('aprobarRol')?.value || 'funcionario' : 'funcionario';
+  const compatibles = (moduleState.clavesAprobacion || []).filter(
+    (clave) => clave.modo !== 'unica' && (!clave.rolSugerido || clave.rolSugerido === rol)
+  );
+  moduleState.clavesUsuario = compatibles;
+  const selector = $('aprobarClaveSelect');
+  if (selector) {
+    selector.innerHTML =
+      '<option value="">— Elegir una clave existente —</option>' +
+      compatibles
+        .map(
+          (clave) =>
+            `<option value="${esc(clave.id)}">${esc(clave.nombre || clave.codigo)} · ${esc(
+              clave.rolSugerido || 'sin rol'
+            )} · cupo ${esc(`${Number(clave.usos || 0)}/${clave.usosMaximos}`)}</option>`
+        )
+        .join('');
+  }
+  if ($('aprobarGenerarClave')) $('aprobarGenerarClave').checked = compatibles.length === 0;
+  actualizarAprobacionClave();
+}
+
+export function actualizarAprobacionClave() {
+  const generar = $('aprobarGenerarClave')?.checked === true;
+  $('aprobarClaveNuevaOpciones')?.classList.toggle('u-oculto', !generar);
+  const nota = $('aprobarClavePreview');
+  if (!nota) return;
+  if (generar) {
+    nota.textContent =
+      'Se generará una clave nueva, exclusiva de esta cuenta (cupo 1), con el territorio y los permisos de la cuenta. Indica su vencimiento.';
+    return;
+  }
+  const id = $('aprobarClaveSelect')?.value || '';
+  const clave = (moduleState.clavesUsuario || []).find((c) => String(c.id) === String(id));
+  nota.textContent = clave
+    ? textoClaveAprobacion(clave)
+    : 'Elige una clave existente o marca «Generar una clave nueva». Sin clave la cuenta no podrá entrar.';
+}
+
+export function valoresAprobacion() {
+  const generar = $('aprobarGenerarClave')?.checked === true;
+  const esAcceso = moduleState.aprobacion?.tipo === 'acceso';
+  return {
+    tipo: moduleState.aprobacion?.tipo || null,
+    id: moduleState.aprobacion?.solicitud?.id || null,
+    rol: esAcceso ? $('aprobarRol')?.value || 'funcionario' : null,
+    claveId: generar ? null : $('aprobarClaveSelect')?.value || null,
+    generarClave: generar,
+    claveExpiraEn: generar ? $('aprobarClaveExpira')?.value || null : null
+  };
+}
+
+/* ------------------- reportes de conversación (V2.11.4) ------------------ */
+
+const ESTADO_REPORTE_CONV = {
+  pendiente: 'amarillo',
+  resuelto: 'verde',
+  descartado: 'gris',
+  revertido: 'azul'
+};
+
+const MEDIDA_REPORTE_CONV = {
+  suspender_mensajes: 'Envío de mensajes restringido',
+  suspender_cuenta: 'Cuenta suspendida',
+  baja_cuenta: 'Cuenta dada de baja',
+  descartar: 'Sin sanción'
+};
+
+/** Cola de reportes de conversación (moderación). */
+export function renderReportesConversacion(reportes = [], { puedeResolver = false } = {}) {
+  const contenedor = $('reportesConvLista');
+  if (!contenedor) return;
+  if (!reportes.length) {
+    contenedor.innerHTML =
+      '<p class="campo-nota">No hay reportes de conversación pendientes ni recientes.</p>';
+    return;
+  }
+  const motivos = store.estado.catalogos?.motivosDenuncia || {};
+  contenedor.innerHTML = reportes
+    .map((r) => {
+      const mensajes = (r.mensajes || [])
+        .map(
+          (m) => `<div class="bandeja-reporte-mensaje">
+            <div class="bandeja-mensaje-meta">${esc(m.nombre || m.de)} · ${esc(fmtFechaCorta(m.fecha))}</div>
+            ${m.cuerpo ? `<div class="bandeja-mensaje-cuerpo">${esc(m.cuerpo)}</div>` : ''}
+            ${
+              (m.adjuntos || []).length
+                ? `<div class="campo-nota">${m.adjuntos
+                    .map((a) => `📎 ${esc(a.nombre)}`)
+                    .join(' · ')}</div>`
+                : ''
+            }
+          </div>`
+        )
+        .join('');
+      return `<article class="reporte-conv-card">
+        <div class="reporte-conv-cabecera">
+          <div>
+            <strong>${esc(r.autorNombre || r.autorUsername)}</strong> reportó a
+            <strong>${esc(r.objetivoNombre || r.objetivoUsername)}</strong>
+            <div class="campo-nota">
+              ${esc(r.canal === 'directo' ? 'Contacto directo' : 'Mensaje interno')}
+              · ${esc(r.conversacionAsunto || 'Conversación')}
+              · ${esc(fmtFechaCorta(r.fecha))}
+            </div>
+          </div>
+          <span class="inc-badge badge-${ESTADO_REPORTE_CONV[r.estado] || 'gris'}">${esc(r.estado)}</span>
+        </div>
+        <p><strong>Motivo:</strong> ${esc(motivos[r.motivo] || r.motivo)}</p>
+        <p>${esc(r.detalle)}</p>
+        ${
+          r.incluyeMensajes === false
+            ? '<p class="campo-nota"><strong>Sin mensajes adjuntos:</strong> el autor decidió no enviarlos; la decisión se basa solo en la descripción.</p>'
+            : ''
+        }
+        <details class="reporte-conv-detalle">
+          <summary>${
+            (r.mensajes || []).length
+              ? `Ver los últimos mensajes adjuntos (${(r.mensajes || []).length})`
+              : 'No se adjuntaron mensajes'
+          }</summary>
+          ${mensajes || '<p class="campo-nota">Sin mensajes.</p>'}
+        </details>
+        ${
+          r.accion
+            ? `<p class="campo-nota"><strong>Medida:</strong> ${esc(
+                MEDIDA_REPORTE_CONV[r.accion] || r.accion
+              )}${r.resueltoPor ? ` · ${esc(r.resueltoPor)}` : ''}</p>`
+            : ''
+        }
+        ${r.resolucion ? `<p class="campo-nota"><strong>Resolución:</strong> ${esc(r.resolucion)}</p>` : ''}
+        ${
+          r.revertidoPor
+            ? `<p class="campo-nota"><strong>Revertida por</strong> ${esc(r.revertidoPor)}</p>`
+            : ''
+        }
+        <div class="u-fila-env">
+          <button class="btn btn-sm btn-outline" data-action="reporteConv:ver" data-id="${esc(
+            r.id
+          )}"><i class="bi bi-chat-left-quote"></i> Ver conversación</button>
+          ${
+            puedeResolver && r.estado === 'pendiente'
+              ? `<button class="btn btn-sm btn-danger" data-action="reporteConv:resolver" data-valor="suspender_mensajes" data-id="${esc(
+                  r.id
+                )}"><i class="bi bi-slash-circle"></i> Restringir mensajes</button>
+              <button class="btn btn-sm btn-outline" data-action="reporteConv:resolver" data-valor="descartar" data-id="${esc(
+                  r.id
+                )}"><i class="bi bi-shield-check"></i> Resolver</button>`
+              : ''
+          }
+          ${
+            puedeResolver && r.estado === 'resuelto' && r.sancion
+              ? `<button class="btn btn-sm btn-outline" data-action="reporteConv:revertir" data-id="${esc(
+                  r.id
+                )}"><i class="bi bi-arrow-counterclockwise"></i> Revertir medida</button>`
+              : ''
+          }
+        </div>
+      </article>`;
+    })
+    .join('');
+}
+
+/* ---------------------- reclamaciones y archivo -------------------------- */
+
+const ETIQUETAS_RECLAMACION = {
+  pendiente: 'amarillo',
+  en_revision: 'naranja',
+  resuelta: 'verde',
+  rechazada: 'gris'
+};
+
+/** Reclamaciones de incidencias resueltas. */
+export function renderReclamaciones(reclamaciones = []) {
+  const contenedor = $('reclamacionesLista');
+  if (!contenedor) return;
+  if (!reclamaciones.length) {
+    contenedor.innerHTML = '<p class="campo-nota">No hay reclamaciones con ese estado.</p>';
+    return;
+  }
+  contenedor.innerHTML = reclamaciones
+    .map(
+      (r) => `<article class="reporte-conv-card">
+        <div class="reporte-conv-cabecera">
+          <div>
+            <strong>${esc(r.incidenciaTitulo || 'Incidencia')}</strong>
+            <div class="campo-nota">
+              ${esc(r.nombre || r.username || 'Cuenta')} · ${esc(fmtFechaCorta(r.creadoEn))}
+              ${r.delegadoA ? ` · Delegada a ${esc(r.delegadoA)}` : ''}
+            </div>
+          </div>
+          <span class="inc-badge badge-${ETIQUETAS_RECLAMACION[r.estado] || 'gris'}">${esc(
+            r.estado
+          )}</span>
+        </div>
+        <p>${esc(r.detalle)}</p>
+        ${r.respuesta ? `<p class="campo-nota"><strong>Respuesta:</strong> ${esc(r.respuesta)}</p>` : ''}
+        <div class="u-fila-env">
+          <button class="btn btn-sm btn-outline" data-action="reclamacion:ver" data-id="${esc(
+            r.id
+          )}"><i class="bi bi-eye"></i> Ver y decidir</button>
+          <button class="btn btn-sm btn-outline" data-action="reclamacion:informe" data-id="${esc(
+            r.id
+          )}"><i class="bi bi-filetype-pdf"></i> Informe</button>
+        </div>
+      </article>`
+    )
+    .join('');
+}
+
+/** Archivo: incidencias resueltas agrupadas por mes y día. */
+export function renderArchivo(datos = {}, filtros = {}) {
+  const contenedor = $('archivoCarpetas');
+  if (!contenedor) return;
+  const carpetas = Array.isArray(datos.carpetas) ? datos.carpetas : [];
+  const resumen = datos.resumen || {};
+  const cajaResumen = $('archivoResumen');
+  if (cajaResumen) {
+    cajaResumen.textContent = resumen.total
+      ? `${resumen.total} incidencia(s) en ${resumen.carpetas || carpetas.length} carpeta(s) · Costo registrado: ${dinero(
+          resumen.costoTotal
+        )}${filtros.desde || filtros.hasta ? ' · Filtro por fecha activo' : ''}`
+      : 'Aún no hay incidencias archivadas (pasan al archivo un día después de resolverse).';
+  }
+  if (!carpetas.length) {
+    contenedor.innerHTML =
+      '<div class="empty-state"><i class="bi bi-archive"></i><p>No hay expedientes para los filtros elegidos.</p></div>';
+    return;
+  }
+  contenedor.innerHTML = carpetas
+    .map(
+      (mes, indiceMes) => `
+      <details class="archivo-mes" ${indiceMes === 0 ? 'open' : ''}>
+        <summary class="archivo-mes-titulo">
+          <span><i class="bi bi-folder2-open"></i> ${esc(mes.etiqueta)}</span>
+          <span class="u-suave u-fs-12px">${mes.total} incidencia(s) · ${dinero(mes.costoTotal)}</span>
+        </summary>
+        <div class="archivo-dias">
+          ${(mes.dias || [])
+            .map(
+              (dia) => `
+            <details class="archivo-dia" open>
+              <summary class="archivo-dia-titulo">
+                <span><i class="bi bi-calendar3"></i> ${esc(dia.etiqueta)}</span>
+                <span class="u-suave u-fs-12px">${dia.total} · ${dinero(dia.costoTotal)}</span>
+              </summary>
+              <div class="u-scroll-x">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Folio</th><th>Título</th><th>Tipo</th><th>Reparación</th><th>Costo</th><th>Documentos</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    ${(dia.incidencias || [])
+                      .map(
+                        (incidencia) => `<tr>
+                          <td class="u-fs-11px">${esc(incidencia.folio || '—')}</td>
+                          <td>${esc(incidencia.titulo)}</td>
+                          <td>${esc(incidencia.tipoNombre || '—')}</td>
+                          <td class="u-fs-11px u-capitalizar">${esc(
+                            String(incidencia.reparacionEstado || 'sin_asignar').replaceAll('_', ' ')
+                          )}</td>
+                          <td class="u-fs-11px">${dinero(incidencia.costoReparacion)}</td>
+                          <td class="u-fs-11px">${incidencia.documentos || 0}</td>
+                          <td class="archivo-acciones">
+                            <button class="btn btn-sm btn-outline" data-action="admin:verDetalle" data-id="${esc(
+                              incidencia.id
+                            )}"><i class="bi bi-eye"></i> Ver</button>
+                            <button class="btn btn-sm btn-outline" data-action="archivo:expediente" data-id="${esc(
+                              incidencia.id
+                            )}"><i class="bi bi-filetype-json"></i> Expediente</button>
+                            <button class="btn btn-sm btn-outline" data-action="archivo:pdf" data-id="${esc(
+                              incidencia.id
+                            )}"><i class="bi bi-filetype-pdf"></i> PDF</button>
+                          </td>
+                        </tr>`
+                      )
+                      .join('')}
+                  </tbody>
+                </table>
+              </div>
+            </details>`
+            )
+            .join('')}
+        </div>
+      </details>`
+    )
+    .join('');
+}
+
+function dinero(valor) {
+  if (valor === null || valor === undefined || valor === '') return '—';
+  return Number(valor).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 }
 
 /* ------------------------------- tickets -------------------------------- */
@@ -2524,6 +3068,7 @@ export function valoresConfigNotificacion(evento) {
 
 const NOMBRE_ROL = {
   soporte: 'Soporte',
+  cuadrilla: 'Cuadrillas de campo',
   funcionario: 'Funcionarios',
   auditor: 'Auditores',
   admin: 'Administradores',

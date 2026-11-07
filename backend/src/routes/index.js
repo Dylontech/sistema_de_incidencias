@@ -3,8 +3,12 @@ import { Router } from 'express';
 import adjuntosRoutes from './adjuntos.routes.js';
 import auditoriaRoutes from './auditoria.routes.js';
 import authRoutes from './auth.routes.js';
+import cuentaRoutes from './cuenta.routes.js';
 import bajaRoutes from './baja.routes.js';
+import bloqueosRoutes from './bloqueos.routes.js';
 import altaRoutes from './alta.routes.js';
+import reportesConversacionRoutes from './reportes-conversacion.routes.js';
+import reclamacionesRoutes from './reclamaciones.routes.js';
 import catalogosRoutes from './catalogos.routes.js';
 import clavesRoutes from './claves.routes.js';
 import comentariosRoutes from './comentarios.routes.js';
@@ -29,6 +33,7 @@ import respaldosRoutes from './respaldos.routes.js';
 import sesionesRoutes from './sesiones.routes.js';
 import simuladorRoutes from './simulador.routes.js';
 import ticketsRoutes from './tickets.routes.js';
+import vialidadesRoutes from './vialidades.routes.js';
 import terminosRoutes from './terminos.routes.js';        // <-- AÑADIDO
 import { exigirTerminos } from '../middlewares/terminos.js';
 import { limiteGeneral } from '../middlewares/limitadores.js';
@@ -56,8 +61,12 @@ router.use(limiteGeneral);
 router.use(exigirTerminos);
 
 router.use('/auth', authRoutes);
+router.use('/cuenta', cuentaRoutes);
 router.use('/', bajaRoutes);
 router.use('/', altaRoutes);
+router.use('/', bloqueosRoutes);
+router.use('/', reportesConversacionRoutes);
+router.use('/', reclamacionesRoutes);
 router.use('/terminos', terminosRoutes);                  // <-- AÑADIDO
 router.use('/', configuracionRoutes);
 router.use('/', legalRoutes);
@@ -85,6 +94,7 @@ router.use('/', permisosRoutes);
 router.use('/', publicidadRoutes);
 router.use('/', rolesRoutes);
 router.use('/', respaldosRoutes);
+router.use('/', vialidadesRoutes);
 router.use('/', simuladorRoutes);
 router.use('/', ticketsRoutes);
 

@@ -334,8 +334,20 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
   }
 
   const entrada = validarEntrada(datos);
+  const adscripcionSolicitada = {
+    municipios: datos.municipios ?? (entrada.municipioId ? [entrada.municipioId] : []),
+    estados: datos.estados ?? []
+  };
+  const tieneAdscripcion =
+    (adscripcionSolicitada.municipios || []).length > 0 ||
+    (adscripcionSolicitada.estados || []).length > 0;
   const clave = datos.claveId
-    ? await claves.validarParaCuenta(repositorio, actor, datos.claveId)
+    ? await claves.validarParaCuenta(
+        repositorio,
+        actor,
+        datos.claveId,
+        tieneAdscripcion ? adscripcionSolicitada : null
+      )
     : null;
   const rolPropio = entrada.rolPropioId
     ? await rolPropioActivo(repositorio, entrada.rolPropioId)
@@ -376,16 +388,14 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
       municipios: municipiosPropios,
       estados: []
     });
+  } else if (clave && !tieneAdscripcion) {
+    // Sin adscripción explícita, la clave define el alcance de la cuenta.
+    alcance = await validarAlcance(repositorio, rol, {
+      municipios: clave.municipios,
+      estados: clave.estados
+    });
   } else {
-    alcance = clave
-      ? await validarAlcance(repositorio, rol, {
-          municipios: clave.municipios,
-          estados: clave.estados
-        })
-      : await validarAlcance(repositorio, rol, {
-          municipios: datos.municipios ?? (entrada.municipioId ? [entrada.municipioId] : []),
-          estados: datos.estados ?? []
-        });
+    alcance = await validarAlcance(repositorio, rol, adscripcionSolicitada);
   }
 
   if (actor) {
@@ -396,6 +406,7 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
     });
   }
 
+  const claveObligatoria = ROLES_PERSONAL.includes(rol) && !ROLES_ADMIN.includes(rol);
   const usuario = construirUsuario({
     username: entrada.username,
     nombre: entrada.nombre,
@@ -407,6 +418,8 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
     passwordCifrada: cifrarPassword(password),
     rolPersonalizadoId: especial?.id || null,
     rolPropioId: rolPropio?.id || null,
+    claveObligatoria,
+    claveId: clave?.id || null,
     puedeEscribir: ROLES_LECTURA.includes(rol) ? false : rol !== 'soporte'
   });
 
@@ -431,6 +444,7 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
     throw conflictoPorDuplicado(error) || error;
   }
   await repositorio.guardarAlcanceUsuario(creado.id, alcance);
+  if (clave) await repositorio.vincularCuentaAClave(clave.id, creado.id);
 
   return publico({
     ...creado,
@@ -444,6 +458,97 @@ export async function crear(repositorio, datos = {}, { actor = null } = {}) {
       rolConfig: null
     })
   });
+}
+
+/**
+ * Convierte una cuenta ciudadana existente en cuenta de personal.
+ *
+ * No crea otra fila: conserva id, correo, contraseña, reportes e historial.
+ * El username interno se mantiene porque es el `userKey` de autoría; el
+ * acceso al panel se hace con ese username o con el correo. La operación se
+ * compensa si falla el alcance o el vínculo con la clave.
+ */
+export async function promoverCiudadano(repositorio, actor, id, datos = {}) {
+  const actual = await repositorio.usuarioPorId(id);
+  if (!actual) throw AppError.noEncontrado('Usuario no encontrado');
+  if (actual.rol !== 'ciudadano') {
+    throw AppError.conflicto('Esa cuenta ya pertenece al personal o a la administración');
+  }
+  if (actual.activo === false) {
+    throw AppError.conflicto('La cuenta está inactiva; reactívala antes de promoverla');
+  }
+
+  const rol = String(datos.rol || '');
+  if (!ROLES_PERSONAL.includes(rol) || ROLES_ADMIN.includes(rol)) {
+    throw AppError.solicitudInvalida('Elige un rol de personal válido');
+  }
+  const alcance = await validarAlcance(repositorio, rol, {
+    municipios: datos.municipios,
+    estados: datos.estados
+  });
+  await exigirPuedeGestionar(repositorio, actor, {
+    rol,
+    municipios: alcance.municipios,
+    estados: alcance.estados
+  });
+
+  const anterior = await repositorio.alcanceDeUsuario(id);
+  const puedeEscribir = rol === 'funcionario' || ROLES_ADMIN.includes(rol);
+  const cambios = {
+    rol,
+    municipioId: alcance.municipios[0] || null,
+    claveId: datos.claveId || null,
+    claveActivadaEn: null,
+    claveVigenteHasta: null,
+    claveObligatoria: true,
+    activo: true,
+    pseudonimo: false,
+    // La cuenta ciudadana puede tener excepciones de permisos o roles
+    // especiales; al promoverla, la clave y el nuevo rol son la fuente.
+    permisos: {},
+    rolPersonalizadoId: null,
+    rolPropioId: null,
+    puedeEscribir
+  };
+
+  try {
+    const actualizado = await repositorio.actualizarUsuario(id, cambios);
+    await repositorio.guardarAlcanceUsuario(id, alcance);
+    if (datos.claveId) {
+      await repositorio.vincularCuentaAClave(datos.claveId, id);
+    }
+    await repositorio.cerrarSesionesPorUsuario(id, 'cuenta promovida a personal');
+    const definitivo = {
+      ...actualizado,
+      ...alcance,
+      rolPersonalizado: null,
+      rolPropio: null
+    };
+    return publico({
+      ...definitivo,
+      permisosEfectivos: permisosDe(definitivo)
+    });
+  } catch (error) {
+    // Devolver la cuenta a su estado ciudadano evita dejarla a medio promover
+    // si falla el territorio o el vínculo con la clave.
+    await repositorio
+      .actualizarUsuario(id, {
+        rol: actual.rol,
+        municipioId: actual.municipioId || null,
+        claveId: actual.claveId || null,
+        claveActivadaEn: actual.claveActivadaEn || null,
+        claveVigenteHasta: actual.claveVigenteHasta || null,
+        claveObligatoria: actual.claveObligatoria === true,
+        pseudonimo: actual.pseudonimo === true,
+        permisos: actual.permisos || {},
+        rolPersonalizadoId: actual.rolPersonalizadoId || null,
+        rolPropioId: actual.rolPropioId || null,
+        puedeEscribir: puedeEscribirDe(actual)
+      })
+      .catch(() => null);
+    await repositorio.guardarAlcanceUsuario(id, anterior).catch(() => null);
+    throw error;
+  }
 }
 
 /**

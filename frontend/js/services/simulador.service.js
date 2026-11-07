@@ -10,5 +10,6 @@ export const simuladorService = {
     api.post(`/admin/simulador/sesiones/${id}/acciones/${accionId}`, datos || {}),
   cerrar: (id) => api.post(`/admin/simulador/sesiones/${id}/cerrar`, {}),
   revertir: (id) => api.post(`/admin/simulador/sesiones/${id}/revertir`, {}),
-  revertirTodas: () => api.post('/admin/simulador/revertir-todo', {})
+  revertirTodas: () => api.post('/admin/simulador/revertir-todo', {}),
+  simularVialidades: (datos) => api.post('/admin/simulador/vialidades', datos)
 };

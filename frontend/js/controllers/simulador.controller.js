@@ -5,6 +5,9 @@ import { intentar } from '../core/errores.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { simuladorService } from '../services/simulador.service.js';
+import { incidenciasService } from '../services/incidencias.service.js';
+import * as aplicacion from '../core/aplicacion.js';
+import * as vialidadesMapa from '../map/vialidades.js';
 import * as vista from '../views/simulador.view.js';
 
 let catalogo = null;
@@ -12,6 +15,50 @@ let sesionActual = null;
 
 function municipios() {
   return (store.estado.municipios || []).slice();
+}
+
+function porcentajesViales() {
+  const valor = (id) => Number(document.getElementById(id)?.value) || 0;
+  return {
+    bueno: valor('simViaBueno'),
+    leve: valor('simViaLeve'),
+    regular: valor('simViaRegular'),
+    malo: valor('simViaMalo'),
+    critico: valor('simViaCritico')
+  };
+}
+
+function actualizarTotalVial() {
+  const total = Object.values(porcentajesViales()).reduce((suma, valor) => suma + valor, 0);
+  const etiqueta = document.getElementById('simViaTotal');
+  if (etiqueta) etiqueta.textContent = `Total: ${Math.round(total * 100) / 100}%`;
+  if (etiqueta) etiqueta.classList.toggle('u-texto-rojo', Math.abs(total - 100) > 0.05);
+  return total;
+}
+
+function sincronizarBotonVialidades() {
+  const boton = document.getElementById('btnVialidades');
+  if (boton) boton.setAttribute('aria-pressed', 'true');
+  const texto = document.getElementById('btnVialidadesTexto');
+  if (texto) texto.textContent = 'Ocultar semáforo vial';
+}
+
+function mostrarResultadoVial(datos) {
+  const contenedor = document.getElementById('simuladorVialidadesResultado');
+  if (!contenedor) return;
+  if (!datos) {
+    contenedor.textContent = 'Condición real restaurada. La simulación no modificó datos.';
+    return;
+  }
+  if (!datos.total) {
+    contenedor.textContent =
+      'No hay tramos registrados en ese municipio. Impórtalos o créalos en la pestaña Vialidades.';
+    return;
+  }
+  const partes = (datos.distribucion || []).map(
+    (nivel) => `${nivel.etiqueta}: ${nivel.total} (${nivel.color})`
+  );
+  contenedor.textContent = `Simulación aplicada a ${datos.total} tramo(s). ${partes.join(' · ')}. Los datos reales no se modificaron.`;
 }
 
 function valoresDe(accion) {
@@ -49,6 +96,7 @@ export async function cargar(idSesion = null) {
   const acciones = catalogo.acciones.filter((a) => (a.roles || []).includes(rolActivo));
   vista.renderAcciones(acciones);
   vista.renderJournal(sesionActual?.operaciones || []);
+  actualizarTotalVial();
 }
 
 async function recargarSesion() {
@@ -134,6 +182,54 @@ export function registrar() {
         await cargar();
       }),
 
-    'simulador:ver': ({ id }) => intentar(() => cargar(id))
+    'simulador:ver': ({ id }) => intentar(() => cargar(id)),
+
+    'simulador:vialidadesTotal': () => actualizarTotalVial(),
+
+    'simulador:vialidades': () =>
+      intentar(async () => {
+        if (!sesion.esAdmin()) {
+          toast('Solo el administrador maestro puede simular vialidades', 'err');
+          return;
+        }
+        const porcentajes = porcentajesViales();
+        const total = actualizarTotalVial();
+        if (Math.abs(total - 100) > 0.05) {
+          toast('Los porcentajes deben sumar 100%', 'err');
+          return;
+        }
+        const municipioId =
+          document.getElementById('simuladorMunicipio')?.value ||
+          store.estado.municipioActivo?.id;
+        if (!municipioId) return toast('Elige un municipio para simular', 'err');
+        if (String(municipioId) !== String(store.estado.municipioActivo?.id)) {
+          await aplicacion.cambiarMunicipio(municipioId);
+        }
+        const datos = await simuladorService.simularVialidades({ municipioId, porcentajes });
+        if (!vialidadesMapa.estaVisible()) vialidadesMapa.alternar();
+        sincronizarBotonVialidades();
+        vialidadesMapa.dibujar(datos, store.estado.zonas || []);
+        mostrarResultadoVial(datos);
+        toast(
+          datos.total
+            ? `Simulación vial aplicada a ${datos.total} tramo(s)`
+            : 'El municipio no tiene tramos registrados',
+          datos.total ? 'ok' : 'info'
+        );
+      }),
+
+    'simulador:vialidadesLimpiar': () =>
+      intentar(async () => {
+        const municipioId =
+          document.getElementById('simuladorMunicipio')?.value ||
+          store.estado.municipioActivo?.id;
+        if (!municipioId) return;
+        const datos = await incidenciasService.vialidades({ municipio: municipioId });
+        if (!vialidadesMapa.estaVisible()) vialidadesMapa.alternar();
+        sincronizarBotonVialidades();
+        vialidadesMapa.dibujar(datos, store.estado.zonas || []);
+        mostrarResultadoVial(null);
+        toast('Condición real restaurada en el mapa', 'ok');
+      })
   });
 }

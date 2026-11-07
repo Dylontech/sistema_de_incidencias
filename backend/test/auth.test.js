@@ -70,7 +70,7 @@ describe('Autenticación', () => {
       claveMunicipio: CLAVE_MARAVATIO
     });
     assert.equal(malaPassword.status, 401);
-    assert.equal(malaPassword.body.error, 'Credenciales incorrectas');
+    assert.equal(malaPassword.body.error, 'Usuario, correo o contraseña incorrectos');
 
     const malaClave = await request(app).post('/api/auth/funcionario').send({
       username: 'funcionario',

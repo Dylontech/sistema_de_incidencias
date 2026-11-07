@@ -165,12 +165,8 @@ async function navegarAlOrigen(aviso) {
   }
 
   if (aviso.entidadTipo === 'ticket' && aviso.entidadId) {
-    const atiende = sesion.usuario?.puedeAtenderTickets === true || sesion.rol === 'admin';
-    location.assign(
-      atiende
-        ? `/soporte?ticket=${encodeURIComponent(aviso.entidadId)}`
-        : `/?ticket=${encodeURIComponent(aviso.entidadId)}`
-    );
+    const { abrirCon } = await import('./ticketsModal.controller.js');
+    await abrirCon(aviso.entidadId);
     return;
   }
 
@@ -194,6 +190,37 @@ async function navegarAlOrigen(aviso) {
         450
       );
     }
+    return;
+  }
+
+  // Reclamaciones: se abre la decisión; al personal se le deja además el panel.
+  const reclamacionId =
+    destino.searchParams.get('reclamacion') ||
+    (aviso.entidadTipo === 'reclamacion' ? aviso.entidadId : null);
+  if (reclamacionId) {
+    if (sesion.esEmpleado() && sesion.puede('gestionar_reclamaciones')) {
+      const { abrirPanel } = await import('./admin.controller.js');
+      await abrirPanel('reclamaciones').catch(() => false);
+    }
+    const { verReclamacionPorId } = await import('./reclamaciones.controller.js');
+    await verReclamacionPorId(reclamacionId);
+    return;
+  }
+
+  // Reportes de conversación: se abre el panel en su pestaña y la conversación
+  // reportada concreta, para que moderación pueda restringir o sancionar.
+  const reporteConv =
+    destino.searchParams.get('reporte') ||
+    (aviso.entidadTipo === 'conversacion' ? aviso.entidadId : null);
+  if (reporteConv && sesion.esEmpleado()) {
+    const { abrirPanel } = await import('./admin.controller.js');
+    const abierto = await abrirPanel('reportes-conversacion').catch(() => false);
+    if (!abierto) return;
+    setTimeout(() => {
+      document
+        .querySelector(`[data-action="reporteConv:ver"][data-id="${reporteConv}"]`)
+        ?.click();
+    }, 400);
     return;
   }
 

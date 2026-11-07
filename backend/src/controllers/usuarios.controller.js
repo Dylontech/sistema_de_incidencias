@@ -13,6 +13,8 @@ import { asyncHandler, AppError } from '../utils/AppError.js';
 import * as usuarios from '../services/usuarios.service.js';
 import * as claves from '../services/claves.service.js';
 import { esAlgunaAdmin } from '../services/alcance.service.js';
+import { permisosDe } from '../services/permisos.service.js';
+import { ROLES_ADMIN, ROLES_PERSONAL } from '../config/constantes.js';
 import { nuevoId } from '../utils/ids.js';
 import { hashIp } from '../utils/privacidad.js';
 import { registrarAccion } from '../utils/auditoria.js';
@@ -30,6 +32,9 @@ function exigirPuedeGenerarClave(req) {
 /** Crea la clave si el panel la pidió; usos y vigencia son opcionales. */
 async function claveSiSePidio(req, cuenta) {
   if (req.body?.generarClave !== true) return null;
+  // Las cuentas administrativas no usan clave de activación: se autentican
+  // por la puerta de administración y su ámbito lo define su rol.
+  if (ROLES_ADMIN.includes(cuenta.rol)) return null;
   const usos = req.body.claveUsosMaximos;
   return claves.crearParaCuenta(req.repositorio, req.usuario, cuenta, {
     usosMaximos: usos === null || usos === undefined || usos === '' ? null : Number(usos),
@@ -82,15 +87,125 @@ export const crear = asyncHandler(async (req, res) => {
 });
 
 export const actualizar = asyncHandler(async (req, res) => {
-  exigirPuedeGenerarClave(req);
+  if (req.body?.generarClave === true) {
+    throw AppError.solicitudInvalida(
+      'La clave de acceso se genera al crear la cuenta. Para renovarla usa la acción de renovación.'
+    );
+  }
   const usuario = await usuarios.actualizar(
     req.repositorio,
     req.usuario,
     req.params.id,
     req.body || {}
   );
-  const clave = await claveSiSePidio(req, usuario);
-  res.json({ usuario, clave });
+  res.json({ usuario });
+});
+
+/** Estado de la clave de activación de una cuenta (solo administración). */
+export const estadoClave = asyncHandler(async (req, res) => {
+  const cuenta = await req.repositorio.usuarioPorId(req.params.id);
+  if (!cuenta) throw AppError.noEncontrado('Usuario no encontrado');
+  if (!ROLES_PERSONAL.includes(cuenta.rol)) {
+    throw AppError.prohibido('Esa cuenta no es del personal del sistema');
+  }
+  if (ROLES_ADMIN.includes(cuenta.rol) && !esAlgunaAdmin(req.usuario)) {
+    throw AppError.prohibido('Solo la administración consulta las claves de administración');
+  }
+  const clave = cuenta.claveId
+    ? await req.repositorio.claveAccesoPorId(cuenta.claveId)
+    : null;
+  await registrarAccion(req, {
+    accion: 'consulta_clave_usuario',
+    entidad: 'usuarios',
+    entidadId: cuenta.id,
+    detalle: { claveId: clave?.id || null, username: cuenta.username }
+  });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    cuenta: {
+      id: cuenta.id,
+      username: cuenta.username,
+      nombre: cuenta.nombre,
+      claveId: cuenta.claveId || null,
+      claveActivadaEn: cuenta.claveActivadaEn || null,
+      claveVigenteHasta: cuenta.claveVigenteHasta || null
+    },
+    clave: clave
+      ? {
+          id: clave.id,
+          codigo: clave.codigo,
+          nombre: clave.nombre,
+          modo: clave.modo,
+          activa: clave.activa,
+          usos: clave.usos,
+          usosMaximos: clave.usosMaximos,
+          expiraEn: clave.expiraEn,
+          activadaEn: clave.activadaEn,
+          activadaPorUsuarioId: clave.activadaPorUsuarioId
+        }
+      : null
+  });
+});
+
+/** Vincula una clave a una cuenta que aún no tiene acceso (solo administración). */
+export const vincularClave = asyncHandler(async (req, res) => {
+  const resultado = await claves.vincularACuenta(
+    req.repositorio,
+    req.usuario,
+    req.params.id,
+    {
+      claveId: req.body?.claveId || null,
+      generarClave: req.body?.generarClave === true,
+      claveExpiraEn: req.body?.claveExpiraEn || null
+    }
+  );
+  await registrarAccion(req, {
+    accion: 'clave_vinculada',
+    entidad: 'usuarios',
+    entidadId: req.params.id,
+    detalle: {
+      claveId: resultado.clave?.id || null,
+      generada: req.body?.generarClave === true
+    }
+  });
+  res.status(201).json(resultado);
+});
+
+/** Renueva la clave de activación de una cuenta (solo administración). */
+export const renovarClave = asyncHandler(async (req, res) => {
+  const cuenta = await req.repositorio.usuarioPorId(req.params.id);
+  if (!cuenta) throw AppError.noEncontrado('Usuario no encontrado');
+  if (!ROLES_PERSONAL.includes(cuenta.rol) || ROLES_ADMIN.includes(cuenta.rol)) {
+    throw AppError.prohibido('Las claves de activación son para cuentas de personal no administrativo');
+  }
+  const alcance = await req.repositorio.alcanceDeUsuario(cuenta.id);
+  const clave = await claves.crearParaCuenta(
+    req.repositorio,
+    req.usuario,
+    {
+      ...cuenta,
+      municipios: alcance.municipios.length
+        ? alcance.municipios
+        : cuenta.municipioId
+          ? [cuenta.municipioId]
+          : [],
+      estados: alcance.estados,
+      permisosEfectivos: permisosDe(cuenta)
+    },
+    { expiraEn: req.body?.claveExpiraEn || null }
+  );
+  if (!clave) {
+    throw AppError.solicitudInvalida(
+      'La cuenta no tiene municipios o estados para asignarle una clave'
+    );
+  }
+  await registrarAccion(req, {
+    accion: 'clave_renovada',
+    entidad: 'usuarios',
+    entidadId: cuenta.id,
+    detalle: { claveId: clave.id, username: cuenta.username }
+  });
+  res.status(201).json({ clave });
 });
 
 /** Baja lógica: desactiva la cuenta sin borrar su historial. */

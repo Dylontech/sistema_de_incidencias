@@ -165,6 +165,19 @@ export async function responder(repositorio, usuario, id, respuesta) {
     titulo: 'Respuesta del personal municipal',
     mensaje: limpio
   });
+  const cuenta = await repositorio.usuarioPorCorreo(mensaje.correo).catch(() => null);
+  if (cuenta) {
+    await emitir(repositorio, {
+      evento: 'contacto_respondido',
+      paraUsuarios: [cuenta.username],
+      titulo: '💬 Respondieron tu mensaje',
+      mensaje: `Tu mensaje ${mensaje.folio} tiene una respuesta del personal municipal.`,
+      entidadTipo: 'contacto',
+      entidadId: actualizado?.id || id,
+      url: '/?contacto=1',
+      claveDedupe: `contacto_respondido:${id}:${cuenta.username}`
+    }).catch(() => {});
+  }
 
   return actualizado;
 }

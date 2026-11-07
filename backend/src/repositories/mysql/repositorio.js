@@ -22,6 +22,7 @@ const TABLAS = [
   'tipos',
   'usuarios',
   'incidencias',
+  'vialidades',
   'incidencia_evidencias',
   'incidencia_historial',
   'incidencia_comentarios',
@@ -36,6 +37,8 @@ const TABLAS = [
   'clave_acceso_estados',
   'clave_notificacion_municipios',
   'clave_acceso_usos',
+  'clave_acceso_cuentas',
+  'avisos_clave_enviados',
   'sesiones_usuario',
   'auditoria',
   'solicitudes_acceso',
@@ -67,7 +70,13 @@ const TABLAS = [
   'roles',
   'solicitudes_password',
   'solicitudes_baja',
-  'solicitudes_usuario'
+  'solicitudes_usuario',
+  'reportes_conversacion',
+  'restricciones_mensajes',
+  'bloqueos_usuario',
+  'reclamaciones',
+  'tokens_cuenta',
+  'solicitudes_renovacion_clave'
 ];
 
 /**
@@ -82,20 +91,67 @@ const COLUMNAS = {
     'rol_personalizado_id',
     'rol_propio_id',
     'password_cifrada',
-    'telefono'
+    'telefono',
+    'mensajes_restringidos',
+    'mensajes_restringidos_hasta',
+    'mensajes_restringidos_motivo',
+    'mensajes_restringidos_por',
+    'clave_id',
+    'clave_activada_en',
+    'clave_vigente_hasta',
+    'correo_verificado',
+    'correo_verificado_en',
+    'suspendido_origen',
+    'clave_obligatoria',
+    'creado_en'
   ],
-  incidencias: ['clave_idempotencia', 'folio', 'meta_firmas'],
+  incidencias: [
+    'clave_idempotencia',
+    'folio',
+    'meta_firmas',
+    'costo_reparacion',
+    'documentos_resolucion',
+    'archivada_en',
+    'asignada_a',
+    'asignada_nombre',
+    'reparacion_estado',
+    'reparacion_notas',
+    'asignada_en',
+    'reparacion_iniciada_en',
+    'reparacion_terminada_en',
+    'desglose_costos',
+    'documentos_reparacion'
+  ],
   solicitudes_informe: ['municipios', 'estados', 'tipos_todos'],
   notificaciones: ['archivada_en', 'simulado'],
+  vialidades: [
+    'google_maps_url',
+    'notas',
+    'verificada_en',
+    'verificada_por',
+    'activo',
+    'eje',
+    'ancho_m',
+    'bbox',
+    'geometria_tipo',
+    'osm_id'
+  ],
   claves_acceso: [
     'correo_contacto',
     'correo_institucional_id',
     'notificaciones_activas',
-    'permisos'
+    'permisos',
+    'modo',
+    'activada_en',
+    'activada_por_usuario_id',
+    'renovada_de_id'
   ],
   sesiones_usuario: ['clave_id'],
   solicitudes_permisos: ['estados'],
   solicitudes_password: ['solicitado_por_id', 'solicitado_por'],
+  solicitudes_acceso: ['clave_id', 'usuario_id'],
+  solicitudes_usuario: ['clave_id'],
+  reportes_conversacion: ['incluye_mensajes'],
   publicaciones_redes: [
     'color_primario',
     'color_secundario',
@@ -370,6 +426,7 @@ export class RepositorioMysql {
       rol: fila.rol,
       municipioId: fila.municipio_id,
       activo: Boolean(fila.activo),
+      creadoEn: desdeFecha(fila.creado_en),
       pseudonimo: Boolean(fila.pseudonimo),
       puedeEscribir: Boolean(fila.puede_escribir),
       permisos: (() => {
@@ -394,6 +451,20 @@ export class RepositorioMysql {
       comentariosRestringidosHasta: desdeFecha(fila.comentarios_restringidos_hasta),
       comentariosRestringidosMotivo: fila.comentarios_restringidos_motivo || '',
       comentariosRestringidosPor: fila.comentarios_restringidos_por || null,
+      mensajesRestringidos: Boolean(fila.mensajes_restringidos),
+      mensajesRestringidosHasta: desdeFecha(fila.mensajes_restringidos_hasta),
+      mensajesRestringidosMotivo: fila.mensajes_restringidos_motivo || '',
+      mensajesRestringidosPor: fila.mensajes_restringidos_por || null,
+      claveId: fila.clave_id || null,
+      claveActivadaEn: desdeFecha(fila.clave_activada_en),
+      claveVigenteHasta: desdeFecha(fila.clave_vigente_hasta),
+      claveObligatoria: Boolean(fila.clave_obligatoria),
+      correoVerificado:
+        fila.correo_verificado === undefined || fila.correo_verificado === null
+          ? true
+          : Boolean(Number(fila.correo_verificado)),
+      correoVerificadoEn: desdeFecha(fila.correo_verificado_en),
+      suspendidoOrigen: fila.suspendido_origen || null,
       simulado: Boolean(fila.simulado),
       simulacionId: fila.simulacion_id || null
     };
@@ -658,6 +729,10 @@ export class RepositorioMysql {
       revocadaEn: desdeFecha(fila.revocada_en),
       correoContacto: fila.correo_contacto || null,
       correoInstitucionalId: fila.correo_institucional_id || null,
+      modo: fila.modo || 'compartida',
+      activadaEn: desdeFecha(fila.activada_en),
+      activadaPorUsuarioId: fila.activada_por_usuario_id || null,
+      renovadaDeId: fila.renovada_de_id || null,
       notificacionesActivas:
         fila.notificaciones_activas === undefined || fila.notificaciones_activas === null
           ? true
@@ -731,6 +806,10 @@ export class RepositorioMysql {
         correo_contacto: clave.correoContacto || null,
         correo_institucional_id: clave.correoInstitucionalId || null,
         notificaciones_activas: clave.notificacionesActivas !== false,
+        modo: clave.modo === 'unica' ? 'unica' : 'compartida',
+        activada_en: aFecha(clave.activadaEn),
+        activada_por_usuario_id: clave.activadaPorUsuarioId || null,
+        renovada_de_id: clave.renovadaDeId || null,
         permisos: Array.isArray(clave.permisos) ? JSON.stringify(clave.permisos) : null
       });
       if ((clave.municipios || []).length) {
@@ -780,28 +859,7 @@ export class RepositorioMysql {
   }
 
   async usuariosDeClaves(ids = []) {
-    const mapa = {};
-    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
-    if (!limpios.length) return mapa;
-    const filas = await this.knex('clave_acceso_usos as cu')
-      .leftJoin('usuarios as u', 'u.id', 'cu.usuario_id')
-      .whereIn('cu.clave_id', limpios)
-      .select('cu.clave_id', 'cu.usuario_id', 'u.username', 'u.nombre');
-    const vistos = new Set();
-    for (const fila of filas) {
-      const clave = fila.clave_id;
-      const identidad = String(fila.usuario_id || fila.username || '');
-      if (!identidad) continue;
-      const llave = `${clave}:${identidad}`;
-      if (vistos.has(llave)) continue;
-      vistos.add(llave);
-      if (!mapa[clave]) mapa[clave] = [];
-      mapa[clave].push({
-        id: fila.usuario_id || null,
-        username: fila.username || null,
-        nombre: fila.nombre || null
-      });
-    }
+    const mapa = await this.cuentasDeClaves(ids);
     return mapa;
   }
 
@@ -883,21 +941,69 @@ export class RepositorioMysql {
     if ('permisos' in cambios) {
       fila.permisos = Array.isArray(cambios.permisos) ? JSON.stringify(cambios.permisos) : null;
     }
+    if ('modo' in cambios) fila.modo = cambios.modo === 'unica' ? 'unica' : 'compartida';
+    if ('activa' in cambios) fila.activa = cambios.activa !== false;
+    if ('expiraEn' in cambios) fila.expira_en = aFecha(cambios.expiraEn);
+    if ('usosMaximos' in cambios) fila.usos_maximos = cambios.usosMaximos ?? null;
+    if ('revocadaEn' in cambios) fila.revocada_en = aFecha(cambios.revocadaEn);
+    if ('notificacionesActivas' in cambios) {
+      fila.notificaciones_activas = cambios.notificacionesActivas !== false;
+    }
+    if ('activadaEn' in cambios) fila.activada_en = aFecha(cambios.activadaEn);
+    if ('activadaPorUsuarioId' in cambios) {
+      fila.activada_por_usuario_id = cambios.activadaPorUsuarioId ?? null;
+    }
+    if ('renovadaDeId' in cambios) fila.renovada_de_id = cambios.renovadaDeId ?? null;
     if (Object.keys(fila).length) await this.knex('claves_acceso').where({ id }).update(fila);
     const actual = await this.knex('claves_acceso').where({ id }).first();
     return this.#claveConTerritorio(actual);
   }
 
   async registrarUsoClave(id, { usuarioId = null, ipHash = null } = {}) {
-    await this.knex.transaction(async (trx) => {
-      await trx('claves_acceso').where({ id }).increment('usos', 1);
-      await trx('clave_acceso_usos').insert({
-        id: `uso_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        clave_id: id,
-        usuario_id: usuarioId,
-        ip_hash: ipHash
-      });
+    // `usos` representa cuentas vinculadas, no inicios de sesión: aquí solo se
+    // deja constancia de la activación.
+    await this.knex('clave_acceso_usos').insert({
+      id: `uso_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      clave_id: id,
+      usuario_id: usuarioId,
+      ip_hash: ipHash
     });
+  }
+
+  async avisoClaveRegistrado(claveId, usuarioId, umbralDias) {
+    const fila = await this.knex('avisos_clave_enviados')
+      .where({
+        clave_id: claveId,
+        usuario_id: usuarioId,
+        umbral_dias: Number(umbralDias)
+      })
+      .first();
+    return Boolean(fila);
+  }
+
+  async eliminarAvisosClave(claveId) {
+    return this.knex('avisos_clave_enviados').where({ clave_id: claveId }).del();
+  }
+
+  async registrarAvisoClave({
+    claveId,
+    usuarioId,
+    umbralDias,
+    diasRestantes,
+    claveExpiraEn = null
+  } = {}) {
+    await this.knex('avisos_clave_enviados')
+      .insert({
+        id: nuevoId(),
+        clave_id: claveId,
+        usuario_id: usuarioId,
+        umbral_dias: Number(umbralDias),
+        dias_restantes: Number(diasRestantes),
+        clave_expira_en: aFecha(claveExpiraEn),
+        enviado_en: this.knex.fn.now(3)
+      })
+      .onConflict(['clave_id', 'usuario_id', 'umbral_dias'])
+      .ignore();
   }
 
   /* ------------------------------- sesiones ------------------------------- */
@@ -1017,6 +1123,7 @@ export class RepositorioMysql {
     limite = 200,
     username = null,
     accion = null,
+    metodo = null,
     desde = null,
     hasta = null
   } = {}) {
@@ -1024,13 +1131,14 @@ export class RepositorioMysql {
       .leftJoin('claves_acceso as c', 'a.clave_id', 'c.id')
       .select('a.*', 'c.codigo as clave_codigo', 'c.nombre as clave_nombre')
       .orderBy('a.creado_en', 'desc')
-      .limit(Math.min(Number(limite) || 200, 500));
+      .limit(Math.min(Number(limite) || 200, 5000));
     if (username) {
       consulta.whereRaw('LOWER(a.username) LIKE ?', [`%${String(username).toLowerCase()}%`]);
     }
     if (accion) {
       consulta.whereRaw('LOWER(a.accion) LIKE ?', [`%${String(accion).toLowerCase()}%`]);
     }
+    if (metodo) consulta.where('a.metodo', String(metodo).toUpperCase());
     if (desde) {
       const valor = /^\d{4}-\d{2}-\d{2}$/.test(String(desde))
         ? `${desde} 00:00:00`
@@ -1081,6 +1189,7 @@ export class RepositorioMysql {
     pon('rol', usuario.rol);
     pon('municipio_id', usuario.municipioId ?? null, 'municipioId');
     pon('activo', usuario.activo !== false);
+    pon('creado_en', aFecha(usuario.creadoEn), 'creadoEn');
     pon('pseudonimo', usuario.pseudonimo === true);
     pon('puede_escribir', usuario.puedeEscribir === true, 'puedeEscribir');
     pon(
@@ -1090,6 +1199,21 @@ export class RepositorioMysql {
     );
     pon('rol_personalizado_id', usuario.rolPersonalizadoId ?? null, 'rolPersonalizadoId');
     pon('rol_propio_id', usuario.rolPropioId ?? null, 'rolPropioId');
+    pon('clave_id', usuario.claveId ?? null, 'claveId');
+    pon('clave_activada_en', aFecha(usuario.claveActivadaEn), 'claveActivadaEn');
+    pon('clave_vigente_hasta', aFecha(usuario.claveVigenteHasta), 'claveVigenteHasta');
+    pon('clave_obligatoria', usuario.claveObligatoria === true, 'claveObligatoria');
+    pon(
+      'correo_verificado',
+      usuario.correoVerificado !== false,
+      'correoVerificado'
+    );
+    pon(
+      'correo_verificado_en',
+      aFecha(usuario.correoVerificadoEn),
+      'correoVerificadoEn'
+    );
+    pon('suspendido_origen', usuario.suspendidoOrigen ?? null, 'suspendidoOrigen');
     pon('password_hash', usuario.passwordHash, 'passwordHash');
     pon('password_cifrada', usuario.passwordCifrada ?? null, 'passwordCifrada');
     pon('advertencias', aNumero(usuario.advertencias) || 0);
@@ -1116,6 +1240,26 @@ export class RepositorioMysql {
       'comentarios_restringidos_por',
       usuario.comentariosRestringidosPor ?? null,
       'comentariosRestringidosPor'
+    );
+    pon(
+      'mensajes_restringidos',
+      usuario.mensajesRestringidos === true,
+      'mensajesRestringidos'
+    );
+    pon(
+      'mensajes_restringidos_hasta',
+      aFecha(usuario.mensajesRestringidosHasta),
+      'mensajesRestringidosHasta'
+    );
+    pon(
+      'mensajes_restringidos_motivo',
+      usuario.mensajesRestringidosMotivo ?? null,
+      'mensajesRestringidosMotivo'
+    );
+    pon(
+      'mensajes_restringidos_por',
+      usuario.mensajesRestringidosPor ?? null,
+      'mensajesRestringidosPor'
     );
     pon('simulado', usuario.simulado === true, 'simulado');
     pon('simulacion_id', usuario.simulacionId ?? null, 'simulacionId');
@@ -1165,7 +1309,26 @@ export class RepositorioMysql {
       oculta_fecha: aFecha(inc.ocultaFecha),
       oculta_motivo: inc.ocultaMotivo ?? null,
       fecha_resolucion: aFecha(inc.fechaResolucion),
-      solucion: inc.solucion ?? null
+      solucion: inc.solucion ?? null,
+      costo_reparacion:
+        inc.costoReparacion === null || inc.costoReparacion === undefined
+          ? null
+          : Number(inc.costoReparacion),
+      documentos_resolucion: inc.documentosResolucion
+        ? JSON.stringify(inc.documentosResolucion)
+        : null,
+      archivada_en: aFecha(inc.archivadaEn),
+      asignada_a: inc.asignadaA ?? null,
+      asignada_nombre: inc.asignadaNombre ?? null,
+      reparacion_estado: inc.reparacionEstado || 'sin_asignar',
+      reparacion_notas: inc.reparacionNotas ?? null,
+      asignada_en: aFecha(inc.asignadaEn),
+      reparacion_iniciada_en: aFecha(inc.reparacionIniciadaEn),
+      reparacion_terminada_en: aFecha(inc.reparacionTerminadaEn),
+      desglose_costos: inc.desgloseCostos ? JSON.stringify(inc.desgloseCostos) : null,
+      documentos_reparacion: inc.documentosReparacion
+        ? JSON.stringify(inc.documentosReparacion)
+        : null
     };
   }
 
@@ -1280,6 +1443,38 @@ export class RepositorioMysql {
       fechaResolucion: desdeFecha(fila.fecha_resolucion),
       solucion: fila.solucion,
       evidenciaSolucion: hijos.evidenciasSolucion.get(fila.id) || [],
+      costoReparacion: fila.costo_reparacion === null || fila.costo_reparacion === undefined
+        ? null
+        : Number(fila.costo_reparacion),
+      documentosResolucion: (() => {
+        try {
+          return fila.documentos_resolucion ? JSON.parse(fila.documentos_resolucion) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      desgloseCostos: (() => {
+        try {
+          return fila.desglose_costos ? JSON.parse(fila.desglose_costos) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      documentosReparacion: (() => {
+        try {
+          return fila.documentos_reparacion ? JSON.parse(fila.documentos_reparacion) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      asignadaA: fila.asignada_a || null,
+      asignadaNombre: fila.asignada_nombre || null,
+      reparacionEstado: fila.reparacion_estado || 'sin_asignar',
+      reparacionNotas: fila.reparacion_notas || '',
+      asignadaEn: desdeFecha(fila.asignada_en),
+      reparacionIniciadaEn: desdeFecha(fila.reparacion_iniciada_en),
+      reparacionTerminadaEn: desdeFecha(fila.reparacion_terminada_en),
+      archivadaEn: desdeFecha(fila.archivada_en),
       simulado: Boolean(fila.simulado),
       simulacionId: fila.simulacion_id || null
     };
@@ -1304,6 +1499,8 @@ export class RepositorioMysql {
       zonaId,
       desde,
       hasta,
+      asignadaA,
+      reparacionEstado,
       orden = 'reciente',
       ocultas = 'excluir',
       ocultasDe = null,
@@ -1381,7 +1578,10 @@ export class RepositorioMysql {
       'estado_entidad',
       'ambito',
       'via_nombre',
+      'via_clave',
+      'tramo',
       'kilometro',
+      'zona_id',
       'zona_nombre',
       'peligrosa',
       'autor_nombre',
@@ -1435,13 +1635,200 @@ export class RepositorioMysql {
       estadoEntidad: fila.estado_entidad || null,
       ambito: fila.ambito || 'urbano',
       viaNombre: fila.via_nombre || '',
+      viaClave: fila.via_clave || '',
+      tramo: fila.tramo || '',
       kilometro: fila.kilometro === null || fila.kilometro === undefined ? null : Number(fila.kilometro),
+      zonaId: fila.zona_id || null,
       zonaNombre: fila.zona_nombre || null,
       peligrosa: Boolean(fila.peligrosa),
       autorNombre: fila.es_anonimo ? 'Anónimo' : fila.autor_nombre,
       esAnonimo: Boolean(fila.es_anonimo),
       userKey: fila.user_key
     }));
+  }
+
+  #aVialidad(fila) {
+    const leerJson = (valor, respaldo = null) => {
+      if (valor === null || valor === undefined || valor === '') return respaldo;
+      if (typeof valor !== 'string') return valor;
+      try {
+        return JSON.parse(valor);
+      } catch {
+        return respaldo;
+      }
+    };
+    return {
+      id: fila.id,
+      municipioId: fila.municipio_id,
+      nombre: fila.nombre || '',
+      clave: fila.clave || '',
+      tipo: fila.tipo || 'calle',
+      geometria: leerJson(fila.geometria, []),
+      eje: leerJson(fila.eje, null),
+      anchoM: fila.ancho_m === null || fila.ancho_m === undefined ? null : Number(fila.ancho_m),
+      bbox: leerJson(fila.bbox, null),
+      geometriaTipo: fila.geometria_tipo || null,
+      osmId: fila.osm_id || null,
+      fuente: fila.fuente || 'manual',
+      googleMapsUrl: fila.google_maps_url || '',
+      notas: fila.notas || '',
+      verificadaEn: desdeFecha(fila.verificada_en),
+      verificadaPor: fila.verificada_por || null,
+      activo: fila.activo !== 0 && fila.activo !== false,
+      actualizadoEn: desdeFecha(fila.actualizado_en)
+    };
+  }
+
+  #filaVialidad(via) {
+    return {
+      id: via.id || nuevoId(),
+      municipio_id: via.municipioId,
+      nombre: String(via.nombre || '').slice(0, 160),
+      clave: String(via.clave || '').slice(0, 160),
+      tipo: String(via.tipo || 'calle').slice(0, 40),
+      geometria: JSON.stringify(via.geometria || []),
+      eje: via.eje ? JSON.stringify(via.eje) : null,
+      ancho_m: via.anchoM === null || via.anchoM === undefined ? null : Number(via.anchoM),
+      bbox: via.bbox ? JSON.stringify(via.bbox) : null,
+      geometria_tipo: via.geometriaTipo || null,
+      osm_id: via.osmId || null,
+      fuente: String(via.fuente || 'manual').slice(0, 120),
+      google_maps_url: via.googleMapsUrl || null,
+      notas: via.notas || null,
+      verificada_en: aFecha(via.verificadaEn || null),
+      verificada_por: via.verificadaPor || null,
+      activo: via.activo !== false,
+      actualizado_en: aFecha(via.actualizadoEn || new Date().toISOString())
+    };
+  }
+
+  /** Trazados de calles/carreteras para la capa y el panel administrativo. */
+  async listarVialidades({
+    municipioId = null,
+    tipo = null,
+    fuente = null,
+    texto = '',
+    incluirInactivas = false,
+    limite = 2000
+  } = {}) {
+    const consulta = this.knex('vialidades').select('*');
+    if (municipioId) consulta.where('municipio_id', municipioId);
+    if (!incluirInactivas) consulta.where('activo', true);
+    if (tipo) consulta.where('tipo', tipo);
+    if (fuente) consulta.where('fuente', fuente);
+    if (texto) {
+      const patron = `%${String(texto).toLowerCase()}%`;
+      consulta.where((b) =>
+        b
+          .whereRaw('LOWER(nombre) LIKE ?', [patron])
+          .orWhereRaw('LOWER(clave) LIKE ?', [patron])
+          .orWhereRaw('LOWER(COALESCE(notas, \'\')) LIKE ?', [patron])
+      );
+    }
+    const filas = await consulta
+      .orderBy('nombre', 'asc')
+      .limit(Math.min(Number(limite) || 2000, 5000));
+    return filas.map((fila) => this.#aVialidad(fila));
+  }
+
+  async vialidadPorId(id) {
+    const fila = await this.knex('vialidades').where({ id }).first();
+    return fila ? this.#aVialidad(fila) : null;
+  }
+
+  async crearVialidad(vialidad) {
+    const fila = this.#filaVialidad(vialidad);
+    await this.knex('vialidades').insert(fila);
+    return this.#aVialidad(fila);
+  }
+
+  async actualizarVialidad(id, cambios) {
+    const actual = await this.knex('vialidades').where({ id }).first();
+    if (!actual) return null;
+    const fusion = { ...this.#aVialidad(actual), ...cambios, id };
+    const fila = this.#filaVialidad(fusion);
+    delete fila.id;
+    await this.knex('vialidades').where({ id }).update(fila);
+    return this.vialidadPorId(id);
+  }
+
+  async eliminarVialidad(id) {
+    const actual = await this.knex('vialidades').where({ id }).first();
+    if (!actual) return false;
+    await this.knex('vialidades').where({ id }).update({
+      activo: false,
+      actualizado_en: aFecha(new Date().toISOString())
+    });
+    return true;
+  }
+
+  /** Reemplaza el trazado importado de un municipio (idempotente). */
+  async reemplazarVialidades(municipioId, vialidades = []) {
+    if (!municipioId) return 0;
+    const lista = Array.isArray(vialidades) ? [...vialidades] : [];
+    const total = lista.length;
+    await this.knex.transaction(async (trx) => {
+      await trx('vialidades').where({ municipio_id: municipioId }).del();
+      const lotes = [];
+      while (lista.length) lotes.push(lista.splice(0, 100));
+      for (const lote of lotes) {
+        await trx('vialidades').insert(
+          lote.map((via) => this.#filaVialidad({ ...via, municipioId }))
+        );
+      }
+    });
+    return total;
+  }
+
+  /**
+   * Fusiona la red importada con la existente. Por defecto conserva enlaces,
+   * notas y verificaciones manuales; `reemplazar` borra el municipio primero.
+   */
+  async sincronizarVialidades(municipioId, vialidades = [], { reemplazar = false } = {}) {
+    if (!municipioId) return { total: 0, creadas: 0, actualizadas: 0 };
+    const lista = Array.isArray(vialidades) ? [...vialidades] : [];
+    let creadas = 0;
+    let actualizadas = 0;
+    await this.knex.transaction(async (trx) => {
+      const existentes = reemplazar
+        ? []
+        : await trx('vialidades').where({ municipio_id: municipioId });
+      if (reemplazar) await trx('vialidades').where({ municipio_id: municipioId }).del();
+      const usados = new Set();
+      for (const via of lista) {
+        const actual = existentes.find((fila) => {
+          if (usados.has(fila.id)) return false;
+          if (via.osmId && fila.osm_id === via.osmId) return true;
+          if (via.id && fila.id === via.id) return true;
+          return !via.osmId && via.clave && fila.clave === via.clave;
+        });
+        if (actual) {
+          usados.add(actual.id);
+          const anterior = this.#aVialidad(actual);
+          const mismaGeometria =
+            JSON.stringify(anterior.geometria || null) === JSON.stringify(via.geometria || null);
+          const fusion = {
+            ...anterior,
+            ...via,
+            id: actual.id,
+            municipioId,
+            googleMapsUrl: anterior.googleMapsUrl || via.googleMapsUrl || '',
+            notas: anterior.notas || via.notas || '',
+            verificadaEn: mismaGeometria ? anterior.verificadaEn || null : null,
+            verificadaPor: mismaGeometria ? anterior.verificadaPor || null : null
+          };
+          const fila = this.#filaVialidad(fusion);
+          delete fila.id;
+          await trx('vialidades').where({ id: actual.id }).update(fila);
+          actualizadas += 1;
+        } else {
+          const fila = this.#filaVialidad({ ...via, municipioId });
+          await trx('vialidades').insert(fila);
+          creadas += 1;
+        }
+      }
+    });
+    return { total: lista.length, creadas, actualizadas };
   }
 
   async incidenciaPorIdempotencia(userKey, clave) {
@@ -1772,6 +2159,8 @@ export class RepositorioMysql {
       revisadoPor: fila.revisado_por || null,
       revisadoEn: desdeFecha(fila.revisado_en),
       motivoRechazo: fila.motivo_rechazo || null,
+      claveId: fila.clave_id || null,
+      usuarioId: fila.usuario_id || null,
       ipHash: fila.ip_hash || null,
       creadoEn: desdeFecha(fila.creado_en)
     };
@@ -1790,6 +2179,8 @@ export class RepositorioMysql {
       estados: JSON.stringify(solicitud.estados || []),
       justificacion: solicitud.justificacion || '',
       estado: solicitud.estado || 'pendiente',
+      clave_id: solicitud.claveId || null,
+      usuario_id: solicitud.usuarioId || null,
       ip_hash: solicitud.ipHash || null
     });
     return solicitud;
@@ -1821,6 +2212,8 @@ export class RepositorioMysql {
     if (cambios.revisadoPor !== undefined) fila.revisado_por = cambios.revisadoPor;
     if (cambios.revisadoEn !== undefined) fila.revisado_en = aFecha(cambios.revisadoEn);
     if (cambios.motivoRechazo !== undefined) fila.motivo_rechazo = cambios.motivoRechazo;
+    if (cambios.claveId !== undefined) fila.clave_id = cambios.claveId ?? null;
+    if (cambios.usuarioId !== undefined) fila.usuario_id = cambios.usuarioId ?? null;
     await this.knex('solicitudes_acceso').where({ id }).update(fila);
     return this.solicitudAccesoPorId(id);
   }
@@ -3175,6 +3568,13 @@ export class RepositorioMysql {
     }
     const actual = await this.knex('incidencia_comentarios').where({ id: comentarioId }).first();
     return actual ? this.#desdeComentario(actual) : null;
+  }
+
+  async eliminarComentarioIncidencia(incidenciaId, comentarioId) {
+    const borrados = await this.knex('incidencia_comentarios')
+      .where({ id: comentarioId, incidencia_id: incidenciaId })
+      .del();
+    return borrados > 0;
   }
 
   async restriccionComentariosVigente({ usuarioId = null, userKey = null } = {}) {
@@ -4825,6 +5225,7 @@ export class RepositorioMysql {
       resueltoPor: fila.resuelto_por || null,
       resueltoEn: desdeFecha(fila.resuelto_en),
       respuesta: fila.respuesta || '',
+      claveId: fila.clave_id || null,
       creadoEn: desdeFecha(fila.creado_en)
     };
   }
@@ -4844,6 +5245,7 @@ export class RepositorioMysql {
       resuelto_por: solicitud.resueltoPor || null,
       resuelto_en: aFecha(solicitud.resueltoEn),
       respuesta: solicitud.respuesta || null,
+      clave_id: solicitud.claveId || null,
       creado_en: aFecha(solicitud.creadoEn) || new Date()
     });
     return solicitud;
@@ -4869,9 +5271,689 @@ export class RepositorioMysql {
     if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
     if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
     if ('respuesta' in cambios) fila.respuesta = cambios.respuesta ?? null;
+    if ('claveId' in cambios) fila.clave_id = cambios.claveId ?? null;
     if (Object.keys(fila).length) {
       await this.knex('solicitudes_usuario').where({ id }).update(fila);
     }
     return this.solicitudUsuarioPorId(id);
+  }
+
+  /* --------------------- reportes de conversación --------------------- */
+
+  #aReporteConversacion(fila) {
+    if (!fila) return null;
+    let mensajes = [];
+    let sancion = null;
+    try {
+      mensajes = fila.mensajes ? JSON.parse(fila.mensajes) : [];
+    } catch {
+      mensajes = [];
+    }
+    try {
+      sancion = fila.sancion ? JSON.parse(fila.sancion) : null;
+    } catch {
+      sancion = null;
+    }
+    return {
+      id: fila.id,
+      fecha: desdeFecha(fila.fecha),
+      municipioId: fila.municipio_id || null,
+      canal: fila.canal,
+      conversacionId: fila.conversacion_id,
+      conversacionAsunto: fila.conversacion_asunto || '',
+      objetivoUserKey: fila.objetivo_user_key || null,
+      objetivoUsername: fila.objetivo_username || null,
+      objetivoNombre: fila.objetivo_nombre || '',
+      autorUserKey: fila.autor_user_key || null,
+      autorUsername: fila.autor_username || null,
+      autorNombre: fila.autor_nombre || '',
+      motivo: fila.motivo,
+      detalle: fila.detalle || '',
+      mensajes: Array.isArray(mensajes) ? mensajes : [],
+      incluyeMensajes: fila.incluye_mensajes === undefined ? true : Boolean(fila.incluye_mensajes),
+      estado: fila.estado,
+      accion: fila.accion || null,
+      resolucion: fila.resolucion || '',
+      resueltoPor: fila.resuelto_por || null,
+      resueltoEn: desdeFecha(fila.resuelto_en),
+      revertidoPor: fila.revertido_por || null,
+      revertidoEn: desdeFecha(fila.revertido_en),
+      sancion,
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearReporteConversacion(reporte) {
+    await this.knex('reportes_conversacion').insert({
+      id: reporte.id,
+      fecha: aFecha(reporte.fecha) || new Date(),
+      municipio_id: reporte.municipioId ?? null,
+      canal: reporte.canal,
+      conversacion_id: reporte.conversacionId,
+      conversacion_asunto: reporte.conversacionAsunto || null,
+      objetivo_user_key: reporte.objetivoUserKey ?? null,
+      objetivo_username: reporte.objetivoUsername ?? null,
+      objetivo_nombre: reporte.objetivoNombre ?? null,
+      autor_user_key: reporte.autorUserKey ?? null,
+      autor_username: reporte.autorUsername ?? null,
+      autor_nombre: reporte.autorNombre ?? null,
+      motivo: reporte.motivo,
+      detalle: reporte.detalle || null,
+      mensajes: JSON.stringify(reporte.mensajes || []),
+      incluye_mensajes: reporte.incluyeMensajes !== false,
+      estado: reporte.estado || 'pendiente',
+      accion: reporte.accion ?? null,
+      resolucion: reporte.resolucion ?? null,
+      resuelto_por: reporte.resueltoPor ?? null,
+      resuelto_en: aFecha(reporte.resueltoEn),
+      revertido_por: reporte.revertidoPor ?? null,
+      revertido_en: aFecha(reporte.revertidoEn),
+      sancion: reporte.sancion ? JSON.stringify(reporte.sancion) : null,
+      creado_en: aFecha(reporte.creadoEn) || new Date()
+    });
+    return reporte;
+  }
+
+  async reportesConversacion({ estado = null, limite = 200 } = {}) {
+    const consulta = this.knex('reportes_conversacion').select('*');
+    if (estado) consulta.where('estado', estado);
+    const filas = await consulta
+      .orderBy('fecha', 'desc')
+      .limit(Math.min(Number(limite) || 200, 500));
+    return filas.map((f) => this.#aReporteConversacion(f));
+  }
+
+  async reporteConversacionPorId(id) {
+    const fila = await this.knex('reportes_conversacion').where({ id }).first();
+    return this.#aReporteConversacion(fila);
+  }
+
+  async reporteConversacionConAdjunto(adjuntoId) {
+    const id = String(adjuntoId || '');
+    if (!id) return null;
+    const fila = await this.knex('reportes_conversacion')
+      .where('mensajes', 'like', `%${id}%`)
+      .first();
+    return this.#aReporteConversacion(fila);
+  }
+
+  async actualizarReporteConversacion(id, cambios = {}) {
+    const fila = {};
+    if ('estado' in cambios) fila.estado = cambios.estado;
+    if ('accion' in cambios) fila.accion = cambios.accion ?? null;
+    if ('resolucion' in cambios) fila.resolucion = cambios.resolucion ?? null;
+    if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
+    if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
+    if ('revertidoPor' in cambios) fila.revertido_por = cambios.revertidoPor ?? null;
+    if ('revertidoEn' in cambios) fila.revertido_en = aFecha(cambios.revertidoEn);
+    if ('sancion' in cambios) {
+      fila.sancion = cambios.sancion ? JSON.stringify(cambios.sancion) : null;
+    }
+    if (Object.keys(fila).length) {
+      await this.knex('reportes_conversacion').where({ id }).update(fila);
+    }
+    return this.reporteConversacionPorId(id);
+  }
+
+  /* -------------------- restricciones de mensajes --------------------- */
+
+  #aRestriccionMensaje(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      usuarioId: fila.usuario_id,
+      userKey: fila.user_key || null,
+      motivo: fila.motivo,
+      hasta: desdeFecha(fila.hasta),
+      activo: Boolean(fila.activo),
+      creadoPor: fila.creado_por || null,
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearRestriccionMensajes(restriccion) {
+    await this.knex('restricciones_mensajes').insert({
+      id: restriccion.id,
+      usuario_id: restriccion.usuarioId,
+      user_key: restriccion.userKey ?? null,
+      motivo: restriccion.motivo,
+      hasta: aFecha(restriccion.hasta),
+      activo: restriccion.activo !== false,
+      creado_por: restriccion.creadoPor ?? null,
+      creado_en: aFecha(restriccion.creadoEn) || new Date()
+    });
+    return restriccion;
+  }
+
+  async restriccionMensajesVigente(usuarioId) {
+    const fila = await this.knex('restricciones_mensajes')
+      .where({ usuario_id: usuarioId, activo: true })
+      .where((q) => q.whereNull('hasta').orWhere('hasta', '>', new Date()))
+      .orderBy('creado_en', 'desc')
+      .first();
+    return this.#aRestriccionMensaje(fila);
+  }
+
+  async restriccionMensajesPorId(id) {
+    const fila = await this.knex('restricciones_mensajes').where({ id }).first();
+    return this.#aRestriccionMensaje(fila);
+  }
+
+  async levantarRestriccionMensajes(id) {
+    await this.knex('restricciones_mensajes').where({ id }).update({ activo: false });
+    return this.restriccionMensajesPorId(id);
+  }
+
+  /* ------------------- bloqueos entre cuentas ------------------------ */
+
+  #aBloqueo(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      usuarioId: fila.usuario_id,
+      usuarioUsername: fila.usuario_username || null,
+      bloqueadoId: fila.bloqueado_id,
+      bloqueadoUsername: fila.bloqueado_username || null,
+      bloqueadoNombre: fila.bloqueado_nombre || '',
+      motivo: fila.motivo || '',
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearBloqueoUsuario(bloqueo) {
+    await this.knex('bloqueos_usuario')
+      .insert({
+        id: bloqueo.id,
+        usuario_id: bloqueo.usuarioId,
+        usuario_username: bloqueo.usuarioUsername ?? null,
+        bloqueado_id: bloqueo.bloqueadoId,
+        bloqueado_username: bloqueo.bloqueadoUsername ?? null,
+        bloqueado_nombre: bloqueo.bloqueadoNombre ?? null,
+        motivo: bloqueo.motivo ?? null,
+        creado_en: aFecha(bloqueo.creadoEn) || new Date()
+      })
+      .onConflict(['usuario_id', 'bloqueado_id'])
+      .merge({ motivo: bloqueo.motivo ?? null });
+    return bloqueo;
+  }
+
+  async eliminarBloqueoUsuario(usuarioId, bloqueadoId) {
+    const borrados = await this.knex('bloqueos_usuario')
+      .where({ usuario_id: usuarioId, bloqueado_id: bloqueadoId })
+      .del();
+    return borrados > 0;
+  }
+
+  async bloqueosDeUsuario(usuarioId) {
+    const filas = await this.knex('bloqueos_usuario')
+      .where({ usuario_id: usuarioId })
+      .orderBy('creado_en', 'desc');
+    return filas.map((fila) => this.#aBloqueo(fila));
+  }
+
+  async bloqueoEntre(usuarioId, otroId) {
+    const fila = await this.knex('bloqueos_usuario')
+      .where({ usuario_id: usuarioId, bloqueado_id: otroId })
+      .first();
+    return this.#aBloqueo(fila);
+  }
+
+  /* ------------------------- reclamaciones --------------------------- */
+
+  #aReclamacion(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      incidenciaId: fila.incidencia_id,
+      municipioId: fila.municipio_id || null,
+      incidenciaTitulo: fila.incidencia_titulo || '',
+      usuarioId: fila.usuario_id || null,
+      userKey: fila.user_key || null,
+      username: fila.username || null,
+      nombre: fila.nombre || '',
+      motivo: fila.motivo,
+      detalle: fila.detalle,
+      estado: fila.estado,
+      decision: fila.decision || null,
+      respuesta: fila.respuesta || '',
+      resueltoPor: fila.resuelto_por || null,
+      resueltoEn: desdeFecha(fila.resuelto_en),
+      delegadoA: fila.delegado_a || null,
+      delegadoEn: desdeFecha(fila.delegado_en),
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearReclamacion(reclamacion) {
+    await this.knex('reclamaciones').insert({
+      id: reclamacion.id,
+      incidencia_id: reclamacion.incidenciaId,
+      municipio_id: reclamacion.municipioId ?? null,
+      incidencia_titulo: reclamacion.incidenciaTitulo ?? null,
+      usuario_id: reclamacion.usuarioId ?? null,
+      user_key: reclamacion.userKey ?? null,
+      username: reclamacion.username ?? null,
+      nombre: reclamacion.nombre ?? null,
+      motivo: reclamacion.motivo,
+      detalle: reclamacion.detalle,
+      estado: reclamacion.estado || 'pendiente',
+      decision: reclamacion.decision ?? null,
+      respuesta: reclamacion.respuesta ?? null,
+      resuelto_por: reclamacion.resueltoPor ?? null,
+      resuelto_en: aFecha(reclamacion.resueltoEn),
+      delegado_a: reclamacion.delegadoA ?? null,
+      delegado_en: aFecha(reclamacion.delegadoEn),
+      creado_en: aFecha(reclamacion.creadoEn) || new Date()
+    });
+    return reclamacion;
+  }
+
+  async reclamaciones({ estado = null, incidenciaId = null, usuarioId = null, limite = 200 } = {}) {
+    const consulta = this.knex('reclamaciones').select('*');
+    if (estado) consulta.where('estado', estado);
+    if (incidenciaId) consulta.where('incidencia_id', incidenciaId);
+    if (usuarioId) consulta.where('usuario_id', usuarioId);
+    const filas = await consulta
+      .orderBy('creado_en', 'desc')
+      .limit(Math.min(Number(limite) || 200, 500));
+    return filas.map((fila) => this.#aReclamacion(fila));
+  }
+
+  async reclamacionPorId(id) {
+    const fila = await this.knex('reclamaciones').where({ id }).first();
+    return this.#aReclamacion(fila);
+  }
+
+  async actualizarReclamacion(id, cambios = {}) {
+    const fila = {};
+    if ('estado' in cambios) fila.estado = cambios.estado;
+    if ('decision' in cambios) fila.decision = cambios.decision ?? null;
+    if ('respuesta' in cambios) fila.respuesta = cambios.respuesta ?? null;
+    if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
+    if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
+    if ('delegadoA' in cambios) fila.delegado_a = cambios.delegadoA ?? null;
+    if ('delegadoEn' in cambios) fila.delegado_en = aFecha(cambios.delegadoEn);
+    if (Object.keys(fila).length) {
+      await this.knex('reclamaciones').where({ id }).update(fila);
+    }
+    return this.reclamacionPorId(id);
+  }
+
+  /* ------------------- cuentas: tokens, vínculos y privacidad ------------------- */
+
+  #aTokenCuenta(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      usuarioId: fila.usuario_id,
+      tipo: fila.tipo,
+      tokenHash: fila.token_hash,
+      expiraEn: desdeFecha(fila.expira_en),
+      usadoEn: desdeFecha(fila.usado_en),
+      creadoEn: desdeFecha(fila.creado_en),
+      ipHash: fila.ip_hash || null,
+      userAgent: fila.user_agent || null
+    };
+  }
+
+  async crearTokenCuenta(token) {
+    await this.knex('tokens_cuenta').insert({
+      id: token.id,
+      usuario_id: token.usuarioId,
+      tipo: token.tipo,
+      token_hash: token.tokenHash,
+      expira_en: aFecha(token.expiraEn),
+      usado_en: aFecha(token.usadoEn),
+      creado_en: aFecha(token.creadoEn) || new Date(),
+      ip_hash: token.ipHash || null,
+      user_agent: token.userAgent || null
+    });
+    return token;
+  }
+
+  async tokenCuentaPorHash(hash) {
+    const fila = await this.knex('tokens_cuenta')
+      .where({ token_hash: String(hash || '') })
+      .first();
+    return this.#aTokenCuenta(fila);
+  }
+
+  async marcarTokenCuentaUsado(id, fecha = new Date().toISOString()) {
+    const cambios = await this.knex('tokens_cuenta')
+      .where({ id })
+      .whereNull('usado_en')
+      .update({ usado_en: aFecha(fecha) });
+    return cambios > 0;
+  }
+
+  async invalidarTokensCuenta(usuarioId, tipo) {
+    return this.knex('tokens_cuenta')
+      .where({ usuario_id: usuarioId, tipo })
+      .whereNull('usado_en')
+      .update({ usado_en: this.knex.fn.now(3) });
+  }
+
+  async eliminarTokensCuenta(usuarioId) {
+    return this.knex('tokens_cuenta').where({ usuario_id: usuarioId }).del();
+  }
+
+  #aCuentaVinculada(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.usuario_id || fila.id,
+      username: fila.username || null,
+      nombre: fila.nombre || null,
+      correo: fila.correo || null,
+      rol: fila.rol || null,
+      activo: fila.activo === undefined ? true : Boolean(Number(fila.activo)),
+      activadaEn: desdeFecha(fila.activada_en)
+    };
+  }
+
+  async vincularCuentaAClave(claveId, usuarioId, { activadaEn = null } = {}) {
+    const existente = await this.knex('clave_acceso_cuentas')
+      .where({ clave_id: claveId, usuario_id: usuarioId })
+      .first();
+    if (existente) {
+      if (activadaEn) {
+        await this.knex('clave_acceso_cuentas')
+          .where({ clave_id: claveId, usuario_id: usuarioId })
+          .update({ activada_en: aFecha(activadaEn) });
+      }
+      return {
+        claveId,
+        usuarioId,
+        activadaEn: activadaEn ? desdeFecha(activadaEn) : desdeFecha(existente.activada_en)
+      };
+    }
+    await this.knex('clave_acceso_cuentas').insert({
+      clave_id: claveId,
+      usuario_id: usuarioId,
+      activada_en: aFecha(activadaEn)
+    });
+    return { claveId, usuarioId, activadaEn: activadaEn ? desdeFecha(activadaEn) : null };
+  }
+
+  async desvincularCuentaDeClave(claveId, usuarioId) {
+    const eliminados = await this.knex('clave_acceso_cuentas')
+      .where({ clave_id: claveId, usuario_id: usuarioId })
+      .del();
+    return eliminados > 0;
+  }
+
+  async actualizarVinculoClave(claveId, usuarioId, cambios = {}) {
+    const fila = {};
+    if ('activadaEn' in cambios) fila.activada_en = aFecha(cambios.activadaEn);
+    if (Object.keys(fila).length) {
+      await this.knex('clave_acceso_cuentas')
+        .where({ clave_id: claveId, usuario_id: usuarioId })
+        .update(fila);
+    }
+    const actual = await this.knex('clave_acceso_cuentas')
+      .where({ clave_id: claveId, usuario_id: usuarioId })
+      .first();
+    return actual
+      ? {
+          claveId: actual.clave_id,
+          usuarioId: actual.usuario_id,
+          activadaEn: desdeFecha(actual.activada_en)
+        }
+      : null;
+  }
+
+  async cuentasDeClave(claveId) {
+    const filas = await this.knex('clave_acceso_cuentas as cac')
+      .join('usuarios as u', 'u.id', 'cac.usuario_id')
+      .where('cac.clave_id', claveId)
+      .select(
+        'cac.clave_id',
+        'cac.activada_en',
+        'u.id as usuario_id',
+        'u.username',
+        'u.nombre',
+        'u.correo',
+        'u.rol',
+        'u.activo'
+      )
+      .orderBy('u.nombre', 'asc');
+    return filas.map((fila) => this.#aCuentaVinculada(fila));
+  }
+
+  async cuentasDeClaves(ids = []) {
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    const mapa = {};
+    for (const id of limpios) mapa[id] = [];
+    if (!limpios.length) return mapa;
+    const filas = await this.knex('clave_acceso_cuentas as cac')
+      .join('usuarios as u', 'u.id', 'cac.usuario_id')
+      .whereIn('cac.clave_id', limpios)
+      .select(
+        'cac.clave_id',
+        'cac.activada_en',
+        'u.id as usuario_id',
+        'u.username',
+        'u.nombre',
+        'u.correo',
+        'u.rol',
+        'u.activo'
+      )
+      .orderBy('u.nombre', 'asc');
+    for (const fila of filas) {
+      if (!mapa[fila.clave_id]) mapa[fila.clave_id] = [];
+      mapa[fila.clave_id].push(this.#aCuentaVinculada(fila));
+    }
+    return mapa;
+  }
+
+  async contarCuentasActivasDeClave(claveId) {
+    const fila = await this.knex('clave_acceso_cuentas as cac')
+      .join('usuarios as u', 'u.id', 'cac.usuario_id')
+      .where('cac.clave_id', claveId)
+      .where('u.activo', true)
+      .count({ n: '*' })
+      .first();
+    return Number(fila?.n || 0);
+  }
+
+  async actividadDeUsuarios(ids = []) {
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    const mapa = {};
+    for (const id of limpios) mapa[id] = { ultima: null, sesionAbierta: false };
+    if (!limpios.length) return mapa;
+    const filas = await this.knex('sesiones_usuario')
+      .whereIn('usuario_id', limpios)
+      .select('usuario_id', 'inicio', 'ultima_actividad', 'cerrada_en');
+    for (const fila of filas) {
+      const actual = mapa[fila.usuario_id];
+      if (!actual) continue;
+      if (!fila.cerrada_en) actual.sesionAbierta = true;
+      const fecha = desdeFecha(fila.ultima_actividad || fila.inicio);
+      if (fecha && (!actual.ultima || fecha > actual.ultima)) actual.ultima = fecha;
+    }
+    return mapa;
+  }
+
+  async cerrarSesionesPorUsuario(usuarioId, motivo = 'cuenta cerrada') {
+    const filas = await this.knex('sesiones_usuario')
+      .where({ usuario_id: usuarioId })
+      .whereNull('cerrada_en')
+      .select('id', 'usuario_id', 'user_key', 'clave_id');
+    if (filas.length) {
+      await this.knex('sesiones_usuario')
+        .whereIn('id', filas.map((f) => f.id))
+        .update({ cerrada_en: this.knex.fn.now(3), motivo_cierre: motivo });
+    }
+    return filas.map((fila) => ({
+      id: fila.id,
+      usuarioId: fila.usuario_id || null,
+      userKey: fila.user_key || null,
+      claveId: fila.clave_id || null
+    }));
+  }
+
+  async eliminarPreferenciasUsuario(usuarioId) {
+    await this.knex.transaction(async (trx) => {
+      await trx('preferencias_notificacion').where({ usuario_id: usuarioId }).del();
+      await trx('preferencia_municipios').where({ usuario_id: usuarioId }).del();
+      await trx('preferencia_eventos').where({ usuario_id: usuarioId }).del();
+    });
+  }
+
+  async eliminarBloqueosDeUsuario(usuarioId) {
+    return this.knex('bloqueos_usuario')
+      .where(function whereBloqueos() {
+        this.where('usuario_id', usuarioId).orWhere('bloqueado_id', usuarioId);
+      })
+      .del();
+  }
+
+  async eliminarNotificacionesDeUsuario(userKey) {
+    return this.knex('notificaciones').where({ para_usuario: userKey }).del();
+  }
+
+  async anonimizarHuellaDeUsuario({
+    usuarioId,
+    usuarioKey,
+    username,
+    nombreAnterior,
+    nombreNuevo
+  } = {}) {
+    const resultado = {};
+    if (!usuarioKey || !nombreNuevo) return resultado;
+
+    const actualizar = async (tabla, condiciones, cambios) => {
+      const consulta = this.knex(tabla);
+      consulta.where(function whereCondiciones() {
+        if (condiciones.usuarioId) this.where('usuario_id', condiciones.usuarioId);
+        if (condiciones.userKey) {
+          if (condiciones.usuarioId) this.orWhere('user_key', condiciones.userKey);
+          else this.where('user_key', condiciones.userKey);
+        }
+        if (condiciones.usuario) this.orWhere('usuario', condiciones.usuario);
+      });
+      resultado[tabla] = await consulta.update(cambios);
+    };
+
+    resultado.incidencias = await this.knex('incidencias')
+      .where({ user_key: usuarioKey })
+      .update({ autor_nombre: nombreNuevo });
+
+    resultado.comentarios = await this.knex('incidencia_comentarios')
+      .where(function whereComentarios() {
+        this.where('user_key', usuarioKey);
+        if (nombreAnterior) this.orWhere('autor', nombreAnterior);
+        if (username) this.orWhere('autor', username);
+      })
+      .update({ autor: nombreNuevo });
+
+    resultado.denuncias = await this.knex('denuncias')
+      .where(function whereDenuncias() {
+        this.where('autor_user_key', usuarioKey);
+        if (nombreAnterior) this.orWhere('autor_nombre', nombreAnterior);
+      })
+      .update({ autor_nombre: nombreNuevo });
+
+    resultado.denunciasObjetivo = await this.knex('denuncias')
+      .where({ objetivo_user_key: usuarioKey })
+      .update({ objetivo_autor: nombreNuevo });
+
+    resultado.reportes = await this.knex('reportes_conversacion')
+      .where(function whereReportes() {
+        this.where('autor_user_key', usuarioKey);
+        if (nombreAnterior) this.orWhere('autor_nombre', nombreAnterior);
+      })
+      .update({ autor_nombre: nombreNuevo });
+
+    resultado.reportesObjetivo = await this.knex('reportes_conversacion')
+      .where({ objetivo_user_key: usuarioKey })
+      .update({ objetivo_nombre: nombreNuevo });
+
+    if (username) {
+      resultado.mensajes = await this.knex('mensajes_directos')
+        .where({ de_usuario: username })
+        .update({ de_nombre: nombreNuevo });
+    }
+
+    if (usuarioId) {
+      resultado.contactos = await this.knex('contactos_funcionarios')
+        .where(function whereContactos() {
+          this.where('de_usuario_id', usuarioId);
+          if (usuarioKey) this.orWhere('de_user_key', usuarioKey);
+        })
+        .update({ de_nombre: nombreNuevo });
+      resultado.contactosMensajes = await this.knex('contacto_funcionario_mensajes')
+        .where({ de_usuario_id: usuarioId })
+        .update({ de_nombre: nombreNuevo });
+    }
+
+    return resultado;
+  }
+
+  #aSolicitudRenovacionClave(fila) {
+    if (!fila) return null;
+    return {
+      id: fila.id,
+      claveId: fila.clave_id,
+      solicitadoPorUsuarioId: fila.solicitado_por_usuario_id,
+      solicitadoPor: fila.solicitado_por || null,
+      motivo: fila.motivo || '',
+      estado: fila.estado,
+      claveNuevaId: fila.clave_nueva_id || null,
+      resueltoPor: fila.resuelto_por || null,
+      resueltoEn: desdeFecha(fila.resuelto_en),
+      respuesta: fila.respuesta || '',
+      creadoEn: desdeFecha(fila.creado_en)
+    };
+  }
+
+  async crearSolicitudRenovacionClave(solicitud) {
+    await this.knex('solicitudes_renovacion_clave').insert({
+      id: solicitud.id,
+      clave_id: solicitud.claveId,
+      solicitado_por_usuario_id: solicitud.solicitadoPorUsuarioId,
+      solicitado_por: solicitud.solicitadoPor || null,
+      motivo: solicitud.motivo || null,
+      estado: solicitud.estado || 'pendiente',
+      clave_nueva_id: solicitud.claveNuevaId || null,
+      resuelto_por: solicitud.resueltoPor || null,
+      resuelto_en: aFecha(solicitud.resueltoEn),
+      respuesta: solicitud.respuesta || null,
+      creado_en: aFecha(solicitud.creadoEn) || new Date()
+    });
+    return solicitud;
+  }
+
+  async solicitudesRenovacionClave({
+    estado = null,
+    claveId = null,
+    usuarioId = null,
+    limite = 200
+  } = {}) {
+    const consulta = this.knex('solicitudes_renovacion_clave').select('*');
+    if (estado) consulta.where('estado', estado);
+    if (claveId) consulta.where('clave_id', claveId);
+    if (usuarioId) consulta.where('solicitado_por_usuario_id', usuarioId);
+    const filas = await consulta
+      .orderBy('creado_en', 'desc')
+      .limit(Math.min(Number(limite) || 200, 500));
+    return filas.map((fila) => this.#aSolicitudRenovacionClave(fila));
+  }
+
+  async solicitudRenovacionClavePorId(id) {
+    const fila = await this.knex('solicitudes_renovacion_clave').where({ id }).first();
+    return this.#aSolicitudRenovacionClave(fila);
+  }
+
+  async actualizarSolicitudRenovacionClave(id, cambios = {}) {
+    const fila = {};
+    if ('estado' in cambios) fila.estado = cambios.estado;
+    if ('claveNuevaId' in cambios) fila.clave_nueva_id = cambios.claveNuevaId ?? null;
+    if ('resueltoPor' in cambios) fila.resuelto_por = cambios.resueltoPor ?? null;
+    if ('resueltoEn' in cambios) fila.resuelto_en = aFecha(cambios.resueltoEn);
+    if ('respuesta' in cambios) fila.respuesta = cambios.respuesta ?? null;
+    if (Object.keys(fila).length) {
+      await this.knex('solicitudes_renovacion_clave').where({ id }).update(fila);
+    }
+    return this.solicitudRenovacionClavePorId(id);
   }
 }

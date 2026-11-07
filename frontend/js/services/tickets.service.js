@@ -18,14 +18,20 @@ export const ticketsService = {
   crear(datos) {
     return api.post('/tickets', datos);
   },
-  responder(id, texto) {
-    return api.post(`/tickets/${id}/mensajes`, { texto });
+  responder(id, texto, { interno = false } = {}) {
+    return api.post(`/tickets/${id}/mensajes`, { texto, interno });
+  },
+  staff() {
+    return api.get('/tickets/staff');
   },
   cambiarEstado(id, estado) {
     return api.patch(`/tickets/${id}/estado`, { estado });
   },
   asignar(id, asignadoA) {
     return api.patch(`/tickets/${id}/asignacion`, { asignadoA });
+  },
+  listarBandeja(filtros = {}) {
+    return this.listar(filtros);
   },
   cambiarPrioridad(id, prioridad) {
     return api.patch(`/tickets/${id}/prioridad`, { prioridad });

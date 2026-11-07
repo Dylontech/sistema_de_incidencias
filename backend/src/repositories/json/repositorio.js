@@ -15,6 +15,7 @@ import { municipiosSemilla, zonasSemilla, tiposSemilla, usuariosSemilla } from '
 import { hashearPassword } from '../../models/usuario.model.js';
 import { coincideTexto } from '../../models/incidencia.model.js';
 import { normalizarBusqueda } from '../../utils/validacion.js';
+import { nuevoId } from '../../utils/ids.js';
 
 export class RepositorioJson {
   constructor({ directorio = config.paths.data } = {}) {
@@ -70,14 +71,19 @@ export class RepositorioJson {
           rol: u.rol,
           municipioId: u.municipioId ?? null,
           activo: u.activo !== false,
+          creadoEn: new Date().toISOString(),
           pseudonimo: u.pseudonimo === true,
           passwordHash: await hashearPassword(u.passwordInicial),
+          correoVerificado: true,
+          correoVerificadoEn: null,
+          claveObligatoria: false,
           // Moderación: mismo punto de partida que `construirUsuario`.
           advertencias: 0,
           suspendido: false,
           suspendidoHasta: null,
           suspendidoMotivo: '',
-          suspendidoPor: null
+          suspendidoPor: null,
+          suspendidoOrigen: null
         });
       }
       await this.almacen.escribir('usuarios', usuarios);
@@ -279,6 +285,11 @@ export class RepositorioJson {
       const { passwordCifrada, ...resto } = u;
       return {
         ...resto,
+        correoVerificado: u.correoVerificado !== false,
+        correoVerificadoEn: u.correoVerificadoEn || null,
+        claveObligatoria: u.claveObligatoria === true || Boolean(u.claveId),
+        suspendidoOrigen: u.suspendidoOrigen || null,
+        creadoEn: u.creadoEn || null,
         rolPersonalizado: u.rolPersonalizadoId ? porId.get(u.rolPersonalizadoId) || null : null,
         rolPropio: u.rolPropioId ? rolPorId.get(u.rolPropioId) || null : null,
         rolConfig: rolPorClave.get(u.rol) || null
@@ -588,28 +599,37 @@ export class RepositorioJson {
   }
 
   async usuariosDeClaves(ids = []) {
-    const mapa = {};
-    const limpios = new Set((ids || []).filter(Boolean).map(String));
-    if (!limpios.size) return mapa;
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    const mapa = await this.cuentasDeClaves(limpios);
+
+    // Compatibilidad con datos anteriores a V2.12: si una clave no tiene
+    // vínculos, se reconstruyen desde el histórico de usos.
+    const faltantes = limpios.filter((id) => !(mapa[id] || []).length);
+    if (!faltantes.length) return mapa;
+
     const [usos, usuarios] = await Promise.all([
       this.almacen.leer('clave_acceso_usos', []),
       this.almacen.leer('usuarios', [])
     ]);
-    const porId = new Map(usuarios.map((u) => [u.id, u]));
+    const porId = new Map(usuarios.map((u) => [String(u.id), u]));
     const vistos = new Set();
     for (const uso of usos) {
-      if (!limpios.has(String(uso.claveId))) continue;
+      if (!faltantes.includes(String(uso.claveId))) continue;
       const identidad = String(uso.usuarioId || uso.username || '');
       if (!identidad) continue;
       const llave = `${uso.claveId}:${identidad}`;
       if (vistos.has(llave)) continue;
       vistos.add(llave);
-      const usuario = uso.usuarioId ? porId.get(uso.usuarioId) : null;
+      const usuario = uso.usuarioId ? porId.get(String(uso.usuarioId)) : null;
       if (!mapa[uso.claveId]) mapa[uso.claveId] = [];
       mapa[uso.claveId].push({
         id: uso.usuarioId || null,
         username: usuario?.username || uso.username || null,
-        nombre: usuario?.nombre || uso.nombre || null
+        nombre: usuario?.nombre || uso.nombre || null,
+        correo: usuario?.correo || null,
+        rol: usuario?.rol || null,
+        activo: usuario ? usuario.activo !== false : false,
+        activadaEn: uso.creadoEn || null
       });
     }
     return mapa;
@@ -687,19 +707,64 @@ export class RepositorioJson {
   }
 
   async registrarUsoClave(id, { usuarioId = null, ipHash = null } = {}) {
-    await this.almacen.transaccion('claves_acceso', [], (lista) => {
-      const indice = lista.findIndex((c) => c.id === id);
-      if (indice === -1) return { datos: lista, resultado: null };
-      const copia = lista.slice();
-      copia[indice] = { ...copia[indice], usos: Number(copia[indice].usos || 0) + 1 };
-      return { datos: copia, resultado: copia[indice] };
-    });
+    // `usos` representa cuentas vinculadas, no inicios de sesión: aquí solo se
+    // deja constancia de la activación.
     return this.almacen.transaccion('clave_acceso_usos', [], (lista) => ({
       datos: [
         ...lista,
         { id: `uso_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, claveId: id, usuarioId, ipHash, creadoEn: new Date().toISOString() }
       ]
     }));
+  }
+
+  async avisoClaveRegistrado(claveId, usuarioId, umbralDias) {
+    const lista = await this.almacen.leer('avisos_clave_enviados', []);
+    return lista.some(
+      (fila) =>
+        String(fila.claveId) === String(claveId) &&
+        String(fila.usuarioId) === String(usuarioId) &&
+        Number(fila.umbralDias) === Number(umbralDias)
+    );
+  }
+
+  async eliminarAvisosClave(claveId) {
+    return this.almacen.transaccion('avisos_clave_enviados', [], (lista) => {
+      const restantes = lista.filter((fila) => String(fila.claveId) !== String(claveId));
+      return { datos: restantes, resultado: restantes.length !== lista.length };
+    });
+  }
+
+  async registrarAvisoClave({
+    claveId,
+    usuarioId,
+    umbralDias,
+    diasRestantes,
+    claveExpiraEn = null
+  } = {}) {
+    return this.almacen.transaccion('avisos_clave_enviados', [], (lista) => {
+      const existe = lista.some(
+        (fila) =>
+          String(fila.claveId) === String(claveId) &&
+          String(fila.usuarioId) === String(usuarioId) &&
+          Number(fila.umbralDias) === Number(umbralDias)
+      );
+      if (existe) return { datos: lista, resultado: false };
+      return {
+        datos: [
+          ...lista,
+          {
+            id: nuevoId(),
+            claveId,
+            usuarioId,
+            umbralDias: Number(umbralDias),
+            diasRestantes: Number(diasRestantes),
+            claveExpiraEn,
+            enviadoEn: new Date().toISOString()
+          }
+        ],
+        resultado: true
+      };
+    });
   }
 
   /* ------------------------------- incidencias ----------------------------- */
@@ -718,6 +783,8 @@ export class RepositorioJson {
       zonaId,
       desde,
       hasta,
+      asignadaA,
+      reparacionEstado,
       orden = 'reciente',
       ocultas = 'excluir',
       ocultasDe = null,
@@ -749,6 +816,8 @@ export class RepositorioJson {
     if (estado && estado !== 'todos') lista = lista.filter((i) => i.estado === estado);
     if (tipoId && tipoId !== 'todos') lista = lista.filter((i) => i.tipoId === tipoId);
     if (zonaId && zonaId !== 'todos') lista = lista.filter((i) => i.zonaId === zonaId);
+    if (asignadaA) lista = lista.filter((i) => i.asignadaA === asignadaA);
+    if (reparacionEstado) lista = lista.filter((i) => (i.reparacionEstado || 'sin_asignar') === reparacionEstado);
     if (desde) lista = lista.filter((i) => String(i.fecha) >= desde);
     if (hasta) lista = lista.filter((i) => String(i.fecha) <= hasta);
     if (texto) lista = lista.filter((i) => coincideTexto(i, texto));
@@ -792,13 +861,156 @@ export class RepositorioJson {
       estadoEntidad: i.estadoEntidad || null,
       ambito: i.ambito || 'urbano',
       viaNombre: i.viaNombre || '',
+      viaClave: i.viaClave || '',
+      tramo: i.tramo || '',
       kilometro: i.kilometro ?? null,
+      zonaId: i.zonaId || null,
       zonaNombre: i.zonaNombre || null,
       peligrosa: i.peligrosa === true,
       autorNombre: i.esAnonimo ? 'Anónimo' : i.autorNombre,
       esAnonimo: i.esAnonimo === true,
       userKey: i.userKey
     }));
+  }
+
+  /** Trazados de calles/carreteras para la capa y el panel administrativo. */
+  async listarVialidades({
+    municipioId = null,
+    tipo = null,
+    fuente = null,
+    texto = '',
+    incluirInactivas = false,
+    limite = 2000
+  } = {}) {
+    const lista = await this.almacen.leer('vialidades', []);
+    const objetivo = normalizarBusqueda(texto);
+    return lista
+      .filter((via) => !municipioId || via.municipioId === municipioId)
+      .filter((via) => incluirInactivas || via.activo !== false)
+      .filter((via) => !tipo || via.tipo === tipo)
+      .filter((via) => !fuente || via.fuente === fuente)
+      .filter((via) => {
+        if (!objetivo) return true;
+        return (
+          normalizarBusqueda(via.nombre).includes(objetivo) ||
+          normalizarBusqueda(via.clave).includes(objetivo) ||
+          normalizarBusqueda(via.notas).includes(objetivo)
+        );
+      })
+      .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'))
+      .slice(0, Math.min(Number(limite) || 2000, 5000));
+  }
+
+  async vialidadPorId(id) {
+    const lista = await this.almacen.leer('vialidades', []);
+    return lista.find((via) => via.id === id) || null;
+  }
+
+  async crearVialidad(vialidad) {
+    return this.almacen.transaccion('vialidades', [], (lista) => {
+      const nueva = {
+        ...vialidad,
+        activo: vialidad.activo !== false,
+        actualizadoEn: vialidad.actualizadoEn || new Date().toISOString()
+      };
+      return { datos: [...lista, nueva], resultado: nueva };
+    });
+  }
+
+  async actualizarVialidad(id, cambios) {
+    return this.almacen.transaccion('vialidades', [], (lista) => {
+      const indice = lista.findIndex((via) => via.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      const actualizada = {
+        ...copia[indice],
+        ...cambios,
+        id,
+        actualizadoEn: cambios.actualizadoEn || new Date().toISOString()
+      };
+      copia[indice] = actualizada;
+      return { datos: copia, resultado: actualizada };
+    });
+  }
+
+  async eliminarVialidad(id) {
+    return this.almacen.transaccion('vialidades', [], (lista) => {
+      const indice = lista.findIndex((via) => via.id === id);
+      if (indice === -1) return { datos: lista, resultado: false };
+      const copia = lista.slice();
+      copia[indice] = {
+        ...copia[indice],
+        activo: false,
+        actualizadoEn: new Date().toISOString()
+      };
+      return { datos: copia, resultado: true };
+    });
+  }
+
+  /** Reemplaza el trazado importado de un municipio (idempotente). */
+  async reemplazarVialidades(municipioId, vialidades = []) {
+    return this.almacen.transaccion('vialidades', [], (lista) => {
+      const otras = lista.filter((via) => via.municipioId !== municipioId);
+      const nuevas = vialidades.map((via) => ({
+        ...via,
+        municipioId,
+        activo: via.activo !== false,
+        actualizadoEn: via.actualizadoEn || new Date().toISOString()
+      }));
+      return { datos: [...otras, ...nuevas], resultado: nuevas.length };
+    });
+  }
+
+  /** Fusiona la red importada conservando enlaces, notas y verificaciones. */
+  async sincronizarVialidades(municipioId, vialidades = [], { reemplazar = false } = {}) {
+    return this.almacen.transaccion('vialidades', [], (lista) => {
+      const base = reemplazar
+        ? lista.filter((via) => via.municipioId !== municipioId)
+        : lista.slice();
+      let creadas = 0;
+      let actualizadas = 0;
+      const usados = new Set();
+      for (const via of vialidades) {
+        const indice = base.findIndex((actual) => {
+          if (usados.has(actual.id)) return false;
+          if (via.osmId && actual.osmId === via.osmId) return true;
+          if (via.id && actual.id === via.id) return true;
+          return !via.osmId && via.clave && actual.clave === via.clave;
+        });
+        const actualizadoEn = new Date().toISOString();
+        if (indice >= 0) {
+          const actual = base[indice];
+          usados.add(actual.id);
+          const mismaGeometria =
+            JSON.stringify(actual.geometria || null) === JSON.stringify(via.geometria || null);
+          base[indice] = {
+            ...actual,
+            ...via,
+            id: actual.id,
+            municipioId,
+            googleMapsUrl: actual.googleMapsUrl || via.googleMapsUrl || '',
+            notas: actual.notas || via.notas || '',
+            verificadaEn: mismaGeometria ? actual.verificadaEn || null : null,
+            verificadaPor: mismaGeometria ? actual.verificadaPor || null : null,
+            activo: via.activo !== false,
+            actualizadoEn
+          };
+          actualizadas += 1;
+        } else {
+          base.push({
+            ...via,
+            municipioId,
+            activo: via.activo !== false,
+            actualizadoEn
+          });
+          creadas += 1;
+        }
+      }
+      return {
+        datos: base,
+        resultado: { total: vialidades.length, creadas, actualizadas }
+      };
+    });
   }
 
   async todasLasIncidencias() {
@@ -1104,6 +1316,7 @@ export class RepositorioJson {
     limite = 200,
     username = null,
     accion = null,
+    metodo = null,
     desde = null,
     hasta = null
   } = {}) {
@@ -1112,6 +1325,7 @@ export class RepositorioJson {
     const porId = new Map(claves.map((c) => [c.id, c]));
     const objetivoUsuario = String(username || '').toLowerCase();
     const objetivoAccion = String(accion || '').toLowerCase();
+    const objetivoMetodo = String(metodo || '').toUpperCase();
     const fechaCompleta = (valor, fin) => {
       const texto = String(valor || '');
       if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
@@ -1129,13 +1343,16 @@ export class RepositorioJson {
         if (objetivoAccion && !String(r.accion || '').toLowerCase().includes(objetivoAccion)) {
           return false;
         }
+        if (objetivoMetodo && String(r.metodo || '').toUpperCase() !== objetivoMetodo) {
+          return false;
+        }
         const cuando = new Date(r.creadoEn).getTime();
         if (desdeMs !== null && cuando < desdeMs) return false;
         if (hastaMs !== null && cuando > hastaMs) return false;
         return true;
       })
       .sort((a, b) => String(b.creadoEn).localeCompare(String(a.creadoEn)))
-      .slice(0, Math.min(Number(limite) || 200, 500))
+      .slice(0, Math.min(Number(limite) || 200, 5000))
       .map((r) => {
         const clave = r.claveId ? porId.get(r.claveId) : null;
         return {
@@ -1932,6 +2149,18 @@ export class RepositorioJson {
         datos: copia,
         resultado: comentarios.find((c) => c.id === comentarioId) || null
       };
+    });
+  }
+
+  async eliminarComentarioIncidencia(incidenciaId, comentarioId) {
+    return this.almacen.transaccion('incidencias', [], (lista) => {
+      const indice = lista.findIndex((i) => i.id === incidenciaId);
+      if (indice === -1) return { datos: lista, resultado: false };
+      const previos = lista[indice].comentarios || [];
+      const comentarios = previos.filter((c) => c.id !== comentarioId);
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], comentarios };
+      return { datos: copia, resultado: comentarios.length !== previos.length };
     });
   }
 
@@ -2815,6 +3044,561 @@ export class RepositorioJson {
 
   async actualizarSolicitudUsuario(id, cambios = {}) {
     return this.almacen.transaccion('solicitudes_usuario', [], (lista) => {
+      const indice = lista.findIndex((s) => s.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* --------------------- reportes de conversación --------------------- */
+
+  async crearReporteConversacion(reporte) {
+    return this.almacen.transaccion('reportes_conversacion', [], (lista) => ({
+      datos: [...lista, reporte],
+      resultado: reporte
+    }));
+  }
+
+  async reportesConversacion({ estado = null, limite = 200 } = {}) {
+    const lista = await this.almacen.leer('reportes_conversacion', []);
+    return lista
+      .filter((r) => !estado || r.estado === estado)
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+      .slice(0, Math.min(Number(limite) || 200, 500));
+  }
+
+  async reporteConversacionPorId(id) {
+    const lista = await this.almacen.leer('reportes_conversacion', []);
+    return lista.find((r) => r.id === id) || null;
+  }
+
+  async reporteConversacionConAdjunto(adjuntoId) {
+    const lista = await this.almacen.leer('reportes_conversacion', []);
+    const id = String(adjuntoId || '');
+    return (
+      lista.find((reporte) =>
+        (reporte.mensajes || []).some((mensaje) =>
+          (mensaje.adjuntos || []).some((adjunto) => String(adjunto.id) === id)
+        )
+      ) || null
+    );
+  }
+
+  async actualizarReporteConversacion(id, cambios = {}) {
+    return this.almacen.transaccion('reportes_conversacion', [], (lista) => {
+      const indice = lista.findIndex((r) => r.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* -------------------- restricciones de mensajes --------------------- */
+
+  async crearRestriccionMensajes(restriccion) {
+    return this.almacen.transaccion('restricciones_mensajes', [], (lista) => ({
+      datos: [...lista, restriccion],
+      resultado: restriccion
+    }));
+  }
+
+  async restriccionMensajesVigente(usuarioId) {
+    const lista = await this.almacen.leer('restricciones_mensajes', []);
+    const ahora = Date.now();
+    return (
+      lista
+        .filter(
+          (r) =>
+            String(r.usuarioId) === String(usuarioId) &&
+            r.activo !== false &&
+            (!r.hasta || new Date(r.hasta).getTime() > ahora)
+        )
+        .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn))[0] || null
+    );
+  }
+
+  async restriccionMensajesPorId(id) {
+    const lista = await this.almacen.leer('restricciones_mensajes', []);
+    return lista.find((r) => r.id === id) || null;
+  }
+
+  async levantarRestriccionMensajes(id) {
+    return this.almacen.transaccion('restricciones_mensajes', [], (lista) => {
+      const indice = lista.findIndex((r) => r.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], activo: false };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* ------------------- bloqueos entre cuentas ------------------------ */
+
+  async crearBloqueoUsuario(bloqueo) {
+    return this.almacen.transaccion('bloqueos_usuario', [], (lista) => {
+      const sinDuplicado = lista.filter(
+        (b) =>
+          !(
+            String(b.usuarioId) === String(bloqueo.usuarioId) &&
+            String(b.bloqueadoId) === String(bloqueo.bloqueadoId)
+          )
+      );
+      return { datos: [...sinDuplicado, bloqueo], resultado: bloqueo };
+    });
+  }
+
+  async eliminarBloqueoUsuario(usuarioId, bloqueadoId) {
+    return this.almacen.transaccion('bloqueos_usuario', [], (lista) => {
+      const restantes = lista.filter(
+        (b) =>
+          !(
+            String(b.usuarioId) === String(usuarioId) &&
+            String(b.bloqueadoId) === String(bloqueadoId)
+          )
+      );
+      return { datos: restantes, resultado: restantes.length !== lista.length };
+    });
+  }
+
+  async bloqueosDeUsuario(usuarioId) {
+    const lista = await this.almacen.leer('bloqueos_usuario', []);
+    return lista
+      .filter((b) => String(b.usuarioId) === String(usuarioId))
+      .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn));
+  }
+
+  async bloqueoEntre(usuarioId, otroId) {
+    const lista = await this.almacen.leer('bloqueos_usuario', []);
+    return (
+      lista.find(
+        (b) =>
+          String(b.usuarioId) === String(usuarioId) &&
+          String(b.bloqueadoId) === String(otroId)
+      ) || null
+    );
+  }
+
+  /* ------------------------- reclamaciones --------------------------- */
+
+  async crearReclamacion(reclamacion) {
+    return this.almacen.transaccion('reclamaciones', [], (lista) => ({
+      datos: [...lista, reclamacion],
+      resultado: reclamacion
+    }));
+  }
+
+  async reclamaciones({ estado = null, incidenciaId = null, usuarioId = null, limite = 200 } = {}) {
+    const lista = await this.almacen.leer('reclamaciones', []);
+    return lista
+      .filter((r) => !estado || r.estado === estado)
+      .filter((r) => !incidenciaId || String(r.incidenciaId) === String(incidenciaId))
+      .filter((r) => !usuarioId || String(r.usuarioId) === String(usuarioId))
+      .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn))
+      .slice(0, Math.min(Number(limite) || 200, 500));
+  }
+
+  async reclamacionPorId(id) {
+    const lista = await this.almacen.leer('reclamaciones', []);
+    return lista.find((r) => r.id === id) || null;
+  }
+
+  async actualizarReclamacion(id, cambios = {}) {
+    return this.almacen.transaccion('reclamaciones', [], (lista) => {
+      const indice = lista.findIndex((r) => r.id === id);
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, id };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  /* ------------------- cuentas: tokens, vínculos y privacidad ------------------- */
+
+  async crearTokenCuenta(token) {
+    return this.almacen.transaccion('tokens_cuenta', [], (lista) => ({
+      datos: [...lista, token],
+      resultado: token
+    }));
+  }
+
+  async tokenCuentaPorHash(hash) {
+    const lista = await this.almacen.leer('tokens_cuenta', []);
+    return lista.find((t) => t.tokenHash === String(hash || '')) || null;
+  }
+
+  async marcarTokenCuentaUsado(id, fecha = new Date().toISOString()) {
+    const resultado = await this.almacen.transaccion('tokens_cuenta', [], (lista) => {
+      const indice = lista.findIndex((t) => t.id === id && !t.usadoEn);
+      if (indice === -1) return { datos: lista, resultado: false };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], usadoEn: fecha };
+      return { datos: copia, resultado: true };
+    });
+    return resultado;
+  }
+
+  async invalidarTokensCuenta(usuarioId, tipo) {
+    return this.almacen.transaccion('tokens_cuenta', [], (lista) => {
+      const ahora = new Date().toISOString();
+      let cambios = 0;
+      const datos = lista.map((token) => {
+        if (String(token.usuarioId) !== String(usuarioId) || token.tipo !== tipo || token.usadoEn) {
+          return token;
+        }
+        cambios++;
+        return { ...token, usadoEn: ahora };
+      });
+      return { datos, resultado: cambios };
+    });
+  }
+
+  async eliminarTokensCuenta(usuarioId) {
+    return this.almacen.transaccion('tokens_cuenta', [], (lista) => {
+      const restantes = lista.filter((t) => String(t.usuarioId) !== String(usuarioId));
+      return { datos: restantes, resultado: lista.length - restantes.length };
+    });
+  }
+
+  async vincularCuentaAClave(claveId, usuarioId, { activadaEn = null } = {}) {
+    return this.almacen.transaccion('clave_acceso_cuentas', [], (lista) => {
+      const indice = lista.findIndex(
+        (fila) =>
+          String(fila.claveId) === String(claveId) &&
+          String(fila.usuarioId) === String(usuarioId)
+      );
+      if (indice !== -1) {
+        const copia = lista.slice();
+        copia[indice] = {
+          ...copia[indice],
+          activadaEn: activadaEn || copia[indice].activadaEn || null
+        };
+        return { datos: copia, resultado: copia[indice] };
+      }
+      const vinculo = { claveId, usuarioId, activadaEn: activadaEn || null };
+      return { datos: [...lista, vinculo], resultado: vinculo };
+    });
+  }
+
+  async desvincularCuentaDeClave(claveId, usuarioId) {
+    return this.almacen.transaccion('clave_acceso_cuentas', [], (lista) => {
+      const restantes = lista.filter(
+        (fila) =>
+          !(
+            String(fila.claveId) === String(claveId) &&
+            String(fila.usuarioId) === String(usuarioId)
+          )
+      );
+      return { datos: restantes, resultado: restantes.length !== lista.length };
+    });
+  }
+
+  async actualizarVinculoClave(claveId, usuarioId, cambios = {}) {
+    return this.almacen.transaccion('clave_acceso_cuentas', [], (lista) => {
+      const indice = lista.findIndex(
+        (fila) =>
+          String(fila.claveId) === String(claveId) &&
+          String(fila.usuarioId) === String(usuarioId)
+      );
+      if (indice === -1) return { datos: lista, resultado: null };
+      const copia = lista.slice();
+      copia[indice] = { ...copia[indice], ...cambios, claveId, usuarioId };
+      return { datos: copia, resultado: copia[indice] };
+    });
+  }
+
+  async cuentasDeClave(claveId) {
+    const [vinculos, usuarios] = await Promise.all([
+      this.almacen.leer('clave_acceso_cuentas', []),
+      this.almacen.leer('usuarios', [])
+    ]);
+    const porId = new Map(usuarios.map((u) => [String(u.id), u]));
+    return vinculos
+      .filter((fila) => String(fila.claveId) === String(claveId))
+      .map((fila) => {
+        const usuario = porId.get(String(fila.usuarioId)) || null;
+        return {
+          id: fila.usuarioId,
+          username: usuario?.username || null,
+          nombre: usuario?.nombre || null,
+          correo: usuario?.correo || null,
+          rol: usuario?.rol || null,
+          activo: usuario ? usuario.activo !== false : false,
+          activadaEn: fila.activadaEn || null
+        };
+      })
+      .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || '')));
+  }
+
+  async cuentasDeClaves(ids = []) {
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    const mapa = {};
+    for (const id of limpios) mapa[id] = [];
+    if (!limpios.length) return mapa;
+    const [vinculos, usuarios] = await Promise.all([
+      this.almacen.leer('clave_acceso_cuentas', []),
+      this.almacen.leer('usuarios', [])
+    ]);
+    const porId = new Map(usuarios.map((u) => [String(u.id), u]));
+    for (const fila of vinculos) {
+      if (!limpios.includes(String(fila.claveId))) continue;
+      const usuario = porId.get(String(fila.usuarioId)) || null;
+      if (!mapa[fila.claveId]) mapa[fila.claveId] = [];
+      mapa[fila.claveId].push({
+        id: fila.usuarioId,
+        username: usuario?.username || null,
+        nombre: usuario?.nombre || null,
+        correo: usuario?.correo || null,
+        rol: usuario?.rol || null,
+        activo: usuario ? usuario.activo !== false : false,
+        activadaEn: fila.activadaEn || null
+      });
+    }
+    for (const id of limpios) {
+      mapa[id].sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || '')));
+    }
+    return mapa;
+  }
+
+  async contarCuentasActivasDeClave(claveId) {
+    const cuentas = await this.cuentasDeClave(claveId);
+    return cuentas.filter((cuenta) => cuenta.activo).length;
+  }
+
+  async actividadDeUsuarios(ids = []) {
+    const limpios = [...new Set((ids || []).filter(Boolean).map(String))];
+    const mapa = {};
+    for (const id of limpios) mapa[id] = { ultima: null, sesionAbierta: false };
+    if (!limpios.length) return mapa;
+    const sesiones = await this.almacen.leer('sesiones_usuario', []);
+    for (const sesion of sesiones) {
+      const actual = mapa[sesion?.usuarioId];
+      if (!actual) continue;
+      if (!sesion.cerradaEn) actual.sesionAbierta = true;
+      const fecha = sesion.ultimaActividad || sesion.inicio || null;
+      if (fecha && (!actual.ultima || fecha > actual.ultima)) actual.ultima = fecha;
+    }
+    return mapa;
+  }
+
+  async cerrarSesionesPorUsuario(usuarioId, motivo = 'cuenta cerrada') {
+    const cerradas = [];
+    const ahora = new Date().toISOString();
+    await this.almacen.transaccion('sesiones_usuario', [], (lista) => {
+      const datos = lista.map((sesion) => {
+        if (String(sesion.usuarioId) !== String(usuarioId) || sesion.cerradaEn) return sesion;
+        cerradas.push({
+          id: sesion.id,
+          usuarioId: sesion.usuarioId || null,
+          userKey: sesion.userKey || null,
+          claveId: sesion.claveId || null
+        });
+        return { ...sesion, cerradaEn: ahora, motivoCierre: motivo };
+      });
+      return { datos };
+    });
+    return cerradas;
+  }
+
+  async eliminarPreferenciasUsuario(usuarioId) {
+    for (const coleccion of [
+      'preferencias_notificacion',
+      'preferencia_municipios',
+      'preferencia_eventos'
+    ]) {
+      await this.almacen.transaccion(coleccion, [], (lista) => ({
+        datos: lista.filter((fila) => String(fila.usuarioId) !== String(usuarioId))
+      }));
+    }
+    this.catalogo.delete('usuario_municipios');
+    this.catalogo.delete('usuario_estados');
+  }
+
+  async eliminarBloqueosDeUsuario(usuarioId) {
+    return this.almacen.transaccion('bloqueos_usuario', [], (lista) => {
+      const restantes = lista.filter(
+        (fila) =>
+          String(fila.usuarioId) !== String(usuarioId) &&
+          String(fila.bloqueadoId) !== String(usuarioId)
+      );
+      return { datos: restantes, resultado: lista.length - restantes.length };
+    });
+  }
+
+  async eliminarNotificacionesDeUsuario(userKey) {
+    return this.almacen.transaccion('notificaciones', [], (lista) => {
+      const restantes = lista.filter((n) => n.paraUsuario !== userKey);
+      return { datos: restantes, resultado: lista.length - restantes.length };
+    });
+  }
+
+  async anonimizarHuellaDeUsuario({
+    usuarioId,
+    usuarioKey,
+    username,
+    nombreAnterior,
+    nombreNuevo
+  } = {}) {
+    const resultado = {};
+    if (!usuarioKey || !nombreNuevo) return resultado;
+
+    const incidencias = await this.almacen.leer('incidencias', []);
+    let cambiosIncidencias = 0;
+    let cambiosComentarios = 0;
+    const nuevasIncidencias = incidencias.map((incidencia) => {
+      let copia = incidencia;
+      if (incidencia.userKey === usuarioKey || incidencia.autor === username) {
+        copia = { ...copia, autorNombre: nombreNuevo };
+        cambiosIncidencias++;
+      }
+      if (Array.isArray(copia.comentarios) && copia.comentarios.length) {
+        const comentarios = copia.comentarios.map((comentario) => {
+          if (
+            comentario.userKey === usuarioKey ||
+            comentario.autor === nombreAnterior ||
+            comentario.autor === username
+          ) {
+            cambiosComentarios++;
+            return { ...comentario, autor: nombreNuevo };
+          }
+          return comentario;
+        });
+        copia = { ...copia, comentarios };
+      }
+      return copia;
+    });
+    if (cambiosIncidencias || cambiosComentarios) {
+      await this.almacen.escribir('incidencias', nuevasIncidencias);
+    }
+    resultado.incidencias = cambiosIncidencias;
+    resultado.comentarios = cambiosComentarios;
+
+    const denuncias = await this.almacen.leer('denuncias', []);
+    let cambiosDenuncias = 0;
+    const nuevasDenuncias = denuncias.map((denuncia) => {
+      let copia = denuncia;
+      if (
+        denuncia.autorUserKey === usuarioKey ||
+        denuncia.autorNombre === nombreAnterior
+      ) {
+        copia = { ...copia, autorNombre: nombreNuevo };
+        cambiosDenuncias++;
+      }
+      if (denuncia.objetivoUserKey === usuarioKey) {
+        copia = { ...copia, objetivoAutor: nombreNuevo };
+        cambiosDenuncias++;
+      }
+      return copia;
+    });
+    if (cambiosDenuncias) await this.almacen.escribir('denuncias', nuevasDenuncias);
+    resultado.denuncias = cambiosDenuncias;
+
+    const reportes = await this.almacen.leer('reportes_conversacion', []);
+    let cambiosReportes = 0;
+    const nuevosReportes = reportes.map((reporte) => {
+      let copia = reporte;
+      if (reporte.autorUserKey === usuarioKey || reporte.autorNombre === nombreAnterior) {
+        copia = { ...copia, autorNombre: nombreNuevo };
+        cambiosReportes++;
+      }
+      if (reporte.objetivoUserKey === usuarioKey) {
+        copia = { ...copia, objetivoNombre: nombreNuevo };
+        cambiosReportes++;
+      }
+      return copia;
+    });
+    if (cambiosReportes) {
+      await this.almacen.escribir('reportes_conversacion', nuevosReportes);
+    }
+    resultado.reportes = cambiosReportes;
+
+    if (username) {
+      const mensajes = await this.almacen.leer('mensajes_directos', []);
+      let cambiosMensajes = 0;
+      const nuevosMensajes = mensajes.map((mensaje) => {
+        if (mensaje.deUsuario !== username) return mensaje;
+        cambiosMensajes++;
+        return { ...mensaje, deNombre: nombreNuevo };
+      });
+      if (cambiosMensajes) {
+        await this.almacen.escribir('mensajes_directos', nuevosMensajes);
+      }
+      resultado.mensajes = cambiosMensajes;
+    }
+
+    if (usuarioId) {
+      const contactos = await this.almacen.leer('contactos_funcionarios', []);
+      let cambiosContactos = 0;
+      const nuevosContactos = contactos.map((contacto) => {
+        if (
+          String(contacto.deUsuarioId) !== String(usuarioId) &&
+          contacto.deUserKey !== usuarioKey
+        ) {
+          return contacto;
+        }
+        cambiosContactos++;
+        return { ...contacto, deNombre: nombreNuevo };
+      });
+      if (cambiosContactos) {
+        await this.almacen.escribir('contactos_funcionarios', nuevosContactos);
+      }
+      resultado.contactos = cambiosContactos;
+
+      const mensajesContacto = await this.almacen.leer(
+        'contacto_funcionario_mensajes',
+        []
+      );
+      let cambiosMensajesContacto = 0;
+      const nuevosMensajesContacto = mensajesContacto.map((mensaje) => {
+        if (String(mensaje.deUsuarioId) !== String(usuarioId)) return mensaje;
+        cambiosMensajesContacto++;
+        return { ...mensaje, deNombre: nombreNuevo };
+      });
+      if (cambiosMensajesContacto) {
+        await this.almacen.escribir(
+          'contacto_funcionario_mensajes',
+          nuevosMensajesContacto
+        );
+      }
+      resultado.contactosMensajes = cambiosMensajesContacto;
+    }
+
+    return resultado;
+  }
+
+  async crearSolicitudRenovacionClave(solicitud) {
+    return this.almacen.transaccion('solicitudes_renovacion_clave', [], (lista) => ({
+      datos: [...lista, solicitud],
+      resultado: solicitud
+    }));
+  }
+
+  async solicitudesRenovacionClave({
+    estado = null,
+    claveId = null,
+    usuarioId = null,
+    limite = 200
+  } = {}) {
+    const lista = await this.almacen.leer('solicitudes_renovacion_clave', []);
+    return lista
+      .filter((s) => !estado || s.estado === estado)
+      .filter((s) => !claveId || String(s.claveId) === String(claveId))
+      .filter(
+        (s) => !usuarioId || String(s.solicitadoPorUsuarioId) === String(usuarioId)
+      )
+      .sort((a, b) => String(b.creadoEn).localeCompare(String(a.creadoEn)))
+      .slice(0, Math.min(Number(limite) || 200, 500));
+  }
+
+  async solicitudRenovacionClavePorId(id) {
+    const lista = await this.almacen.leer('solicitudes_renovacion_clave', []);
+    return lista.find((s) => s.id === id) || null;
+  }
+
+  async actualizarSolicitudRenovacionClave(id, cambios = {}) {
+    return this.almacen.transaccion('solicitudes_renovacion_clave', [], (lista) => {
       const indice = lista.findIndex((s) => s.id === id);
       if (indice === -1) return { datos: lista, resultado: null };
       const copia = lista.slice();

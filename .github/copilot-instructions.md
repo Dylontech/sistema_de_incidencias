@@ -13,6 +13,10 @@ Antes de dar por terminado cualquier cambio, actualiza `PROJECT_CONTEXT.md`:
 - Seguridad/CSP → sección «Seguridad y CSP».
 - Añade siempre una entrada al changelog con la fecha.
 
+Además, mantén sincronizado `SISTEMA_COMPLETO.md` cuando cambien vistas, modales, pestañas,
+acciones, permisos, roles o migraciones. Ejecuta
+`cd backend && node --test test/sistema-documentado.test.js`.
+
 ## Reglas técnicas
 
 - Todo método de repositorio nuevo debe implementarse en `contrato.js`, `json/repositorio.js` y `mysql/repositorio.js`.

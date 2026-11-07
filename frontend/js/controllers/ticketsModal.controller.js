@@ -5,14 +5,26 @@
  * las cuentas registradas pueden crear tickets, consultar los suyos y responder.
  */
 import { registrarAcciones } from '../core/eventos.js';
-import { $, esc } from '../core/utils.js';
+import { $, esc, fmtFecha } from '../core/utils.js';
 import { sesion } from '../core/session.js';
 import { abrirModal, cerrarModal, loading, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
+import { puedeAtenderTickets } from '../core/roles.js';
 import { ticketsService } from '../services/tickets.service.js';
 
 let tickets = [];
 let ticketActivo = null;
+let modo = 'mis';
+let atencion = null;
+
+function atiende() {
+  return puedeAtenderTickets(sesion.usuario);
+}
+
+async function cargarAtencion() {
+  if (!atencion) atencion = await import('./ticketsAtencion.controller.js');
+  return atencion;
+}
 
 function tieneCuenta() {
   return Boolean(sesion.usuario && sesion.usuario.rol !== 'anonimo');
@@ -45,10 +57,21 @@ function aplicarAcceso() {
     formulario.toggleAttribute('hidden', !permitido);
     formulario.classList.toggle('u-oculto', !permitido);
   }
-  $('ticketsModalContenido')?.classList.toggle('u-oculto', !permitido);
-  $('ticketsModalLista')?.toggleAttribute('hidden', !permitido);
-  $('ticketsModalDetalle')?.toggleAttribute('hidden', !permitido);
+  $('ticketsModalPanelMis')?.classList.toggle('u-oculto', !permitido);
+  $('ticketsModalTabBandeja')?.classList.toggle('u-oculto', !permitido || !atiende());
   return permitido;
+}
+
+function aplicarModo(nuevo) {
+  modo = nuevo === 'bandeja' && atiende() ? 'bandeja' : 'mis';
+  $('ticketsModalPanelMis')?.toggleAttribute('hidden', modo !== 'mis');
+  $('ticketsModalPanelBandeja')?.toggleAttribute('hidden', modo !== 'bandeja');
+  $('ticketsModalTabMis')?.classList.toggle('active', modo === 'mis');
+  $('ticketsModalTabBandeja')?.classList.toggle('active', modo === 'bandeja');
+  $('ticketsModalTabMis')?.setAttribute('aria-selected', String(modo === 'mis'));
+  $('ticketsModalTabBandeja')?.setAttribute('aria-selected', String(modo === 'bandeja'));
+  const textoActualizar = $('ticketsModalActualizarTexto');
+  if (textoActualizar) textoActualizar.textContent = modo === 'bandeja' ? 'Actualizar bandeja' : 'Actualizar';
 }
 
 function pintarLista() {
@@ -107,7 +130,10 @@ function pintarDetalle(ticket) {
       <p class="u-fs-11px u-suave">
         Estado: ${esc(ticket.estado)} · Prioridad: ${esc(ticket.prioridad)}
         ${ticket.asignadoA ? ` · Atiende: ${esc(ticket.asignadoA)}` : ''}
+        · ${fmtFecha(ticket.creadoEn)}
       </p>
+      <div class="u-fs-11px u-suave u-mt-6">Descripción original</div>
+      <p class="u-fs-12px u-mt-4">${esc(ticket.cuerpo || 'Sin descripción registrada.')}</p>
       ${mensajes || '<p class="u-fs-12px u-suave">Sin respuestas todavía.</p>'}
       ${
         ticket.estado === 'cerrado'
@@ -138,11 +164,29 @@ async function abrirTicket(id) {
   }
 }
 
-async function abrir(id = null) {
+async function abrir(id = null, { modo: modoPedido = 'auto' } = {}) {
   aplicarAcceso();
   abrirModal('modalTickets');
   if (!tieneCuenta()) return;
   limpiarAviso();
+  const modoFinal =
+    modoPedido === 'auto'
+      ? atiende() && id
+        ? 'bandeja'
+        : 'mis'
+      : modoPedido === 'bandeja' && atiende()
+        ? 'bandeja'
+        : 'mis';
+  aplicarModo(modoFinal);
+
+  if (modoFinal === 'bandeja') {
+    await intentar(async () => {
+      const modulo = await cargarAtencion();
+      await modulo.montar({ ticketId: id || null });
+    });
+    return;
+  }
+
   if (!id) {
     ticketActivo = null;
     const detalle = $('ticketsModalDetalle');
@@ -152,6 +196,10 @@ async function abrir(id = null) {
     await cargar();
     if (id) await abrirTicket(id);
   });
+}
+
+async function abrirBandeja(id = null) {
+  return abrir(id, { modo: 'bandeja' });
 }
 
 async function enviar() {
@@ -196,9 +244,21 @@ async function responder(id) {
 
 export function registrar() {
   registrarAcciones({
-    'ticketsModal:abrir': () => intentar(() => abrir()),
+    'ticketsModal:abrir': () =>
+      intentar(() => abrir(null, { modo: atiende() ? 'bandeja' : 'mis' })),
+    'ticketsModal:abrirAtencion': () => intentar(() => abrirBandeja()),
     'ticketsModal:cerrar': () => cerrarModal('modalTickets'),
-    'ticketsModal:actualizar': () => intentar(() => abrir(ticketActivo?.id || null)),
+    'ticketsModal:actualizar': () =>
+      intentar(async () => {
+        if (modo === 'bandeja') {
+          const modulo = await cargarAtencion();
+          await modulo.actualizar();
+          return;
+        }
+        await abrir(ticketActivo?.id || null, { modo: 'mis' });
+      }),
+    'ticketsModal:tab': ({ valor }) =>
+      intentar(() => abrir(ticketActivo?.id || null, { modo: valor })),
     'ticketsModal:enviar': () => intentar(enviar),
     'ticketsModal:ver': ({ id }) => intentar(() => abrirTicket(id)),
     'ticketsModal:responder': ({ id }) => intentar(() => responder(id)),
@@ -206,10 +266,34 @@ export function registrar() {
       ticketActivo = null;
       const detalle = $('ticketsModalDetalle');
       if (detalle) detalle.innerHTML = '';
-    }
+    },
+    'ticketsAtencion:filtro': () =>
+      intentar(async () => {
+        const modulo = await cargarAtencion();
+        await modulo.actualizar();
+      }),
+    'ticketsAtencion:ver': ({ id }) =>
+      intentar(async () => {
+        const modulo = await cargarAtencion();
+        await modulo.verTicket(id);
+      }),
+    'ticketsAtencion:responder': () =>
+      intentar(async () => {
+        const modulo = await cargarAtencion();
+        await modulo.responderTicket();
+      }),
+    'ticketsAtencion:aplicar': () =>
+      intentar(async () => {
+        const modulo = await cargarAtencion();
+        await modulo.aplicarCambios();
+      })
   });
 }
 
-export function abrirCon(id = null) {
-  return abrir(id);
+export function abrirCon(id = null, opciones = {}) {
+  return abrir(id, opciones);
+}
+
+export function abrirAtencionCon(id = null) {
+  return abrirBandeja(id);
 }

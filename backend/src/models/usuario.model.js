@@ -52,7 +52,7 @@ export function puedeEscribirDe(usuario) {
   if (!usuario) return false;
   if (usuario.rol === 'admin') return true;
   if (ROLES_ADMIN.includes(usuario.rol)) return usuario.puedeEscribir !== false;
-  if (usuario.rol !== 'funcionario') return false;
+  if (usuario.rol !== 'funcionario' && usuario.rol !== 'cuadrilla') return false;
   return usuario.puedeEscribir !== false;
 }
 
@@ -84,7 +84,11 @@ export function validarEntrada(datos = {}, { parcial = false } = {}) {
     salida.rol = v.enumeracion(datos.rol, 'rol', ROLES_PERSONAL, { requerido: !parcial });
   }
   if (datos.correo !== undefined) {
-    salida.correo = datos.correo ? normalizarCorreo(datos.correo) || null : null;
+    const correo = datos.correo ? normalizarCorreo(datos.correo) : '';
+    if (datos.correo && !correo) {
+      v.agregar('correo', 'Escribe un correo válido');
+    }
+    salida.correo = correo || null;
   }
   if (datos.telefono !== undefined) {
     salida.telefono = v.texto(datos.telefono, 'telefono', { max: 40 }) || null;
@@ -148,7 +152,11 @@ export function construirUsuario({
   pseudonimo = false,
   rolPersonalizadoId = null,
   rolPropioId = null,
-  puedeEscribir = ['funcionario', 'admin', 'admin_estatal', 'admin_municipal'].includes(rol)
+  correoVerificado = true,
+  correoVerificadoEn = null,
+  claveObligatoria = false,
+  claveId = null,
+  puedeEscribir = ['cuadrilla', 'funcionario', 'admin', 'admin_estatal', 'admin_municipal'].includes(rol)
 }) {
   return {
     id: nuevoId(),
@@ -161,9 +169,18 @@ export function construirUsuario({
     rolPersonalizadoId,
     rolPropioId,
     activo: true,
+    creadoEn: new Date().toISOString(),
     pseudonimo: pseudonimo === true,
     passwordHash,
     passwordCifrada,
+    // El alta ciudadana puede nacer pendiente de confirmar el correo.
+    correoVerificado: correoVerificado !== false,
+    correoVerificadoEn: correoVerificadoEn || null,
+    // Las cuentas de personal nuevas no tienen acceso hasta tener clave.
+    claveObligatoria: claveObligatoria === true,
+    claveId: claveId || null,
+    claveActivadaEn: null,
+    claveVigenteHasta: null,
     // Solo los roles operativos pueden mutar; auditor/enlaces quedan en lectura.
     puedeEscribir: puedeEscribir === true,
     // Excepciones a la matriz de permisos del rol: { permiso: true|false }.
@@ -173,7 +190,9 @@ export function construirUsuario({
     suspendido: false,
     suspendidoHasta: null,
     suspendidoMotivo: '',
-    suspendidoPor: null
+    suspendidoPor: null,
+    // `moderacion` | `titular` | `inactividad` | `sistema`
+    suspendidoOrigen: null
   };
 }
 
@@ -202,6 +221,12 @@ export function mensajeSuspension(usuario) {
     ? `Hasta el ${String(usuario.suspendidoHasta).slice(0, 10)}.`
     : 'Es indefinida.';
   const motivo = usuario.suspendidoMotivo ? ` Motivo: ${usuario.suspendidoMotivo}.` : '';
+  if (usuario.suspendidoOrigen === 'titular') {
+    return `Tu cuenta está congelada por ti. ${plazo} Se reactivará automáticamente.`;
+  }
+  if (usuario.suspendidoOrigen === 'inactividad') {
+    return 'Tu cuenta está congelada por inactividad. Inicia sesión con tu contraseña para reactivarla.';
+  }
   return `Tu cuenta está suspendida por moderación. ${plazo}${motivo}`;
 }
 
@@ -212,6 +237,7 @@ export function limpiarSancion() {
     suspendidoHasta: null,
     suspendidoMotivo: '',
     suspendidoPor: null,
+    suspendidoOrigen: null,
     // «Al reactivar la cuenta el contador vuelve a 0»: si no, la primera
     // advertencia nueva volvería a bloquearla de inmediato.
     advertencias: 0

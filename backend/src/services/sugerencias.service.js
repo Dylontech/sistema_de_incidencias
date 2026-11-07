@@ -176,6 +176,19 @@ export async function responder(repositorio, usuario, id, respuesta) {
       titulo: 'Respuesta a tu sugerencia',
       mensaje: limpio
     });
+    const cuenta = await repositorio.usuarioPorCorreo(sugerencia.correo).catch(() => null);
+    if (cuenta) {
+      await emitir(repositorio, {
+        evento: 'sugerencia_respondida',
+        paraUsuarios: [cuenta.username],
+        titulo: '💬 Respondieron tu sugerencia',
+        mensaje: `Tu sugerencia ${sugerencia.folio} tiene una respuesta del municipio.`,
+        entidadTipo: 'sugerencia',
+        entidadId: actualizada?.id || id,
+        url: `/?folio=${encodeURIComponent(sugerencia.folio || '')}`,
+        claveDedupe: `sugerencia_respondida:${id}:${cuenta.username}`
+      }).catch(() => {});
+    }
   }
 
   return actualizada;

@@ -8,6 +8,7 @@
 import { conectarDelegacion } from './core/eventos.js';
 import { inicializarModales, loading, retirarArranque, toast } from './core/ui.js';
 import { sesion } from './core/session.js';
+import { ROLES_PERSONAL, puedeAtenderTickets } from './core/roles.js';
 import { consentimiento } from './core/consentimiento.js';
 import * as accesibilidad from './core/accesibilidad.js';
 import * as tiempoReal from './core/tiempo-real.js';
@@ -21,17 +22,23 @@ import {
   entrarComoCiudadano,
   registrar as registrarAuth
 } from './controllers/auth.controller.js';
-import { mostrarLogin } from './views/login.view.js';
+import {
+  mensaje as mensajeLogin,
+  mostrarLogin,
+  prepararLogin
+} from './views/login.view.js';
 import { registrar as registrarIncidencias } from './controllers/incidencias.controller.js';
 import { registrar as registrarTipos } from './controllers/tipos.controller.js';
 import { registrar as registrarAdmin } from './controllers/admin.controller.js';
 import { registrar as registrarReportes } from './controllers/reportes.controller.js';
+import { registrar as registrarVersionPdf } from './controllers/versionPdf.controller.js';
 import { registrar as registrarNotificaciones } from './controllers/notificaciones.controller.js';
 import { registrar as registrarModeracion } from './controllers/moderacion.controller.js';
 import { registrar as registrarMonitoreo } from './controllers/monitoreo.controller.js';
 import { registrar as registrarServidor } from './controllers/servidor.controller.js';
 import { registrar as registrarCampanas } from './controllers/campanas.controller.js';
 import { registrar as registrarConfiguracion } from './controllers/configuracion.controller.js';
+import { registrar as registrarVerificacion } from './controllers/verificacion.controller.js';
 import { registrar as registrarLegal } from './controllers/legal.controller.js';
 import { registrar as registrarFirmasAdmin } from './controllers/firmasAdmin.controller.js';
 import { registrar as registrarSolicitudesInforme } from './controllers/solicitudesInforme.controller.js';
@@ -41,6 +48,7 @@ import {
 } from './controllers/solicitudInformePublica.controller.js';
 import {
   abrirCon as abrirTickets,
+  abrirAtencionCon as abrirBandejaSoporte,
   registrar as registrarTicketsModal
 } from './controllers/ticketsModal.controller.js';
 import { registrar as registrarRespaldos } from './controllers/respaldos.controller.js';
@@ -50,8 +58,10 @@ import { registrar as registrarQr } from './controllers/qr.controller.js';
 import { registrar as registrarCorreosInstitucionales } from './controllers/correosInstitucionales.controller.js';
 import { registrar as registrarFolios } from './controllers/folios.controller.js';
 import { registrar as registrarPerfil } from './controllers/perfil.controller.js';
-import {
-  registrar as registrarComunicacion,
+import { registrar as registrarMapas } from './controllers/mapas.controller.js';
+import { registrar as registrarVialidades } from './controllers/vialidades.controller.js';
+import { registrar as registrarReclamaciones } from './controllers/reclamaciones.controller.js';
+import { registrar as registrarComunicacion,
   actualizarBadge as actualizarBadgeMensajes
 } from './controllers/comunicacion.controller.js';
 import * as bloqueoView from './views/bloqueo.view.js';
@@ -71,12 +81,14 @@ function registrarControladores() {
   registrarTipos();
   registrarAdmin();
   registrarReportes();
+  registrarVersionPdf();
   registrarNotificaciones();
   registrarModeracion();
   registrarMonitoreo();
   registrarServidor();
   registrarCampanas();
   registrarConfiguracion();
+  registrarVerificacion();
   registrarLegal();
   registrarFirmasAdmin();
   registrarSolicitudesInforme();
@@ -89,6 +101,9 @@ function registrarControladores() {
   registrarCorreosInstitucionales();
   registrarFolios();
   registrarPerfil();
+  registrarMapas();
+  registrarVialidades();
+  registrarReclamaciones();
   registrarComunicacion();
   registrarOnboarding();
   registrarAvisoLegal();
@@ -231,13 +246,32 @@ async function iniciarSesion() {
  */
 async function abrirDestinoInicial() {
   const params = new URLSearchParams(location.search);
+  const avisoCuenta = params.get('cuenta');
+  if (avisoCuenta && (!sesion.rol || sesion.rol === 'anonimo')) {
+    const avisos = {
+      congelada: ['Tu cuenta quedó congelada. Se reactivará automáticamente al cumplirse el plazo.', 'ok'],
+      eliminada: ['Tu cuenta fue eliminada y tus datos personales fueron anonimizados.', 'ok'],
+      recuperada: ['Contraseña actualizada. Entra con tu nueva contraseña.', 'ok'],
+      correo_pendiente: ['Cambio de correo solicitado. Revisa el correo nuevo y confirma el enlace para poder entrar.', 'ok'],
+      verificada: ['Correo confirmado. Tu cuenta está activa.', 'ok']
+    };
+    const [texto, tipo] = avisos[avisoCuenta] || ['', 'info'];
+    setTimeout(() => {
+      mostrarLogin({ puedeCancelar: true, modo: 'login' });
+      if (texto) mensajeLogin(texto, tipo);
+    }, 500);
+    return;
+  }
   if ((params.get('login') || params.get('registro')) && (!sesion.rol || sesion.rol === 'anonimo')) {
+    const usuario = params.get('usuario') || '';
     setTimeout(
       () =>
-        mostrarLogin({
-          puedeCancelar: true,
-          modo: params.get('registro') ? 'registro' : 'login'
-        }),
+        usuario
+          ? prepararLogin({ nombre: usuario })
+          : mostrarLogin({
+              puedeCancelar: true,
+              modo: params.get('registro') ? 'registro' : 'login'
+            }),
       500
     );
     return;
@@ -258,17 +292,17 @@ async function abrirDestinoInicial() {
     return;
   }
   if (params.get('tickets')) {
-    setTimeout(() => abrirTickets(), 500);
+    setTimeout(
+      () => (puedeAtenderTickets(sesion.usuario) ? abrirBandejaSoporte() : abrirTickets()),
+      500
+    );
     return;
   }
   const ticket = params.get('ticket');
   if (ticket) {
-    const atiende = sesion.usuario?.puedeAtenderTickets === true || sesion.rol === 'admin';
-    if (atiende) {
-      location.assign(`/soporte?ticket=${encodeURIComponent(ticket)}`);
-    } else {
-      setTimeout(() => abrirTickets(ticket), 500);
-    }
+    // El controlador decide si abre «Mis tickets» o la bandeja según el rol;
+    // ya no se recarga la página para entrar a /soporte.
+    setTimeout(() => abrirTickets(ticket), 500);
     return;
   }
   const contactoDirecto = params.get('contacto');
@@ -297,10 +331,42 @@ async function abrirDestinoInicial() {
     }, 500);
     return;
   }
+  if (params.get('perfil')) {
+    setTimeout(
+      () => document.querySelector('[data-action="perfil:abrir"]')?.click(),
+      500
+    );
+    return;
+  }
+  const panel = params.get('panel');
+  if (panel) {
+    const { abrirPanel } = await import('./controllers/admin.controller.js');
+    const abierto = await abrirPanel(panel).catch(() => false);
+    if (abierto && params.get('renovaciones')) {
+      setTimeout(
+        () => document.getElementById('renovacionesClaveBox')?.scrollIntoView({ block: 'start' }),
+        600
+      );
+    }
+    return;
+  }
   const admin = params.get('admin');
   if (admin) {
     const { abrirPanel } = await import('./controllers/admin.controller.js');
     const abierto = await abrirPanel(admin).catch(() => false);
+    const reporteConv = params.get('reporte');
+    if (abierto && reporteConv) {
+      setTimeout(() => {
+        document
+          .querySelector(`[data-action="reporteConv:ver"][data-id="${reporteConv}"]`)
+          ?.click();
+      }, 400);
+    }
+    const reclamacionId = params.get('reclamacion');
+    if (reclamacionId) {
+      const { verReclamacionPorId } = await import('./controllers/reclamaciones.controller.js');
+      await verReclamacionPorId(reclamacionId);
+    }
     const solicitud = params.get('solicitud');
     if (abierto && solicitud) {
       try {
@@ -342,9 +408,15 @@ async function iniciar() {
   // El token caducó en mitad de la sesión: se avisa y se recarga.
   document.addEventListener('sesion-expirada', () => {
     tiempoReal.detener();
+    const eraPersonal = ROLES_PERSONAL.includes(sesion.usuario?.rol);
     toast('Tu sesión expiró, vuelve a iniciar sesión', 'err');
     sesion.limpiar();
-    setTimeout(() => location.reload(), 1200);
+    // El personal tiene su propia puerta: si la sesión era de personal, se
+    // vuelve allí; un ciudadano simplemente recarga el acceso ciudadano.
+    setTimeout(
+      () => location.replace(eraPersonal ? '/personal?expirada=1' : location.pathname),
+      1200
+    );
   });
 
   // La cuenta fue suspendida por moderación mientras la sesión estaba abierta:

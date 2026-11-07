@@ -38,6 +38,7 @@ import {
   puedeSancionarA
 } from './alcance.service.js';
 import { enriquecer } from './estado.service.js';
+import { emitir } from './notificaciones.service.js';
 
 /* ------------------------------------------------------------------ ayudas */
 
@@ -60,6 +61,27 @@ async function avisar(repositorio, paraUsuario, { tipo = 'alerta', titulo, mensa
   const notificacion = construirNotificacion({ tipo, titulo, mensaje, incidenciaId, paraUsuario });
   await repositorio.crearNotificacion(notificacion);
   return notificacion;
+}
+
+/** Aviso de moderación que respeta el catálogo, la configuración y SSE. */
+async function avisarEvento(
+  repositorio,
+  evento,
+  paraUsuario,
+  { tipo = 'alerta', titulo, mensaje, incidenciaId = null, entidadTipo = null, entidadId = null }
+) {
+  if (esSesionAnonima(paraUsuario)) return null;
+  return emitir(repositorio, {
+    evento,
+    paraUsuarios: [paraUsuario],
+    tipo,
+    titulo,
+    mensaje,
+    incidenciaId,
+    entidadTipo: entidadTipo || (incidenciaId ? 'incidencia' : 'cuenta'),
+    entidadId: entidadId || incidenciaId,
+    url: incidenciaId ? `/?incidencia=${encodeURIComponent(incidenciaId)}` : '/?perfil=1'
+  }).catch(() => null);
 }
 
 /** Texto libre opcional con un tope (motivo de moderación). */
@@ -385,13 +407,15 @@ async function aplicarOcultamiento(repositorio, incidencia, { oculta, motivo, po
   await repositorio.actualizarIncidencia(incidencia.id, actualizada);
 
   if (!silencioso) {
-    await avisar(repositorio, incidencia.userKey, {
+    await avisarEvento(repositorio, 'moderacion_contenido', incidencia.userKey, {
       tipo: oculta ? 'alerta' : 'estado',
       titulo: oculta ? '🚫 Tu publicación fue ocultada' : '✅ Tu publicación vuelve a ser visible',
       mensaje: oculta
         ? `"${incidencia.titulo}" fue retirada de la vista pública por moderación.${motivo ? ' Motivo: ' + motivo + '.' : ''}`
         : `"${incidencia.titulo}" vuelve a ser visible para todo el municipio.`,
-      incidenciaId: incidencia.id
+      incidenciaId: incidencia.id,
+      entidadTipo: 'incidencia',
+      entidadId: incidencia.id
     });
   }
 
@@ -489,13 +513,15 @@ export async function ocultarComentario(
 
   await repositorio.actualizarIncidencia(incidenciaId, actualizada);
 
-  await avisar(repositorio, comentario.userKey, {
+  await avisarEvento(repositorio, 'moderacion_contenido', comentario.userKey, {
     tipo: activar ? 'alerta' : 'estado',
     titulo: activar ? '🚫 Tu comentario fue ocultado' : '✅ Tu comentario vuelve a ser visible',
     mensaje: activar
       ? `Un comentario tuyo en "${incidencia.titulo}" fue retirado por moderación.${razon ? ' Motivo: ' + razon + '.' : ''}`
       : `Tu comentario en "${incidencia.titulo}" vuelve a ser visible.`,
-    incidenciaId
+    incidenciaId,
+    entidadTipo: 'incidencia',
+    entidadId: incidenciaId
   });
 
   if (activar && cerrarDenuncias) {
@@ -586,7 +612,7 @@ export async function advertirAutor(repositorio, usuario, incidencia, { motivo =
 
   const actualizada = await repositorio.actualizarUsuario(cuenta.id, cambios);
 
-  await avisar(repositorio, cuenta.username, {
+  await avisarEvento(repositorio, 'moderacion_cuenta', cuenta.username, {
     tipo: 'alerta',
     titulo: suspendidaAhora
       ? '🚫 Tu cuenta fue suspendida'
@@ -594,7 +620,9 @@ export async function advertirAutor(repositorio, usuario, incidencia, { motivo =
     mensaje: suspendidaAhora
       ? `Tu cuenta quedó suspendida por acumular ${advertencias} advertencias. Última: ${razon}.`
       : `Recibiste una advertencia por "${incidencia.titulo}". Motivo: ${razon}.`,
-    incidenciaId: incidencia.id
+    incidenciaId: incidencia.id,
+    entidadTipo: 'cuenta',
+    entidadId: cuenta.id
   });
 
   // El historial del reporte es público: deja constancia de la advertencia.
@@ -679,15 +707,18 @@ export async function suspenderCuenta(repositorio, usuario, username, { motivo =
     suspendido: true,
     suspendidoHasta: fecha ? fecha.toISOString() : null,
     suspendidoMotivo: razon,
-    suspendidoPor: usuario.nombre
+    suspendidoPor: usuario.nombre,
+    suspendidoOrigen: 'moderacion'
   });
 
-  await avisar(repositorio, cuenta.username, {
+  await avisarEvento(repositorio, 'moderacion_cuenta', cuenta.username, {
     tipo: 'alerta',
     titulo: '🚫 Tu cuenta fue suspendida',
     mensaje: fecha
       ? `No podrás entrar hasta el ${fecha.toISOString().slice(0, 10)}. Motivo: ${razon}.`
-      : `No podrás entrar hasta que el municipio levante la suspensión. Motivo: ${razon}.`
+      : `No podrás entrar hasta que el municipio levante la suspensión. Motivo: ${razon}.`,
+    entidadTipo: 'cuenta',
+    entidadId: cuenta.id
   });
 
   const ocultas = await ocultarContenidoDe(repositorio, usuario, cuenta.username);
@@ -705,10 +736,12 @@ export async function reactivarCuenta(repositorio, usuario, username) {
 
   const actualizada = await repositorio.actualizarUsuario(cuenta.id, limpiarSancion());
 
-  await avisar(repositorio, cuenta.username, {
+  await avisarEvento(repositorio, 'moderacion_cuenta', cuenta.username, {
     tipo: 'estado',
     titulo: '✅ Tu cuenta fue reactivada',
-    mensaje: 'Ya puedes volver a entrar, reportar y comentar.'
+    mensaje: 'Ya puedes volver a entrar, reportar y comentar.',
+    entidadTipo: 'cuenta',
+    entidadId: cuenta.id
   });
 
   return { cuenta: publico(actualizada) };

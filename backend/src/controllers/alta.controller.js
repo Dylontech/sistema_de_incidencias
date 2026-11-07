@@ -40,7 +40,10 @@ async function resolver(req, res, aprobar) {
   res.set('Cache-Control', 'no-store');
   const resultado = await altas.resolver(req.repositorio, req.usuario, req.params.id, {
     aprobar,
-    respuesta: req.body?.respuesta
+    respuesta: req.body?.respuesta,
+    claveId: req.body?.claveId || null,
+    generarClave: req.body?.generarClave === true,
+    claveExpiraEn: req.body?.claveExpiraEn || null
   });
   const solicitud = resultado.solicitud || {};
   await registrarAccion(req, {

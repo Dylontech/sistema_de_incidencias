@@ -14,8 +14,12 @@ export const altaService = {
     ).toString();
     return api.get(`/alta/solicitudes${query ? `?${query}` : ''}`);
   },
-  aprobar(id, respuesta = '') {
-    return api.post(`/alta/solicitudes/${id}/aprobar`, { respuesta });
+  aprobar(id, datos = {}) {
+    const cuerpo = typeof datos === 'string' ? { respuesta: datos } : datos;
+    return api.post(`/alta/solicitudes/${id}/aprobar`, {
+      respuesta: 'Aprobada desde el panel',
+      ...cuerpo
+    });
   },
   rechazar(id, respuesta = '') {
     return api.post(`/alta/solicitudes/${id}/rechazar`, { respuesta });

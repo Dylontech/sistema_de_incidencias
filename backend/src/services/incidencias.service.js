@@ -2,8 +2,9 @@
  * SERVICIO: Incidencias — núcleo del negocio.
  *
  * Reúne lo que en el monolito estaba repartido entre Incidencias.guardar(),
- * confirmarResolver(), cambiarEstado(), eliminar() y agregarComentario(),
- * más las validaciones que antes solo existían en el navegador.
+ * confirmarResolver(), cambiarEstado() y eliminar(), más las validaciones que
+ * antes solo existían en el navegador. Los comentarios viven en
+ * comentarios.service.js.
  */
 import { LIMITES_TEXTO, ESTADOS, TIPO_OTRO } from '../config/constantes.js';
 import { AppError } from '../utils/AppError.js';
@@ -14,13 +15,50 @@ function folioDeIncidencia(fecha) {
   const azar = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `INC-${dia}-${azar}`;
 }
+
+/** Normaliza el desglose de costos enviado por el coordinador. */
+function normalizarDesgloseCostos(valor) {
+  if (valor === undefined || valor === null || valor === '') return [];
+  let lista = valor;
+  if (typeof valor === 'string') {
+    try {
+      lista = JSON.parse(valor);
+    } catch {
+      throw AppError.solicitudInvalida('El desglose de costos no es un JSON válido');
+    }
+  }
+  if (!Array.isArray(lista)) {
+    throw AppError.solicitudInvalida('El desglose de costos debe ser una lista de conceptos');
+  }
+  if (lista.length > 30) {
+    throw AppError.solicitudInvalida('El desglose admite como máximo 30 conceptos');
+  }
+  return lista.map((item, indice) => {
+    const concepto = String(item?.concepto ?? '').trim();
+    const monto = Number(item?.monto);
+    if (!concepto) {
+      throw AppError.solicitudInvalida('Cada concepto del desglose necesita un nombre', [
+        { campo: `desglose.${indice}.concepto`, mensaje: 'Escribe el concepto' }
+      ]);
+    }
+    if (!Number.isFinite(monto) || monto < 0) {
+      throw AppError.solicitudInvalida('Cada concepto necesita un monto no negativo', [
+        { campo: `desglose.${indice}.monto`, mensaje: 'Monto inválido' }
+      ]);
+    }
+    return {
+      concepto: concepto.slice(0, 80),
+      monto: Number(monto.toFixed(2)),
+      nota: String(item?.nota ?? '').trim().slice(0, 300)
+    };
+  });
+}
 import { recolector } from '../utils/validacion.js';
 import {
   validarEntrada,
   construirIncidencia,
   aplicarEdicion,
   agregarHistorial,
-  agregarComentario,
   puedeEditar,
   esDuplicado
 } from '../models/incidencia.model.js';
@@ -44,6 +82,9 @@ import {
   municipioDeRegistro,
   exigirVisibilidad
 } from './alcance.service.js';
+import { adjuntosDe } from './adjuntos.service.js';
+import { estadoComentario } from './comentarios.service.js';
+import { tienePermiso } from './permisos.service.js';
 
 /**
  * Permisos que el frontend usa para decidir qué botones mostrar.
@@ -51,11 +92,13 @@ import {
  * `contexto` solo lo rellena el detalle para el personal: sabe si el autor del
  * contenido es una cuenta sancionable (y de qué rol) y cuántas denuncias tiene
  * pendientes. Así la interfaz no tiene que adivinar la jerarquía de roles.
+ * `comentario` indica si el compositor puede enviar ahora (espera anti-spam,
+ * restricciones y cuota diaria).
  */
 export function permisosDe(
   incidencia,
   usuario,
-  { puedeSancionarAutor = false, denunciasPendientes = 0 } = {}
+  { puedeSancionarAutor = false, denunciasPendientes = 0, comentario = null } = {}
 ) {
   const resuelta = incidencia.estado === 'resuelta';
   return {
@@ -71,7 +114,8 @@ export function permisosDe(
     puedeModerar: puedeOperar(usuario),
     puedeOcultar: puedeOperar(usuario),
     puedeSancionarAutor: puedeOperar(usuario) && puedeSancionarAutor,
-    denunciasPendientes
+    denunciasPendientes,
+    comentario
   };
 }
 
@@ -116,6 +160,13 @@ export async function listar(repositorio, usuario, filtros = {}) {
 
   const incidencias = await repositorio.buscarIncidencias(consulta);
   let lista = enriquecerLista(incidencias.map((i) => conComentariosVisibles(i, usuario)));
+  // Las resueltas pasan al archivo 24 h después: dejan de mezclarse con las
+  // activas y solo aparecen en la pestaña Archivo (o por enlace directo).
+  const verArchivo = filtros.archivo === true || filtros.archivo === 'true';
+  if (verArchivo && !tienePermiso(usuario, 'ver_incidencias_panel')) {
+    throw AppError.prohibido('El archivo general solo está disponible para el personal autorizado');
+  }
+  lista = lista.filter((i) => (verArchivo ? i.archivada : !i.archivada));
   lista = filtrarPorColor(lista, color);
   if (orden === 'prioridad') lista = ordenarPorPrioridad(lista);
   return lista;
@@ -127,7 +178,8 @@ export async function listar(repositorio, usuario, filtros = {}) {
  * jerarquía de roles.
  */
 async function permisosDeDetalle(repositorio, incidencia, usuario) {
-  if (!esEmpleado(usuario)) return permisosDe(incidencia, usuario);
+  const comentario = await estadoComentario(repositorio, usuario);
+  if (!esEmpleado(usuario)) return permisosDe(incidencia, usuario, { comentario });
   const cuentaAutor = incidencia.autor
     ? await repositorio.usuarioPorUsername(incidencia.autor)
     : null;
@@ -137,15 +189,29 @@ async function permisosDeDetalle(repositorio, incidencia, usuario) {
   });
   return permisosDe(incidencia, usuario, {
     puedeSancionarAutor: puedeSancionarA(usuario, cuentaAutor),
-    denunciasPendientes: pendientes.length
+    denunciasPendientes: pendientes.length,
+    comentario
   });
 }
 
 export async function obtener(repositorio, usuario, id) {
   const incidencia = await repositorio.incidenciaPorId(id);
   exigirVisibilidad(incidencia, usuario);
+  // El detalle es el único punto que muestra las imágenes de los comentarios:
+  // se resuelven aquí para no repetir la consulta en cada tarjeta del listado.
+  const comentarios = incidencia.comentarios || [];
+  const mapaAdjuntos = comentarios.length
+    ? await adjuntosDe(repositorio, 'comentario', comentarios.map((c) => c.id))
+    : new Map();
+  const conAdjuntos = {
+    ...incidencia,
+    comentarios: comentarios.map((c) => ({
+      ...c,
+      adjuntos: mapaAdjuntos.get(c.id) || []
+    }))
+  };
   return {
-    ...enriquecer(conComentariosVisibles(incidencia, usuario)),
+    ...enriquecer(conComentariosVisibles(conAdjuntos, usuario)),
     permisos: await permisosDeDetalle(repositorio, incidencia, usuario)
   };
 }
@@ -364,7 +430,12 @@ export async function cambiarEstado(repositorio, usuario, id, estado) {
   return enriquecer(actualizada);
 }
 
-export async function resolver(repositorio, usuario, id, { solucion, evidenciaSolucion } = {}) {
+export async function resolver(
+  repositorio,
+  usuario,
+  id,
+  { solucion, evidenciaSolucion, costoReparacion, desgloseCostos } = {}
+) {
   if (!puedeOperar(usuario)) {
     throw AppError.prohibido('Solo el personal con permiso de escritura puede resolver incidencias');
   }
@@ -387,29 +458,71 @@ export async function resolver(repositorio, usuario, id, { solucion, evidenciaSo
     { parcial: true }
   );
 
+  // El costo es opcional, pero si viene debe ser un número no negativo.
+  let costo = null;
+  if (costoReparacion !== undefined && costoReparacion !== null && costoReparacion !== '') {
+    const numero = Number(costoReparacion);
+    if (!Number.isFinite(numero) || numero < 0) {
+      throw AppError.solicitudInvalida('El costo de reparación debe ser un número positivo');
+    }
+    costo = Number(numero.toFixed(2));
+  }
+  const desglose = normalizarDesgloseCostos(desgloseCostos);
+  if (desglose.length) {
+    const suma = Number(desglose.reduce((total, item) => total + item.monto, 0).toFixed(2));
+    if (costo === null) costo = suma;
+    else if (Math.abs(suma - costo) > 0.01) {
+      throw AppError.solicitudInvalida(
+        `La suma del desglose ($${suma.toFixed(2)}) no coincide con el costo de reparación ($${costo.toFixed(2)})`
+      );
+    }
+  }
+
   const ahora = ahoraIso();
+  const previos = Array.isArray(actual.documentosReparacion)
+    ? actual.documentosReparacion
+    : [];
+  const combinados = [...previos, ...(evidenciaNormalizada || [])];
+  const unicos = new Map();
+  for (const documento of combinados) {
+    const clave = documento?.id || documento?.url || JSON.stringify(documento);
+    if (!unicos.has(clave)) unicos.set(clave, documento);
+  }
+  const documentos = [...unicos.values()];
+  const detalleCosto = costo !== null ? ` · Costo: $${costo.toFixed(2)}` : '';
+  const detalleDocs = documentos.length ? ` · ${documentos.length} documento(s)` : '';
   const actualizada = {
     ...actual,
     estado: 'resuelta',
     actualizado: ahora,
     fechaResolucion: ahora,
     solucion: texto,
-    evidenciaSolucion: evidenciaNormalizada || [],
+    evidenciaSolucion: documentos,
+    documentosResolucion: documentos,
+    costoReparacion: costo,
+    desgloseCostos: desglose,
+    archivadaEn: null,
     historial: agregarHistorial(actual, {
       estado: 'resuelta',
-      accion: 'Incidencia resuelta: ' + texto,
+      accion: `Incidencia resuelta: ${texto}${detalleCosto}${detalleDocs}`,
       por: usuario.nombre,
       ahora
     })
   };
 
   await repositorio.actualizarIncidencia(id, actualizada);
+  const detalleAviso = [
+    costo !== null ? `Costo: $${costo.toFixed(2)}` : '',
+    documentos.length ? `${documentos.length} documento(s)` : ''
+  ]
+    .filter(Boolean)
+    .join(' · ');
   await notificar(
     repositorio,
     actualizada,
     'resuelta',
     '✅ Tu incidencia fue resuelta',
-    `"${actualizada.titulo}" ha sido marcada como resuelta.`
+    `"${actualizada.titulo}" ha sido marcada como resuelta.${detalleAviso ? ` ${detalleAviso}.` : ''}`
   );
 
   return enriquecer(actualizada);
@@ -424,54 +537,6 @@ export async function eliminar(repositorio, usuario, id) {
 
   await repositorio.eliminarIncidencia(id);
   return { eliminada: true, id };
-}
-
-export async function comentar(repositorio, usuario, id, texto) {
-  if (esEmpleado(usuario) && !puedeOperar(usuario)) {
-    throw AppError.prohibido('Tu cuenta es de solo lectura: no puede comentar');
-  }
-
-  const incidencia = await repositorio.incidenciaPorId(id);
-  exigirVisibilidad(incidencia, usuario);
-
-  // Un contenido oculto no admite comentarios nuevos: el autor ya lo ve con
-  // aviso y el personal habla por el historial, no por la conversación.
-  if (incidencia.oculta === true && !esEmpleado(usuario)) {
-    throw AppError.prohibido('Esta publicación está oculta por moderación');
-  }
-
-  const v = recolector();
-  const limpio = v.texto(texto, 'texto', {
-    requerido: true,
-    max: LIMITES_TEXTO.comentario
-  });
-  v.terminar();
-
-  const actualizada = {
-    ...incidencia,
-    actualizado: ahoraIso(),
-    comentarios: agregarComentario(incidencia, {
-      autor: usuario.nombre,
-      texto: limpio,
-      userKey: usuario.userKey
-    })
-  };
-
-  await repositorio.actualizarIncidencia(id, actualizada);
-
-  // Avisar al autor del reporte (salvo que comente él mismo).
-  const destinatario = destinatarioDeIncidencia(actualizada);
-  if (destinatario && destinatario !== usuario.userKey) {
-    await notificar(
-      repositorio,
-      actualizada,
-      'comentario',
-      '💬 Nuevo comentario',
-      `"${actualizada.titulo}" recibió un comentario nuevo.`
-    );
-  }
-
-  return enriquecer(actualizada);
 }
 
 /**

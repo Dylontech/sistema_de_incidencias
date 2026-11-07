@@ -357,6 +357,14 @@ async function entregar(repositorio, cuenta, datos = {}) {
     if (existente) return false;
   }
 
+  // «Solo correo» significa exactamente eso: no se crea fila en la campana ni
+  // se emite SSE. Si la cuenta no tiene correo (o está en simulación) se usa la
+  // campana como respaldo para no perder el aviso.
+  if (canal === 'correo' && cuenta.correo && !simulacion) {
+    enviarPorCorreo(repositorio, cuenta, datos);
+    return true;
+  }
+
   const notificacion = construirNotificacion({
     tipo: datos.tipo || 'estado',
     evento: datos.evento,
@@ -379,7 +387,7 @@ async function entregar(repositorio, cuenta, datos = {}) {
   }
   emitirA([cuenta.username], { ...notificacion, tipo: 'notificacion' });
 
-  if (canal === 'correo' || canal === 'ambos') {
+  if (canal === 'ambos') {
     enviarPorCorreo(repositorio, cuenta, datos);
   }
   return true;
@@ -549,6 +557,8 @@ function tipoDeEvento(evento) {
   if (evento.startsWith('ficha_') || evento.startsWith('permiso_')) return 'solicitud';
   if (evento === 'mensaje_directo' || evento === 'difusion_personal') return 'mensaje';
   if (evento.startsWith('moderacion_') || evento === 'seguridad_alerta') return 'alerta';
+  if (evento.startsWith('cuenta_')) return 'alerta';
+  if (evento.startsWith('reparacion_')) return 'solicitud';
   return 'estado';
 }
 
@@ -644,7 +654,19 @@ export async function guardarConfiguracion(repositorio, actor, evento, datos = {
  * configurado (por defecto nada).
  */
 export async function avisarNuevaIncidencia(repositorio, incidencia, { municipio = null } = {}) {
-  const personal = await repositorio.usuariosPorRoles(ROLES_PERSONAL);
+  // Esta ruta especial existe para calcular el mensaje con el nombre del
+  // municipio, pero debe respetar la misma configuración global que `emitir`:
+  // evento desactivado, canal, roles y filtros territoriales.
+  const config = (await repositorio.configuracionNotificacion('incidencia_creada')) || {};
+  if (config.activo === false) return 0;
+  const definicion = definicionDe('incidencia_creada');
+  const canalBase = CANALES_NOTIFICACION.includes(config.canal)
+    ? config.canal
+    : definicion.canal;
+  if (canalBase === 'ninguno') return 0;
+  const roles =
+    Array.isArray(config.roles) && config.roles.length ? config.roles : definicion.roles;
+  const personal = await repositorio.usuariosPorRoles(roles);
   const candidatos = personal.filter(
     (u) => u.username !== incidencia.userKey && u.activo !== false
   );
@@ -657,9 +679,28 @@ export async function avisarNuevaIncidencia(repositorio, incidencia, { municipio
   ]);
 
   const lugar = municipio?.nombre || 'el municipio';
+  const alcanceRegla = ALCANCES_NOTIFICACION.includes(config.alcance)
+    ? config.alcance
+    : definicion.alcance;
+  const municipiosRegla = new Set(config.municipios || []);
+  const estadosRegla = new Set(config.estados || []);
   let avisos = 0;
 
   for (const cuenta of candidatos) {
+    if (
+      alcanceRegla === 'municipios' &&
+      municipiosRegla.size &&
+      !municipiosRegla.has(incidencia.municipioId)
+    ) {
+      continue;
+    }
+    if (
+      alcanceRegla === 'estados' &&
+      estadosRegla.size &&
+      !estadosRegla.has(incidencia.estadoEntidad)
+    ) {
+      continue;
+    }
     const asignado = alcances[cuenta.id] || { municipios: [], estados: [] };
     const preferencia = guardadas[cuenta.id] || {
       modo: modoPorDefecto(cuenta.rol),
@@ -693,7 +734,7 @@ export async function avisarNuevaIncidencia(repositorio, incidencia, { municipio
       municipioId: incidencia.municipioId || null,
       url: `/?incidencia=${incidencia.id}`,
       claveDedupe: `incidencia_creada:${incidencia.id}:${cuenta.username}`,
-      canal: preferencia.porCorreo ? 'ambos' : 'app'
+      canal: preferencia.porCorreo ? 'ambos' : canalBase
     });
     if (creada) avisos++;
   }

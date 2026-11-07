@@ -109,6 +109,7 @@ export const store = {
         notificaciones: [],
         estadisticas: { panel: null, informes: null },
         denuncias: [],
+        reportesConversacion: [],
         gruposDenuncia: [],
         resumenModeracion: null,
         sanciones: []

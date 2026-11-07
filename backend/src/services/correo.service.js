@@ -8,7 +8,7 @@
  * - Cada intento queda en `envios_correo` (sin guardar el cuerpo del mensaje).
  */
 import nodemailer from 'nodemailer';
-import { config } from '../config/index.js';
+import { config, urlPublica } from '../config/index.js';
 import { nuevoId } from '../utils/ids.js';
 
 let transporte = null;
@@ -309,4 +309,170 @@ export function avisarAlPersonal(repositorio, { para, asunto, titulo, lineas, ti
     pie: 'Responde desde la bandeja del sistema para mantener el hilo y la trazabilidad.'
   });
   return enviarCorreo(repositorio, { para, asunto, html, tipo });
+}
+
+/* ------------------- cuentas: verificación y recuperación ------------------ */
+
+/**
+ * Enlace público de la página de cuenta. La misma página atiende verificación y
+ * recuperación; el token viaja en la URL y el formulario lo envía por POST.
+ */
+function enlaceCuenta(token) {
+  return `${urlPublica('/cuenta')}?token=${encodeURIComponent(token)}`;
+}
+
+/** Confirma el correo de una cuenta ciudadana recién registrada. */
+export function enviarVerificacionCuenta(
+  repositorio,
+  { para, nombre, username, rol = 'ciudadano', token }
+) {
+  const enlace = enlaceCuenta(token);
+  const acceso = rol === 'ciudadano' ? nombre : username;
+  const html = plantilla({
+    titulo: 'Confirma tu cuenta',
+    contenido: `
+      <p>Hola ${escapar(nombre || 'vecino')},</p>
+      <p>Recibimos tu registro en el <strong>Sistema de Incidencias Municipales</strong>.
+      Para activar la cuenta necesitamos que confirmes tu correo:</p>
+      <p style="margin:22px 0">
+        <a href="${escapar(enlace)}" style="background:#006657;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">
+          Confirmar mi correo
+        </a>
+      </p>
+      <p>Tu nombre de acceso es <strong>${escapar(acceso || '')}</strong>.
+      Después de confirmar podrás iniciar sesión con ese nombre y tu contraseña.</p>
+      <p>Si no creaste esta cuenta, ignora este mensaje: sin confirmación no se activará.</p>`,
+    pie: 'El enlace caduca en 24 horas. Puedes pedir uno nuevo desde el inicio de sesión.'
+  });
+  return enviarCorreo(repositorio, {
+    para,
+    asunto: 'Confirma tu cuenta del Sistema de Incidencias',
+    html,
+    texto: `Confirma tu cuenta: ${enlace}\nTu nombre de acceso es ${acceso || ''}.`,
+    tipo: 'verificacion_cuenta'
+  });
+}
+
+/** Confirma el correo nuevo después de un cambio solicitado por el titular. */
+export function enviarVerificacionCambioCorreo(repositorio, { para, nombre, token }) {
+  const enlace = enlaceCuenta(token);
+  const html = plantilla({
+    titulo: 'Confirma tu nuevo correo',
+    contenido: `
+      <p>Hola ${escapar(nombre || 'vecino')},</p>
+      <p>Recibimos una solicitud para cambiar el correo de tu cuenta en el
+      <strong>Sistema de Incidencias Municipales</strong>. Para usarlo, confirma este enlace:</p>
+      <p style="margin:22px 0">
+        <a href="${escapar(enlace)}" style="background:#006657;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">
+          Confirmar mi nuevo correo
+        </a>
+      </p>
+      <p>Hasta que confirmes, no podrás iniciar sesión con esta cuenta. Tu nombre de acceso y tu contraseña no cambian.</p>
+      <p>Si no solicitaste el cambio, ignora este mensaje y avisa a la administración.</p>`,
+    pie: 'El enlace caduca en 24 horas. Puedes pedir uno nuevo desde el inicio de sesión.'
+  });
+  return enviarCorreo(repositorio, {
+    para,
+    asunto: 'Confirma tu nuevo correo del Sistema de Incidencias',
+    html,
+    texto: `Confirma tu nuevo correo: ${enlace}`,
+    tipo: 'verificacion_correo_nuevo'
+  });
+}
+
+/** Avisa al correo anterior que la cuenta cambió de dirección. */
+export function enviarAvisoCorreoCambiado(repositorio, { para, nombre, correoNuevo }) {
+  const html = plantilla({
+    titulo: 'Tu correo de contacto cambió',
+    contenido: `
+      <p>Hola ${escapar(nombre || '')},</p>
+      <p>La cuenta del Sistema de Incidencias Municipales cambió su correo de contacto a
+      <strong>${escapar(correoNuevo)}</strong>.</p>
+      <p>Si no realizaste este cambio, contacta a la administración del sistema.</p>`,
+    pie: 'Este aviso se envió a la dirección anterior de la cuenta.'
+  });
+  return enviarCorreo(repositorio, {
+    para,
+    asunto: 'Tu correo de contacto cambió',
+    html,
+    texto: `Tu correo de contacto cambió a ${correoNuevo}.`,
+    tipo: 'correo_cambiado_aviso'
+  });
+}
+
+/** Enlace de un solo uso para restablecer la contraseña. */
+export function enviarRecuperacionPassword(
+  repositorio,
+  { para, nombre, username, rol = 'ciudadano', token }
+) {
+  const enlace = enlaceCuenta(token);
+  const acceso = rol === 'ciudadano' ? nombre : username;
+  const html = plantilla({
+    titulo: 'Restablece tu contraseña',
+    contenido: `
+      <p>Hola ${escapar(nombre || '')},</p>
+      <p>Recibimos una solicitud para cambiar la contraseña de tu cuenta.
+      Tu nombre de acceso es <strong>${escapar(acceso || '')}</strong>.</p>
+      <p style="margin:22px 0">
+        <a href="${escapar(enlace)}" style="background:#006657;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">
+          Elegir una contraseña nueva
+        </a>
+      </p>
+      <p>El enlace caduca en 60 minutos y solo puede usarse una vez.
+      Si no solicitaste el cambio, ignora este mensaje: tu contraseña actual sigue siendo válida.</p>`,
+    pie: 'Por seguridad, nunca te pediremos tu contraseña por correo.'
+  });
+  return enviarCorreo(repositorio, {
+    para,
+    asunto: 'Restablece tu contraseña del Sistema de Incidencias',
+    html,
+    texto: `Restablece tu contraseña: ${enlace}\nTu nombre de acceso es ${acceso || ''}.`,
+    tipo: 'recuperacion_password'
+  });
+}
+
+/** Aviso de congelación por inactividad, con un enlace para volver. */
+export function enviarAvisoInactividad(repositorio, { para, nombre }) {
+  const enlace = urlPublica('/?login=1');
+  const html = plantilla({
+    titulo: 'Tu cuenta fue congelada por inactividad',
+    contenido: `
+      <p>Hola ${escapar(nombre || '')},</p>
+      <p>Tu cuenta ciudadana estuvo 30 días sin actividad y quedó congelada.
+      Para reactivarla, inicia sesión con tu contraseña:</p>
+      <p style="margin:22px 0">
+        <a href="${escapar(enlace)}" style="background:#006657;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">
+          Iniciar sesión
+        </a>
+      </p>
+      <p>Si no puedes entrar, recupera tu contraseña desde la misma pantalla.</p>`,
+    pie: 'La congelación por inactividad se levanta automáticamente al iniciar sesión.'
+  });
+  return enviarCorreo(repositorio, {
+    para,
+    asunto: 'Tu cuenta fue congelada por inactividad',
+    html,
+    texto: `Tu cuenta fue congelada por inactividad. Inicia sesión para reactivarla: ${enlace}`,
+    tipo: 'cuenta_inactividad'
+  });
+}
+
+/** Confirma que la cuenta fue eliminada (antes de anonimizar el correo). */
+export function enviarCuentaEliminada(repositorio, { para, nombre }) {
+  const html = plantilla({
+    titulo: 'Tu cuenta fue eliminada',
+    contenido: `
+      <p>Hola ${escapar(nombre || '')},</p>
+      <p>Tu cuenta del Sistema de Incidencias Municipales fue eliminada y sus datos
+      personales fueron anonimizados. Los reportes históricos se conservan sin tu
+      nombre ni tu correo.</p>
+      <p>Si no realizaste esta acción, contacta a la administración del sistema.</p>`,
+    pie: 'Esta confirmación se envía al correo registrado antes de eliminarlo.'
+  });
+  return enviarCorreo(repositorio, {
+    para,
+    asunto: 'Tu cuenta fue eliminada',
+    html,
+    tipo: 'cuenta_eliminada'
+  });
 }

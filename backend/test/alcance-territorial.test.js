@@ -65,15 +65,18 @@ async function crearPersonal(datos) {
   const r = await admin.post('/api/usuarios', {
     password: 'secreta123',
     nombre: 'Cuenta de prueba',
+    generarClave: true,
+    claveExpiraEn: '2030-12-31',
     ...datos
   });
   assert.equal(r.status, 201, r.body?.error);
-  return r.body.usuario;
+  assert.ok(r.body.clave?.codigo, 'la cuenta debe nacer con clave');
+  return { ...r.body.usuario, clave: r.body.clave };
 }
 
 describe('Alcance territorial', () => {
   test('un funcionario con dos municipios ve ambos y nada más', async () => {
-    await crearPersonal({
+    const creado = await crearPersonal({
       username: 'func_dos_municipios',
       rol: 'funcionario',
       municipios: [MUNICIPIO_MARAVATIO, MORELIA]
@@ -82,7 +85,7 @@ describe('Alcance territorial', () => {
     const login = await Api.entrarFuncionario(app, {
       username: 'func_dos_municipios',
       password: 'secreta123',
-      claveMunicipio: MUNICIPIO_MARAVATIO
+      claveAcceso: creado.clave.codigo
     });
     assert.equal(login.status, 200, login.body?.error);
     assert.deepEqual(login.body.usuario.municipios.sort(), [MUNICIPIO_MARAVATIO, MORELIA].sort());
@@ -113,7 +116,7 @@ describe('Alcance territorial', () => {
   });
 
   test('el auditor consulta e informa, pero no escribe', async () => {
-    await crearPersonal({
+    const creado = await crearPersonal({
       username: 'auditor_maravatio',
       rol: 'auditor',
       municipios: [MUNICIPIO_MARAVATIO]
@@ -122,7 +125,7 @@ describe('Alcance territorial', () => {
     const login = await Api.entrarFuncionario(app, {
       username: 'auditor_maravatio',
       password: 'secreta123',
-      claveMunicipio: MUNICIPIO_MARAVATIO
+      claveAcceso: creado.clave.codigo
     });
     assert.equal(login.status, 200, login.body?.error);
     assert.equal(login.body.usuario.puedeEscribir, false);
@@ -154,16 +157,16 @@ describe('Alcance territorial', () => {
   });
 
   test('el enlace estatal solo ve los municipios de su estado', async () => {
-    await crearPersonal({
+    const creado = await crearPersonal({
       username: 'enlace_michoacan',
       rol: 'enlace_estatal',
       estados: ['Michoacán']
     });
 
-    // Los enlaces no tienen un municipio único: la clave es opcional.
     const login = await Api.entrarFuncionario(app, {
       username: 'enlace_michoacan',
-      password: 'secreta123'
+      password: 'secreta123',
+      claveAcceso: creado.clave.codigo
     });
     assert.equal(login.status, 200, login.body?.error);
     assert.deepEqual(login.body.usuario.estados, ['Michoacán']);
@@ -185,7 +188,7 @@ describe('Alcance territorial', () => {
   });
 
   test('un enlace federal ve los estados asignados y ninguno más', async () => {
-    await crearPersonal({
+    const creado = await crearPersonal({
       username: 'enlace_federal',
       rol: 'enlace_federal',
       estados: ['Michoacán', 'Guanajuato']
@@ -193,7 +196,8 @@ describe('Alcance territorial', () => {
 
     const login = await Api.entrarFuncionario(app, {
       username: 'enlace_federal',
-      password: 'secreta123'
+      password: 'secreta123',
+      claveAcceso: creado.clave.codigo
     });
     assert.equal(login.status, 200, login.body?.error);
 
@@ -218,7 +222,7 @@ describe('Alcance territorial', () => {
     const login = await Api.entrarFuncionario(app, {
       username: 'func_revocable',
       password: 'secreta123',
-      claveMunicipio: MORELIA
+      claveAcceso: creado.clave.codigo
     });
     assert.equal(login.status, 200, login.body?.error);
     const api = new Api(app, login.body.token);

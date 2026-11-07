@@ -118,6 +118,17 @@ export async function crear(repositorio, actor, datos = {}) {
       detalle: `${Object.keys(contenido.tablas).length} tablas · ${json.length} bytes sin comprimir`,
       creadoEn: new Date().toISOString()
     });
+    if (tipo === 'manual') {
+      await emitir(repositorio, {
+        evento: 'respaldo_creado',
+        titulo: '💾 Respaldo creado',
+        mensaje: `${nombre} · ${archivo}`,
+        entidadTipo: 'respaldo',
+        entidadId: id,
+        url: '/?admin=respaldos',
+        claveDedupe: `respaldo_creado:${id}`
+      }).catch(() => {});
+    }
     return actualizado;
   } catch (error) {
     await repositorio.actualizarRespaldo(id, { estado: 'error', error: error.message });
@@ -129,6 +140,15 @@ export async function crear(repositorio, actor, datos = {}) {
       detalle: error.message,
       creadoEn: new Date().toISOString()
     });
+    await emitir(repositorio, {
+      evento: 'respaldo_error',
+      titulo: '⚠️ Error al crear un respaldo',
+      mensaje: `${nombre}: ${error.message}`,
+      entidadTipo: 'respaldo',
+      entidadId: id,
+      url: '/?admin=respaldos',
+      claveDedupe: `respaldo_error:${id}`
+    }).catch(() => {});
     throw error;
   }
 }
@@ -173,6 +193,15 @@ export async function eliminar(repositorio, actor, id) {
     detalle: respaldo.archivo,
     creadoEn: new Date().toISOString()
   });
+  await emitir(repositorio, {
+    evento: 'respaldo_eliminado',
+    titulo: '🗑️ Respaldo eliminado',
+    mensaje: `Se eliminó «${respaldo.nombre}» (${respaldo.archivo}).`,
+    entidadTipo: 'respaldo',
+    entidadId: id,
+    url: '/?admin=respaldos',
+    claveDedupe: `respaldo_eliminado:${id}`
+  }).catch(() => {});
   return { eliminado: true, id };
 }
 
@@ -256,6 +285,15 @@ export async function restaurar(repositorio, actor, id, { confirmacion } = {}) {
     detalle: `Restaurado con ${Object.keys(contenido.tablas).length} tablas`,
     creadoEn: new Date().toISOString()
   });
+  await emitir(repositorio, {
+    evento: 'respaldo_restaurado',
+    titulo: '♻️ Respaldo restaurado',
+    mensaje: `Se restauró «${respaldo.nombre}» con ${Object.keys(contenido.tablas).length} tablas.`,
+    entidadTipo: 'respaldo',
+    entidadId: id,
+    url: '/?admin=respaldos',
+    claveDedupe: `respaldo_restaurado:${id}`
+  }).catch(() => {});
   return actualizado;
 }
 

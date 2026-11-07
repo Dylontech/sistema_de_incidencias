@@ -16,6 +16,9 @@ function cadenaDeFiltros(filtros = {}) {
   agregar('ambito', filtros.ambito);
   agregar('municipio', filtros.municipio);
   agregar('orden', filtros.orden);
+  agregar('desde', filtros.desde);
+  agregar('hasta', filtros.hasta);
+  if (filtros.archivo) parametros.set('archivo', '1');
   const cadena = parametros.toString();
   return cadena ? `?${cadena}` : '';
 }
@@ -37,6 +40,23 @@ export const incidenciasService = {
     const cadena = parametros.toString();
     return api.get(`/incidencias/mapa${cadena ? `?${cadena}` : ''}`);
   },
+  /** Capa de condición de vialidades (tramos y calor por zona). */
+  vialidades(filtros = {}) {
+    const parametros = new URLSearchParams(cadenaDeFiltros(filtros).replace(/^\?/, ''));
+    if (filtros.bbox) parametros.set('bbox', filtros.bbox);
+    const cadena = parametros.toString();
+    return api.get(`/incidencias/vialidades${cadena ? `?${cadena}` : ''}`);
+  },
+  /** Archivo general agrupado por fecha. */
+  archivo(filtros = {}) {
+    const parametros = new URLSearchParams(cadenaDeFiltros(filtros).replace(/^\?/, ''));
+    const cadena = parametros.toString();
+    return api.get(`/incidencias/archivo${cadena ? `?${cadena}` : ''}`);
+  },
+  /** Expediente JSON de una incidencia resuelta. */
+  expediente(id) {
+    return api.get(`/incidencias/${encodeURIComponent(id)}/expediente`);
+  },
   obtener(id) {
     return api.get(`/incidencias/${id}`);
   },
@@ -53,8 +73,13 @@ export const incidenciasService = {
   marcarPeligro(id, { peligrosa = true, motivo = '' } = {}) {
     return api.patch(`/incidencias/${id}/peligro`, { peligrosa, motivo });
   },
-  resolver(id, { solucion, evidenciaSolucion }) {
-    return api.post(`/incidencias/${id}/resolucion`, { solucion, evidenciaSolucion });
+  resolver(id, { solucion, evidenciaSolucion, costoReparacion = null, desgloseCostos = [] }) {
+    return api.post(`/incidencias/${id}/resolucion`, {
+      solucion,
+      evidenciaSolucion,
+      costoReparacion,
+      desgloseCostos
+    });
   },
   eliminar(id) {
     return api.del(`/incidencias/${id}`);

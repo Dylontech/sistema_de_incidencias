@@ -9,6 +9,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
 import { config } from '../config/index.js';
+import { crearPdfInforme } from './pdf/pdf-informes.mjs';
+import { datosInformePdf, disenoDesdePlantilla, leerLogo, optimizarImagen } from './pdf/adaptadores.js';
 
 const PAGINA = { ancho: 595.28, alto: 841.89 };
 const MM = 72 / 25.4;
@@ -168,6 +170,41 @@ function asegurarEspacio(doc, layout, alto = 40) {
   if (doc.y + alto > layout.yMax) doc.addPage();
 }
 
+/** Barras horizontales para ver de un golpe dónde se concentran los casos. */
+function barras(doc, titulo, filas, layout) {
+  const datos = filas.slice(0, 8);
+  if (!datos.length) return;
+  asegurarEspacio(doc, layout, 40 + datos.length * 16);
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR_PRIMARIO).text(titulo);
+  doc.moveDown(0.3);
+  const maximo = Math.max(...datos.map((fila) => fila.total), 1);
+  const anchoEtiqueta = layout.anchoUtil * 0.34;
+  const anchoBarra = layout.anchoUtil - anchoEtiqueta - 42;
+  for (const fila of datos) {
+    const y = doc.y;
+    doc.font('Helvetica').fontSize(8).fillColor(COLOR_TINTA).text(
+      String(fila.etiqueta || fila.nombre || '—').slice(0, 40),
+      layout.margenes.izquierdo,
+      y + 1,
+      { width: anchoEtiqueta - 6, ellipsis: true, lineBreak: false }
+    );
+    const largo = Math.max(2, (fila.total / maximo) * anchoBarra);
+    doc
+      .rect(layout.margenes.izquierdo + anchoEtiqueta, y, largo, 10)
+      .fill(COLOR_PRIMARIO);
+    doc
+      .fillColor(COLOR_SUAVE)
+      .fontSize(8)
+      .text(String(fila.total), layout.margenes.izquierdo + anchoEtiqueta + anchoBarra + 6, y + 1, {
+        width: 32,
+        align: 'right',
+        lineBreak: false
+      });
+    doc.y = y + 15;
+  }
+  doc.moveDown(0.7);
+}
+
 function tabla(doc, titulo, cabeceras, pesos, filas, layout) {
   asegurarEspacio(doc, layout, 60);
   doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR_PRIMARIO).text(titulo);
@@ -272,7 +309,7 @@ function pieDePagina(doc, layout, plantilla) {
 }
 
 /** Devuelve un Buffer con el PDF completo. */
-export async function generarPDF(datos) {
+async function generarPDFClasico(datos) {
   const layout = layoutDe(datos);
   const logo = await bufferLogo(datos.plantilla);
   return new Promise((resolve, reject) => {
@@ -302,6 +339,8 @@ export async function generarPDF(datos) {
       bloqueFiltros(doc, datos);
       tarjetas(doc, datos.resumen, layout);
 
+      barras(doc, 'Incidencias por tipo', datos.porTipo, layout);
+
       tabla(
         doc,
         'Desglose por tipo',
@@ -320,11 +359,47 @@ export async function generarPDF(datos) {
         layout
       );
 
-      detalle(doc, datos, layout);
+      if (datos.comparativa?.length) {
+        tabla(
+          doc,
+          `Comparación por ${datos.filtros.compararPor || 'municipio'}`,
+          ['Grupo', 'Total', 'Resueltas', 'Pendientes', '% resolución'],
+          [210, 65, 75, 80, 90],
+          datos.comparativa.map((f) => [
+            f.etiqueta,
+            f.total,
+            f.resueltas,
+            f.pendientes,
+            `${f.tasaResolucion}%`
+          ]),
+          layout
+        );
+      }
+
+      if (datos.filtros.incluirDetalle !== false) {
+        detalle(doc, datos, layout);
+      }
       pieDePagina(doc, layout, datos.plantilla);
       doc.end();
     } catch (error) {
       reject(error);
     }
+  });
+}
+
+/**
+ * Genera el informe general con la versión elegida.
+ * `opciones.graficos` respeta los interruptores del constructor.
+ */
+export async function generarPDF(datos, opciones = {}) {
+  if (opciones.motor === 'v1') return generarPDFClasico(datos);
+  const plantilla = datos.plantilla || {};
+  return crearPdfInforme(datosInformePdf(datos, { generadoPor: opciones.generadoPor }), {
+    diseno: disenoDesdePlantilla(plantilla),
+    logo: await leerLogo(plantilla),
+    optimizarImagen,
+    graficos: opciones.graficos,
+    generadoPor: opciones.generadoPor,
+    ...(opciones.generado ? { generado: opciones.generado } : {})
   });
 }

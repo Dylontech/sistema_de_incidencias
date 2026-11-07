@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/componentes.css">
 <link rel="stylesheet" href="css/extensiones.css">
+<link rel="stylesheet" href="css/legibilidad.css">
 </head>
 <body>
 
@@ -35,8 +36,8 @@
     <div class="login-panel active" id="panel-func">
       <form id="formFunc">
         <div class="form-group">
-          <label for="func-user">Usuario</label>
-          <input type="text" id="func-user" name="username" placeholder="ej. jlopez" autocomplete="username">
+          <label for="func-user">Usuario o correo</label>
+          <input type="text" id="func-user" name="username" placeholder="ej. jlopez o tu@correo.mx" autocomplete="username" maxlength="160">
         </div>
         <div class="form-group">
           <label for="func-pass">Contraseña</label>
@@ -48,15 +49,20 @@
           </div>
           <p class="aviso-caps u-oculto" id="funcCaps"><i class="bi bi-exclamation-triangle-fill"></i> Bloq Mayús está activado</p>
         </div>
-        <div class="form-group">
-          <label for="func-code">Clave de acceso</label>
-          <input class="u-mayusculas" type="text" id="func-code" name="claveMunicipio" placeholder="Ej. 7K3P-9XQ2-MN4T" autocomplete="off">
-          <p class="campo-nota" id="funcCodeNota">
-            Es la clave que te entregó el administrador al crear tu cuenta (cubre uno o
-            varios municipios). Las cuentas antiguas pueden usar la clave geoestadística
-            del municipio.
-          </p>
-        </div>
+        <details class="clave-detalle" id="funcClaveDetalle">
+          <summary><i class="bi bi-key-fill"></i> Introducir o renovar mi clave de acceso</summary>
+          <div class="form-group u-mt-8">
+            <label for="func-code">Clave de acceso</label>
+            <input class="u-mayusculas" type="text" id="func-code" name="claveAcceso" placeholder="Ej. 7K3P-9XQ2-MN4T" autocomplete="off">
+            <p class="campo-nota" id="funcCodeNota">
+              Solo la necesitas la primera vez que entras, cuando la clave vence o cuando la
+              administración te entrega una nueva. Si tu cuenta ya está activa y tu clave sigue
+              vigente, puedes entrar sin escribirla. Las cuentas anteriores a las claves de
+              activación pueden escribir aquí su clave de municipio. La clave está ligada a tu
+              cuenta y a tu territorio: no la compartas con nadie.
+            </p>
+          </div>
+        </details>
         <label class="check-line u-mb-10">
           <input type="checkbox" id="recordarUsuario">
           <span>Recordar mi usuario en este dispositivo</span>
@@ -71,8 +77,8 @@
     <div class="login-panel" id="panel-admin">
       <form id="formAdmin">
         <div class="form-group">
-          <label for="admin-user">Usuario</label>
-          <input type="text" id="admin-user" name="username" placeholder="admin" autocomplete="username">
+          <label for="admin-user">Usuario o correo</label>
+          <input type="text" id="admin-user" name="username" placeholder="admin o tu@correo.mx" autocomplete="username" maxlength="160">
         </div>
         <div class="form-group">
           <label for="admin-pass">Contraseña</label>
@@ -90,6 +96,9 @@
     </div>
 
     <p class="personal-nota">
+      <i class="bi bi-key-fill"></i> <a href="/cuenta">¿Olvidaste tu contraseña?</a> ·
+      <a href="/cuenta?reenviar=1">¿No confirmaste tu correo?</a>
+      <br>
       <i class="bi bi-life-preserver"></i> ¿Problemas para entrar? Pide a un administrador que
       revise tu cuenta y tu ámbito territorial.
       <br>

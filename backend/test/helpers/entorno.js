@@ -30,6 +30,14 @@ export function prepararEntorno() {
   process.env.SEED_DATA_DIR = path.join(AQUI, '..', 'fixtures', 'seed-data');
   process.env.JWT_SECRET = 'secreto-solo-para-pruebas';
   process.env.JWT_EXPIRES_IN = '1h';
+  // La verificación de correo se prueba en un archivo dedicado; el resto de la
+  // suite registra ciudadanos sin pasar por el enlace.
+  process.env.VERIFICAR_CORREO_REGISTRO =
+    String(process.env.VERIFICAR_CORREO_EN_PRUEBAS || '').toLowerCase() === 'true'
+      ? 'true'
+      : 'false';
+  process.env.CUENTAS_CONGELAR_INACTIVAS = 'false';
+  process.env.AVISOS_CLAVES_ACTIVO = 'false';
 
   // Cada proceso de prueba usa su propia base de datos para no interferir.
   if (driver === 'mysql') {

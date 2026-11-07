@@ -252,6 +252,34 @@ export const PERMISOS_AYUDA = {
     ejemplo: 'Soporte técnico toma un ticket de «error» y lo asigna a la persona adecuada.',
     modulo: 'permisos-soporte'
   },
+  ver_reparaciones_panel: {
+    etiqueta: 'Ver el panel de reparaciones',
+    quePermite: 'Consultar las reparaciones asignadas y su estado dentro del alcance territorial.',
+    queBloquea: 'Sin él la pestaña Reparaciones no aparece en el panel.',
+    ejemplo: 'Una cuadrilla consulta únicamente las reparaciones que tiene asignadas.',
+    modulo: 'permisos-incidencias'
+  },
+  coordinar_reparaciones: {
+    etiqueta: 'Coordinar reparaciones',
+    quePermite: 'Asignar cuadrillas, reasignar, validar el trabajo y revisar el desglose de costos.',
+    queBloquea: 'No permite resolver la incidencia si falta el permiso de resolución.',
+    ejemplo: 'El funcionario asigna un bache a la cuadrilla del municipio y valida el trabajo.',
+    modulo: 'permisos-incidencias'
+  },
+  atender_reparaciones: {
+    etiqueta: 'Atender reparaciones',
+    quePermite: 'Iniciar y terminar una reparación asignada, y registrar notas de campo.',
+    queBloquea: 'No permite asignar a otras cuadrillas ni validar el trabajo.',
+    ejemplo: 'La cuadrilla marca el inicio y el fin de la reparación desde su teléfono.',
+    modulo: 'permisos-incidencias'
+  },
+  subir_documentos_reparacion: {
+    etiqueta: 'Subir documentos de reparación',
+    quePermite: 'Adjuntar facturas, oficios y notas de materiales al expediente de la reparación.',
+    queBloquea: 'No permite modificar el costo ni resolver la incidencia.',
+    ejemplo: 'La cuadrilla sube la factura del concreto usado en el bache.',
+    modulo: 'permisos-incidencias'
+  },
   configurar_notificaciones: {
     etiqueta: 'Configurar notificaciones',
     quePermite: 'Ajustar qué eventos avisan a cada rol y por qué canal.',
@@ -339,11 +367,27 @@ export const PERMISOS_AYUDA = {
     riesgo: 'Un cambio de versión obliga a todas las cuentas a aceptar de nuevo.',
     modulo: 'permisos-sistema'
   },
+  gestionar_reclamaciones: {
+    etiqueta: 'Gestionar reclamaciones',
+    quePermite: 'Ver la cola de reclamaciones de su ámbito, decidir si se reabre la incidencia o se mantiene, y descargar el informe preliminar.',
+    queBloquea: 'No permite reclamar en nombre de otra persona ni resolver fuera de su territorio.',
+    ejemplo: 'El funcionario revisa la reclamación de un vecino y reabre la incidencia para repararla de nuevo.',
+    riesgo: 'La decisión revierte el cierre y avisa a quien reclamó: conviene revisar las evidencias antes.',
+    modulo: 'permisos-incidencias'
+  },
   gestionar_configuracion: {
     etiqueta: 'Gestionar configuración',
     quePermite: 'Cambiar límites, márgenes y diseño del informe, logo y textos generales.',
     queBloquea: 'No cambia los permisos de las cuentas.',
     ejemplo: 'Se sube el logo institucional y se ajusta el pie del informe.',
+    modulo: 'permisos-sistema'
+  },
+  gestionar_verificacion_cuentas: {
+    etiqueta: 'Gestionar verificación de cuentas',
+    quePermite: 'Elegir si las cuentas ciudadanas se activan al registrarse o tras confirmar el correo, y ajustar los tiempos de los enlaces y la congelación por inactividad.',
+    queBloquea: 'No permite desactivar la clave de activación del personal ni saltarse la contraseña: esas reglas siguen en el servidor.',
+    ejemplo: 'Para una prueba de alta se elige activación automática; al terminar se vuelve a exigir la confirmación por correo.',
+    riesgo: 'Con activación automática se puede entrar sin confirmar el correo; conviene usarlo solo en pruebas o instalaciones controladas.',
     modulo: 'permisos-sistema'
   },
   gestionar_respaldos: {
@@ -359,6 +403,14 @@ export const PERMISOS_AYUDA = {
     quePermite: 'Ejecutar acciones de prueba con datos marcados como simulados y revertirlas.',
     queBloquea: 'Los datos simulados no envían correos reales ni aparecen en las estadísticas.',
     ejemplo: 'Se simula el alta de una incidencia para comprobar el flujo completo.',
+    modulo: 'permisos-sistema'
+  },
+  gestionar_vialidades: {
+    etiqueta: 'Gestionar catálogo de vialidades',
+    quePermite: 'Crear, editar, verificar, importar y archivar calles, caminos y carreteras del municipio.',
+    queBloquea: 'Sin este permiso la pestaña Vialidades del panel no aparece ni la API acepta cambios.',
+    ejemplo: 'El administrador importa el KML de Google Maps y marca verificada la Avenida Juárez.',
+    riesgo: 'La importación reemplaza el trazado del municipio; conviene exportar o revisar antes.',
     modulo: 'permisos-sistema'
   },
   gestionar_publicidad: {

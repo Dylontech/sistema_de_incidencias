@@ -2,18 +2,22 @@
  * Contacto ciudadano, sugerencias y bandeja de mensajes del personal.
  */
 import { registrarAcciones } from '../core/eventos.js';
-import { abrirModal, cerrarModal, loading, toast } from '../core/ui.js';
+import { abrirModal, cerrarModal, loading, preguntar, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
 import { $, esc, fmtFecha } from '../core/utils.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
 import { api, urlPrivada } from '../core/api.js';
+import { verAdjunto } from '../core/visor-adjunto.js';
 import { catalogosService } from '../services/catalogos.service.js';
 import { contactosFuncionariosService } from '../services/contactos-funcionarios.service.js';
+import { bloqueosService } from '../services/bloqueos.service.js';
 import { firmasService } from '../services/firmas.service.js';
 
 let hiloActivo = null;
 let contactoDirectoActivo = null;
+let hilosCache = [];
+let bloqueosCache = [];
 
 function mensaje(caja, texto, tipo = 'info') {
   const elemento = $(caja);
@@ -262,13 +266,126 @@ async function consultarSugerencia(evento) {
 
 /* -------------------------------- bandeja -------------------------------- */
 
+const ETIQUETAS_TIPO = {
+  interno: 'Mensaje interno',
+  difusion_municipio: 'Difusión municipal',
+  difusion_estado: 'Difusión estatal'
+};
+
+/** Pie del modal: solo lo usa el formulario de mensaje nuevo. */
+function limpiarPie() {
+  const pie = $('bandejaPie');
+  if (!pie) return;
+  pie.innerHTML = '';
+  pie.classList.add('u-oculto');
+}
+
 function htmlAdjuntoDirecto(adjunto) {
   if (!adjunto?.url) return '';
   const url = esc(urlPrivada(adjunto.url));
+  const id = esc(adjunto.id || '');
+  const tipo = esc(adjunto.tipo || '');
+  const nombre = esc(adjunto.nombre || 'Archivo adjunto');
   if (String(adjunto.tipo || '').startsWith('image/')) {
-    return `<a class="bandeja-adjunto-imagen" href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${esc(adjunto.nombre || 'Imagen adjunta')}" loading="lazy"></a>`;
+    return `<button type="button" class="bandeja-adjunto-imagen" data-action="bandeja:verAdjunto" data-id="${id}" data-tipo="${tipo}" data-nombre="${nombre}" data-url="${url}" title="Ver ${nombre}"><img src="${url}" alt="${nombre}"></button>`;
   }
-  return `<a class="bandeja-adjunto" href="${url}" target="_blank" rel="noopener"><i class="bi bi-paperclip"></i> ${esc(adjunto.nombre || 'Archivo adjunto')}</a>`;
+  const icono = String(adjunto.tipo || '') === 'application/pdf'
+    ? 'bi-file-earmark-pdf'
+    : 'bi-file-earmark-text';
+  return `<button type="button" class="bandeja-adjunto" data-action="bandeja:verAdjunto" data-id="${id}" data-tipo="${tipo}" data-nombre="${nombre}" data-url="${url}" title="Ver ${nombre}"><i class="bi ${icono}"></i> ${nombre} <span class="bandeja-adjunto-ver">Ver</span></button>`;
+}
+
+/* ------------------------------- bloqueos -------------------------------- */
+
+/** Botón para bloquear o desbloquear a la otra persona de la conversación. */
+function botonBloqueo(username, nombre = '') {
+  if (!username) return '';
+  const bloqueo = bloqueosCache.find((b) => b.bloqueadoUsername === username);
+  if (bloqueo) {
+    return `<button type="button" class="btn btn-sm btn-outline" data-action="bandeja:desbloquear" data-valor="${esc(username)}" title="Volver a recibir sus mensajes">
+      <i class="bi bi-unlock"></i> Desbloquear
+    </button>`;
+  }
+  return `<button type="button" class="btn btn-sm btn-outline" data-action="bandeja:bloquear" data-valor="${esc(username)}" data-nombre="${esc(nombre || username)}" title="Dejar de recibir sus mensajes">
+    <i class="bi bi-slash-circle"></i> Bloquear
+  </button>`;
+}
+
+async function cargarBloqueos() {
+  if (!sesion.usuario || sesion.esAnonimo()) {
+    bloqueosCache = [];
+    return;
+  }
+  try {
+    const { bloqueos } = await bloqueosService.listar();
+    bloqueosCache = bloqueos || [];
+  } catch {
+    bloqueosCache = [];
+  }
+}
+
+function pintarBloqueados() {
+  const caja = $('bandejaBloqueadosLista');
+  if (!caja) return;
+  if (!bloqueosCache.length) {
+    caja.innerHTML = '<div class="vacio-suave u-p-12">No has bloqueado a ninguna cuenta.</div>';
+    return;
+  }
+  caja.innerHTML = bloqueosCache
+    .map(
+      (bloqueo) => `<div class="bandeja-hilo">
+        <div class="bandeja-hilo-titulo">${esc(bloqueo.bloqueadoNombre || bloqueo.bloqueadoUsername)}</div>
+        <div class="bandeja-hilo-meta">${esc(bloqueo.bloqueadoUsername || '')} · ${esc(fmtFecha(bloqueo.creadoEn))}</div>
+        ${bloqueo.motivo ? `<div class="bandeja-hilo-meta">${esc(bloqueo.motivo)}</div>` : ''}
+        <div class="u-mt-6">
+          <button type="button" class="btn btn-sm btn-outline" data-action="bandeja:desbloquear" data-valor="${esc(bloqueo.bloqueadoUsername || bloqueo.bloqueadoId)}">
+            <i class="bi bi-unlock"></i> Desbloquear
+          </button>
+        </div>
+      </div>`
+    )
+    .join('');
+}
+
+async function bloquearCuenta(username, nombre) {
+  if (!username) return;
+  const motivo = '';
+  if (!(await preguntar(`¿Bloquear a ${nombre || username}? No volverás a recibir sus mensajes y no podrás escribirle hasta que lo deshagas.`))) {
+    return;
+  }
+  loading(true, 'Bloqueando…');
+  try {
+    await bloqueosService.bloquear({ username, motivo });
+    await cargarBloqueos();
+    toast('Cuenta bloqueada', 'ok');
+    await refrescarConversacion();
+  } catch (error) {
+    toast(mensajeDeError(error), 'err');
+  } finally {
+    loading(false);
+  }
+}
+
+async function desbloquearCuenta(username) {
+  if (!username) return;
+  loading(true, 'Desbloqueando…');
+  try {
+    await bloqueosService.desbloquear(username);
+    await cargarBloqueos();
+    toast('Cuenta desbloqueada', 'ok');
+    await refrescarConversacion();
+  } catch (error) {
+    toast(mensajeDeError(error), 'err');
+  } finally {
+    loading(false);
+  }
+}
+
+/** Repinta el panel y la conversación abierta tras bloquear o desbloquear. */
+async function refrescarConversacion() {
+  pintarBloqueados();
+  if (hiloActivo) await abrirHilo(hiloActivo);
+  else if (contactoDirectoActivo) await abrirContactoDirecto(contactoDirectoActivo);
 }
 
 function pintarDirectos(contactos = []) {
@@ -282,7 +399,7 @@ function pintarDirectos(contactos = []) {
     .map(
       (contacto) => `<div class="bandeja-hilo${contacto.id === contactoDirectoActivo ? ' activo' : ''}" data-action="bandeja:contacto" data-id="${esc(contacto.id)}">
         <div class="bandeja-hilo-titulo">${esc(contacto.asunto)}</div>
-        <div class="bandeja-hilo-meta">${esc(contacto.folio)} · ${esc(contacto.estado)}</div>
+        <div class="bandeja-hilo-meta"><span class="bandeja-etiqueta">Contacto directo</span> · ${esc(contacto.folio)} · ${esc(contacto.estado)}</div>
         <div class="bandeja-hilo-meta">${esc(String(contacto.mensaje || '').slice(0, 90) || 'Con adjunto')}</div>
       </div>`
     )
@@ -292,6 +409,7 @@ function pintarDirectos(contactos = []) {
 function pintarContactoDirecto(contacto) {
   const caja = $('bandejaDirectoConversacion');
   if (!caja) return;
+  const otro = contacto.contraparte || null;
   const inicial = contacto.mensaje || (contacto.adjuntos || []).length
     ? `<div class="bandeja-mensaje">
         <div class="bandeja-mensaje-meta">${esc(contacto.deNombre || 'Ciudadano')} · ${esc(fmtFecha(contacto.creadoEn))}</div>
@@ -307,7 +425,16 @@ function pintarContactoDirecto(contacto) {
       </div>`)
     .join('');
   caja.innerHTML = `
-    <div class="bandeja-directo-cabecera"><strong>${esc(contacto.asunto)}</strong><span class="campo-nota">${esc(contacto.folio)} · ${esc(contacto.estado)}</span></div>
+    <div class="bandeja-directo-cabecera">
+      <div><span class="bandeja-etiqueta">Contacto directo</span> <strong>${esc(contacto.asunto)}</strong></div>
+      <div class="u-fila">
+        <span class="campo-nota">${esc(contacto.folio)} · ${esc(contacto.estado)}</span>
+        ${botonBloqueo(otro?.username, otro?.nombre)}
+        <button type="button" class="btn btn-sm btn-outline" data-action="bandeja:reportar" data-canal="directo" data-id="${esc(contacto.id)}" title="Reportar esta conversación">
+          <i class="bi bi-flag"></i> Reportar
+        </button>
+      </div>
+    </div>
     <div class="bandeja-mensajes">${cuerpo || '<div class="vacio-suave">Sin mensajes.</div>'}</div>
     <div class="bandeja-form bandeja-form-adjunto">
       <textarea id="bandejaDirectoTexto" maxlength="4000" placeholder="Escribe tu respuesta…"></textarea>
@@ -316,6 +443,7 @@ function pintarContactoDirecto(contacto) {
         <i class="bi bi-send"></i>
       </button>
     </div>`;
+  limpiarPie();
 }
 
 async function cargarDirectos() {
@@ -328,6 +456,7 @@ async function cargarDirectos() {
 async function abrirContactoDirecto(id) {
   if (!sesion.usuario || sesion.esAnonimo()) return;
   contactoDirectoActivo = id;
+  limpiarPie();
   const { contacto } = await contactosFuncionariosService.detalle(id);
   pintarContactoDirecto(contacto);
   await cargarDirectos();
@@ -355,6 +484,7 @@ async function responderContactoDirecto(id) {
 }
 
 function pintarHilos(hilos = []) {
+  hilosCache = hilos;
   const caja = $('bandejaHilos');
   if (!caja) return;
   if (!hilos.length) {
@@ -365,6 +495,7 @@ function pintarHilos(hilos = []) {
     .map(
       (h) => `<div class="bandeja-hilo${h.hilo === hiloActivo ? ' activo' : ''}" data-action="bandeja:hilo" data-id="${esc(h.hilo)}">
         <div class="bandeja-hilo-titulo">${esc(h.asunto)}${h.noLeidos ? ` <span class="inc-badge badge-rojo">${h.noLeidos}</span>` : ''}</div>
+        <div class="bandeja-hilo-meta"><span class="bandeja-etiqueta">${esc(ETIQUETAS_TIPO[h.tipo] || 'Mensaje interno')}</span></div>
         <div class="bandeja-hilo-meta">${esc(h.ultimoDe)} · ${esc(fmtFecha(h.ultimaFecha))}</div>
         <div class="bandeja-hilo-meta">${esc(h.ultimoMensaje || 'Archivo adjunto')}</div>
       </div>`
@@ -377,8 +508,13 @@ function pintarConversacion(mensajes = []) {
   if (!caja) return;
   if (!mensajes.length) {
     caja.innerHTML = '<div class="vacio-suave">Elige un hilo para ver la conversación.</div>';
+    limpiarPie();
     return;
   }
+  const resumen = hilosCache.find((h) => h.hilo === hiloActivo) || {};
+  const otro = mensajes
+    .map((m) => m.deUsuario)
+    .find((usuario) => usuario && usuario !== sesion.usuario?.username);
   const cuerpo = mensajes
     .map((m) => {
       const mio = m.deUsuario === sesion.usuario?.username;
@@ -390,6 +526,15 @@ function pintarConversacion(mensajes = []) {
     })
     .join('');
   caja.innerHTML = `
+    <div class="bandeja-directo-cabecera">
+      <div><span class="bandeja-etiqueta">${esc(ETIQUETAS_TIPO[resumen.tipo] || 'Mensaje interno')}</span> <strong>${esc(resumen.asunto || 'Conversación')}</strong></div>
+      <div class="u-fila">
+        ${resumen.tipo === 'interno' ? botonBloqueo(otro, '') : ''}
+        <button type="button" class="btn btn-sm btn-outline" data-action="bandeja:reportar" data-canal="mensaje" data-id="${esc(hiloActivo || '')}" title="Reportar esta conversación">
+          <i class="bi bi-flag"></i> Reportar
+        </button>
+      </div>
+    </div>
     <div class="bandeja-mensajes">${cuerpo}</div>
     <div class="bandeja-form">
       <textarea id="bandejaTexto" maxlength="4000" placeholder="Escribe tu respuesta…"></textarea>
@@ -398,6 +543,7 @@ function pintarConversacion(mensajes = []) {
         <i class="bi bi-send"></i>
       </button>
     </div>`;
+  limpiarPie();
 }
 
 function pintarFormularioNuevo() {
@@ -418,7 +564,7 @@ function pintarFormularioNuevo() {
     </div>
     <div class="form-group">
       <label for="msjAsunto">Asunto</label>
-      <input type="text" id="msjAsunto" maxlength="160" placeholder="Motivo del mensaje">
+      <input type="text" id="msjAsunto" maxlength="160" autocomplete="off" placeholder="Motivo del mensaje">
     </div>
     <div class="form-group">
       <label for="msjCuerpo">Mensaje</label>
@@ -428,13 +574,16 @@ function pintarFormularioNuevo() {
       <label for="msjArchivo">Adjunto (opcional)</label>
       <input type="file" id="msjArchivo" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.docx,.xlsx,.pptx">
       <p class="campo-nota">Imágenes, PDF o documentos de Office. Máximo 10 MB.</p>
-    </div>
-    <div class="u-fila-env">
+    </div>`;
+  const pie = $('bandejaPie');
+  if (pie) {
+    pie.innerHTML = `
       <button type="button" class="btn btn-outline" data-action="bandeja:recargar">Cancelar</button>
       <button type="button" class="btn btn-primary" data-action="bandeja:enviar">
         <i class="bi bi-send"></i> Enviar
-      </button>
-    </div>`;
+      </button>`;
+    pie.classList.remove('u-oculto');
+  }
 }
 
 async function cargarHilos() {
@@ -450,6 +599,7 @@ async function cargarHilos() {
 
 async function abrirHilo(hilo) {
   hiloActivo = hilo;
+  limpiarPie();
   const { mensajes } = await api.get(`/mensajes/${encodeURIComponent(hilo)}`);
   pintarConversacion(mensajes);
   await cargarHilos();
@@ -586,6 +736,98 @@ async function cargarSugerencias() {
   pintarSugerencias(sugerencias);
 }
 
+/** Muestra u oculta la copia de mensajes y explica la consecuencia. */
+function aplicarIncluirMensajes() {
+  const incluir = $('reporteConvIncluirMensajes')?.checked !== false;
+  $('reporteConvMensajes')?.classList.toggle('u-oculto', !incluir);
+  $('reporteConvMensajesTitulo')?.classList.toggle('u-oculto', !incluir);
+  const aviso = $('reporteConvAvisoMensajes');
+  if (aviso) {
+    aviso.textContent = incluir
+      ? 'Se adjuntarán los últimos cinco mensajes de cada persona con sus archivos. La descripción siempre es obligatoria.'
+      : 'No se adjuntarán mensajes: la moderación solo verá tu descripción y puede no aplicar medidas. La descripción siempre es obligatoria.';
+  }
+}
+
+/** Abre el formulario de reporte con la vista previa de los mensajes. */
+async function abrirReporteConversacion(canal, id) {
+  if (!canal || !id) return;
+  loading(true, 'Preparando el reporte…');
+  try {
+    const contexto = await api.get(
+      `/reportes-conversacion/contexto?canal=${encodeURIComponent(canal)}&conversacionId=${encodeURIComponent(id)}`
+    );
+    if ($('reporteConvCanal')) $('reporteConvCanal').value = canal;
+    if ($('reporteConvId')) $('reporteConvId').value = id;
+    if ($('reporteConvResumen')) {
+      $('reporteConvResumen').textContent = `${contexto.asunto}${
+        contexto.folio ? ` · ${contexto.folio}` : ''
+      } · Se reporta a ${contexto.objetivo?.nombre || 'la otra persona'}.`;
+    }
+    const motivo = $('reporteConvMotivo');
+    if (motivo) {
+      const motivos = store.estado.catalogos?.motivosDenuncia || {};
+      motivo.innerHTML = Object.entries(motivos)
+        .map(([valor, etiqueta]) => `<option value="${esc(valor)}">${esc(etiqueta)}</option>`)
+        .join('');
+    }
+    if ($('reporteConvDetalle')) $('reporteConvDetalle').value = '';
+    if ($('reporteConvIncluirMensajes')) $('reporteConvIncluirMensajes').checked = true;
+    aplicarIncluirMensajes();
+    const caja = $('reporteConvMensajes');
+    if (caja) {
+      caja.innerHTML =
+        (contexto.mensajes || [])
+          .map(
+            (m) => `<div class="bandeja-reporte-mensaje">
+              <div class="bandeja-mensaje-meta">${esc(m.nombre)} · ${esc(fmtFecha(m.fecha))}</div>
+              ${m.cuerpo ? `<div class="bandeja-mensaje-cuerpo">${esc(m.cuerpo)}</div>` : ''}
+              ${
+                (m.adjuntos || []).length
+                  ? `<div class="campo-nota">${m.adjuntos
+                      .map((a) => `📎 ${esc(a.nombre)}`)
+                      .join(' · ')}</div>`
+                  : ''
+              }
+            </div>`
+          )
+          .join('') || '<p class="campo-nota">No hay mensajes recientes.</p>';
+    }
+    abrirModal('modalReporteConversacion', { nested: true });
+  } finally {
+    loading(false);
+  }
+}
+
+async function enviarReporteConversacion() {
+  const canal = $('reporteConvCanal')?.value;
+  const conversacionId = $('reporteConvId')?.value;
+  const motivo = $('reporteConvMotivo')?.value;
+  const detalle = $('reporteConvDetalle')?.value.trim() || '';
+  const incluirMensajes = $('reporteConvIncluirMensajes')?.checked !== false;
+  if (!canal || !conversacionId) return;
+  if (!motivo) return toast('Elige un motivo para el reporte', 'err');
+  if (detalle.length < 10) {
+    return toast('Describe en al menos 10 caracteres qué ocurrió', 'err');
+  }
+  loading(true, 'Enviando reporte…');
+  try {
+    await api.post('/reportes-conversacion', {
+      canal,
+      conversacionId,
+      motivo,
+      detalle,
+      incluirMensajes
+    });
+    cerrarModal('modalReporteConversacion');
+    toast('Reporte enviado a la moderación', 'ok');
+  } catch (error) {
+    toast(mensajeDeError(error), 'err');
+  } finally {
+    loading(false);
+  }
+}
+
 /** Abre la bandeja directamente en sugerencias, opcionalmente de un municipio. */
 export async function abrirSugerenciasDeMunicipio(municipioId = null) {
   store.actualizar({ filtroSugerenciasMunicipio: municipioId });
@@ -637,11 +879,12 @@ async function abrirBandeja() {
     // El ciudadano solo ve sus contactos directos; el personal conserva todas
     // sus pestañas y además puede revisar los contactos ciudadanos.
     const visibles = empleado
-      ? ['mensajes', 'contacto', 'directos', sesion.esAlgunaAdmin() ? 'sugerencias' : '']
-      : ['directos'];
+      ? ['mensajes', 'contacto', 'directos', 'bloqueados', sesion.esAlgunaAdmin() ? 'sugerencias' : '']
+      : ['directos', 'bloqueados'];
     document.querySelectorAll('#modalBandeja .login-tab').forEach((tab) => {
       tab.classList.toggle('u-oculto', !visibles.includes(tab.dataset.valor));
     });
+    await cargarBloqueos();
     if (empleado) await cargarHilos();
     abrirModal('modalBandeja');
     await cambiarTab(empleado ? 'mensajes' : 'directos');
@@ -681,6 +924,7 @@ async function cambiarTab(nombre) {
     mensajes: 'bandejaMensajes',
     contacto: 'bandejaContacto',
     directos: 'bandejaDirectos',
+    bloqueados: 'bandejaBloqueados',
     sugerencias: 'bandejaSugerencias'
   };
   const tabs = document.querySelectorAll('#modalBandeja .login-tab');
@@ -692,7 +936,13 @@ async function cambiarTab(nombre) {
   try {
     if (nombre === 'contacto') await cargarContacto();
     if (nombre === 'directos') await cargarDirectos();
+    if (nombre === 'bloqueados') {
+      await cargarBloqueos();
+      pintarBloqueados();
+    }
     if (nombre === 'sugerencias') await cargarSugerencias();
+    // Al cambiar de pestaña el formulario nuevo ya no está a la vista.
+    limpiarPie();
   } catch (error) {
     toast(mensajeDeError(error), 'err');
   }
@@ -726,8 +976,22 @@ export function registrar() {
     'bandeja:nuevo': () => pintarFormularioNuevo(),
     'bandeja:enviar': () => intentar(() => enviarMensajeNuevo()),
     'bandeja:responder': () => intentar(() => responderHilo()),
+    'bandeja:verAdjunto': ({ elemento }) =>
+      verAdjunto({
+        url: elemento?.dataset.url,
+        tipo: elemento?.dataset.tipo || '',
+        nombre: elemento?.dataset.nombre || 'Archivo adjunto'
+      }),
+    'bandeja:reportar': ({ elemento, id }) =>
+      intentar(() => abrirReporteConversacion(elemento?.dataset.canal, id)),
+    'bandeja:enviarReporte': () => intentar(() => enviarReporteConversacion()),
+    'reporteConv:incluirMensajes': () => aplicarIncluirMensajes(),
+    'bandeja:bloquear': ({ valor, elemento }) =>
+      intentar(() => bloquearCuenta(valor, elemento?.dataset.nombre || '')),
+    'bandeja:desbloquear': ({ valor }) => intentar(() => desbloquearCuenta(valor)),
     'bandeja:recargar': () =>
       intentar(async () => {
+        limpiarPie();
         if (hiloActivo) await abrirHilo(hiloActivo);
         else pintarConversacion([]);
       })

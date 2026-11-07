@@ -19,6 +19,29 @@ function comboMunicipio() {
   return buscadorMunicipio;
 }
 
+/** Nombre recordado en este dispositivo (nunca se guarda la contraseña). */
+const CLAVE_RECORDADO = 'inc_usuario_recordado';
+
+function leerRecordado() {
+  try {
+    return localStorage.getItem(CLAVE_RECORDADO) || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Guarda o borra el nombre recordado y lo refleja en el campo de acceso. */
+export function recordarUsuario(nombre, recordar = true) {
+  try {
+    if (recordar && nombre) localStorage.setItem(CLAVE_RECORDADO, String(nombre));
+    else localStorage.removeItem(CLAVE_RECORDADO);
+  } catch {
+    // Sin almacenamiento disponible el acceso sigue funcionando.
+  }
+  const campo = $('ciud-recordar');
+  if (campo) campo.checked = recordar === true && Boolean(nombre);
+}
+
 /**
  * Sub-pasos del panel «Ciudadano»: elegir, entrar con cuenta o registrarse.
  * Es la única vía de acceso de esta pantalla: el acceso del personal vive en
@@ -34,7 +57,16 @@ export function mostrarModoAnon(modo = 'inicio') {
   // Cada sub-paso arranca sin el aviso del anterior.
   limpiarMensaje();
   if (elegido === 'registro') alternarPseudonimo(false);
-  if (elegido === 'login') $('ciud-nombre')?.focus();
+  if (elegido === 'login') {
+    const recordado = leerRecordado();
+    const campo = $('ciud-nombre');
+    if (campo) {
+      if (recordado && !campo.value) campo.value = recordado;
+      campo.focus();
+    }
+    const casilla = $('ciud-recordar');
+    if (casilla) casilla.checked = Boolean(recordado);
+  }
   if (elegido === 'registro') $('reg-correo')?.focus();
 }
 
@@ -158,7 +190,11 @@ export function mostrarApp({ usuario, municipioActivo }) {
     esEmpleado && puede('ver_monitoreo') ? 'inline-flex' : 'none';
   $('btn-bandeja').style.display = esEmpleado ? 'inline-flex' : 'none';
   $('btn-servidor').style.display = usuario.rol === 'admin' ? 'inline-flex' : 'none';
-  $('btn-notif-config').style.display = esEmpleado ? 'inline-flex' : 'none';
+  const botonNotifConfig = $('btn-notif-config');
+  if (botonNotifConfig) {
+    botonNotifConfig.hidden = !esEmpleado;
+    botonNotifConfig.classList.toggle('u-oculto', !esEmpleado);
+  }
   $('btn-informes').style.display =
     esEmpleado && puede('exportar') ? 'inline-flex' : 'none';
   $('btn-logout').style.display = tieneCuenta ? 'inline-flex' : 'none';
@@ -178,13 +214,19 @@ export function mostrarApp({ usuario, municipioActivo }) {
     enlaceSoporte.setAttribute('aria-hidden', String(!atiende));
   }
 
-  // Tickets y solicitudes de informe exigen una cuenta registrada. La sesión
-  // anónima puede reportar, pero no abrir estos trámites.
+  // Tickets y solicitudes de informe exigen una cuenta registrada. «Mi
+  // cuenta» también se muestra al anónimo: el modal explica cómo crear una
+  // cuenta o iniciar sesión, en lugar de dejarlo sin acceso visible.
   for (const id of ['linkTickets', 'linkInformesPublicos']) {
     const enlace = $(id);
     if (!enlace) continue;
     enlace.hidden = !tieneCuenta;
     enlace.setAttribute('aria-hidden', String(!tieneCuenta));
+  }
+  const miCuenta = $('linkMiCuenta');
+  if (miCuenta) {
+    miCuenta.hidden = false;
+    miCuenta.setAttribute('aria-hidden', 'false');
   }
 
   $('userName').textContent = usuario.nombre;
@@ -320,10 +362,13 @@ export function renderColindantes(colindantes = [], { visible = true } = {}) {
     .join('');
 }
 
-/** Credenciales de una cuenta ciudadana (nombre o pseudónimo + contraseña). */
+/** Credenciales de una cuenta ciudadana (nombre, pseudónimo o correo + contraseña). */
 export function valoresCiudadano() {
+  const identificador = ($('ciud-nombre')?.value || '').trim();
   return {
-    nombre: ($('ciud-nombre')?.value || '').trim(),
+    identificador,
+    // `nombre` se conserva para integraciones y pruebas anteriores.
+    nombre: identificador,
     password: $('ciud-pass')?.value || ''
   };
 }
@@ -334,7 +379,8 @@ export function valoresRegistro() {
     correo: ($('reg-correo')?.value || '').trim(),
     password: $('reg-pass')?.value || '',
     nombre: ($('reg-nombre')?.value || '').trim(),
-    pseudonimo: $('reg-pseudonimo')?.checked === true
+    pseudonimo: $('reg-pseudonimo')?.checked === true,
+    aceptaTerminos: $('reg-acepta')?.checked === true
   };
 }
 

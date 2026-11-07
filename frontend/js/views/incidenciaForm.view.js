@@ -383,13 +383,79 @@ export function renderEvidenciaResolver(lista = []) {
 export function abrirResolver(id) {
   $('resolverId').value = id;
   $('resolverTexto').value = '';
+  if ($('resolverCosto')) $('resolverCosto').value = '';
   $('resolverEvidenceList').innerHTML = '';
+  const desglose = $('resolverDesglose');
+  if (desglose) desglose.innerHTML = '';
+  agregarConceptoResolver();
+}
+
+function dinero(valor) {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return '$0.00';
+  return numero.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+}
+
+/** Recalcula el total visible del desglose. */
+export function actualizarTotalDesglose() {
+  const total = [...document.querySelectorAll('#resolverDesglose [data-campo="monto"]')]
+    .reduce((suma, campo) => {
+      const numero = Number(campo.value);
+      return suma + (Number.isFinite(numero) ? numero : 0);
+    }, 0);
+  const etiqueta = $('resolverDesgloseTotal');
+  if (etiqueta) etiqueta.textContent = dinero(total);
+}
+
+/** Agrega una fila de concepto al desglose de la resolución. */
+export function agregarConceptoResolver(concepto = '', monto = '', nota = '') {
+  const contenedor = $('resolverDesglose');
+  if (!contenedor) return;
+  const fila = document.createElement('div');
+  fila.className = 'resolver-concepto filter-row u-mb-6';
+  fila.innerHTML = `
+    <div class="form-group">
+      <label>Concepto</label>
+      <input type="text" data-campo="concepto" maxlength="80" autocomplete="off"
+             placeholder="Ej. Materiales" value="${esc(concepto)}">
+    </div>
+    <div class="form-group">
+      <label>Monto (MXN)</label>
+      <input type="number" data-campo="monto" min="0" step="0.01" data-input="resolver:calcular"
+             placeholder="0.00" value="${esc(monto)}">
+    </div>
+    <div class="form-group">
+      <label>Nota</label>
+      <input type="text" data-campo="nota" maxlength="300" autocomplete="off"
+             placeholder="Opcional" value="${esc(nota)}">
+    </div>
+    <div class="form-group u-flex-end">
+      <button type="button" class="btn btn-outline btn-sm" data-action="resolver:quitarConcepto"
+              title="Quitar concepto" aria-label="Quitar concepto"><i class="bi bi-trash"></i></button>
+    </div>`;
+  contenedor.append(fila);
+  actualizarTotalDesglose();
+}
+
+/** Quita la fila de concepto a la que pertenece el botón. */
+export function quitarConceptoResolver(elemento) {
+  elemento?.closest?.('.resolver-concepto')?.remove();
+  actualizarTotalDesglose();
 }
 
 export function leerResolver() {
+  const desglose = [...document.querySelectorAll('#resolverDesglose .resolver-concepto')]
+    .map((fila) => ({
+      concepto: fila.querySelector('[data-campo="concepto"]')?.value.trim() || '',
+      monto: fila.querySelector('[data-campo="monto"]')?.value || '',
+      nota: fila.querySelector('[data-campo="nota"]')?.value.trim() || ''
+    }))
+    .filter((item) => item.concepto || item.monto);
   return {
     id: $('resolverId').value,
-    texto: $('resolverTexto').value.trim()
+    texto: $('resolverTexto').value.trim(),
+    costo: $('resolverCosto')?.value || '',
+    desglose
   };
 }
 
@@ -400,4 +466,8 @@ export function entradaEvidencia() {
 
 export function entradaEvidenciaResolver() {
   return $('resolverEvidencia');
+}
+
+export function entradaDocumentosReparacion() {
+  return $('reparacionDocumentos');
 }

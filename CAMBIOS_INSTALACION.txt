@@ -1,7 +1,144 @@
 ==============================================================================
 SISTEMA DE INCIDENCIAS MUNICIPALES — CAMBIOS, INSTALACIÓN Y OPERACIÓN
-Versión 2.3 · 2026-10-27
+Versión 2.17.0 · 2026-11-06
 ==============================================================================
+
+ACTUALIZACIÓN V2.17.0: red vial poligonal y semáforo con degradado.
+Las calles, caminos, carreteras y autopistas se guardan como polígonos de
+calzada; si la fuente solo trae ejes, se genera el corredor con `ancho_m`.
+El mapa pinta subtramos con la escala verde→amarillo→naranja→rojo→negro y ya
+no dibuja líneas punteadas uniendo incidencias. Se añade importación KML/
+GeoJSON con polígonos y carga directa de OpenStreetMap. La importación fusiona
+por osm_id/clave y conserva notas/enlaces; «Reemplazar todo» es opcional.
+Requiere:
+  npm --prefix backend run migrate
+  (20261122_vialidades_poligonos.js)
+No borra datos: añade eje, ancho, bbox, tipo de geometría y osm_id. Los ejes
+antiguos se convierten a corredor al leerlos o al editarlos. La carga OSM
+necesita conexión a Internet; si falla, usa KML/GeoJSON local.
+No hay variables de entorno nuevas.
+
+ACTUALIZACIÓN V2.16.0: catálogo administrable de vialidades, simulación
+porcentual y auditoría explicada. Se añade la pestaña Vialidades para crear,
+editar, verificar e importar calles/caminos/carreteras desde Google Maps
+(KML) o GeoJSON; el simulador permite repartir los tramos por porcentajes y
+la auditoría filtra por fecha, tipo de acción y autor y descarga PDF/CSV.
+Requiere:
+  npm --prefix backend run migrate
+  (20261121_vialidades_admin.js)
+No borra datos: añade columnas de verificación/Google Maps a `vialidades` y el
+permiso `gestionar_vialidades` a los administradores territoriales.
+
+ACTUALIZACIÓN V2.15.0: rediseño de los informes y PDF conmutable.
+El PDF de cada incidencia, el informe general y el informe preliminar de
+reclamación usan ahora un membrete blanco, Source Sans 3 incrustada, resumen
+visual, historial agrupado y evidencia en 1–3 columnas. El informe imprimible
+se rediseñó con las mismas variables de color y fuentes. El administrador puede
+elegir el color institucional, el tamaño y el orden de la evidencia, y la
+versión del PDF: rediseñada (v2), clásica (v1) o preguntar en cada descarga.
+Requiere:
+  cd backend && npm install
+  (añade sharp para girar fotos de celular y convertir WebP/HEIC)
+No hay migraciones ni variables de entorno nuevas. Las claves nuevas
+(informes.color_acento, informes.evidencia_columnas,
+informes.evidencia_posicion e informes.motor_pdf) viven en la tabla
+configuracion y se siembran con sus valores recomendados al leerlas.
+
+ACTUALIZACIÓN V2.15.0 (fases 1–4): notificaciones, reparaciones de campo,
+condición de vialidades y archivo general. Se añade el rol `cuadrilla`, la
+pestaña Reparaciones con asignación/estados/documentos, la capa de color vial
+(verde→amarillo→naranja→rojo→negro) y el archivo por mes/día con expediente
+JSON/PDF. Requiere:
+  npm --prefix backend run migrate
+  (20261118_reparaciones_desglose.js, 20261119_rol_cuadrilla.js y
+   20261120_vialidades.js)
+No borra datos. Para usar trazos reales de calles en un municipio:
+  npm --prefix backend run importar-vialidades -- --municipio=<id>
+(o `--archivo=calles.geojson` si no hay acceso a OpenStreetMap). Sin trazos,
+la capa funciona con tramos heurísticos agrupados por vialidad. No hay
+variables de entorno nuevas.
+
+ACTUALIZACIÓN V2.13.0: identidad por correo, solicitudes vinculadas y soporte
+en modal. El ciudadano puede entrar con su nombre, pseudónimo o correo; el
+personal con su usuario o correo más su clave. La solicitud pública ya no pide
+el rol: se sugiere según el territorio y la administración puede cambiarlo.
+Si el correo ya pertenece a una cuenta ciudadana, la solicitud se vincula y la
+aprobación promueve esa misma cuenta conservando historial, correo y contraseña.
+Se añade una consulta pública limitada de disponibilidad de correo y la tabla
+de solicitudes muestra nombres de municipios/estados. El panel de soporte deja
+de ser una página: `/soporte` redirige y la bandeja se abre en `#modalTickets`
+con carga diferida y caché. Requiere:
+  npm --prefix backend run migrate
+  (20261117_solicitudes_acceso_usuario.js)
+No borra datos: añade `solicitudes_acceso.usuario_id` (FK nullable a
+`usuarios.id`) y rellena el vínculo de solicitudes históricas cuando el correo
+pertenece a una única cuenta ciudadana. No hay variables de entorno nuevas.
+
+ACTUALIZACIÓN V2.12.0: cuentas de autoservicio y claves realmente ligadas.
+El registro ciudadano confirma el correo antes de entrar y la página `/cuenta`
+permite recuperar la contraseña, reenviar la confirmación y volver al acceso.
+El titular puede congelar su cuenta 7/30/90 días o eliminarla con anonimización;
+las cuentas ciudadanas sin actividad durante 30 días se congelan y se reactivan
+al iniciar sesión. Toda cuenta de funcionario nace vinculada a una clave (con
+cupo y vencimiento obligatorios); una clave no se comparte entre cuentas y su
+territorio no amplía el de la cuenta. Se avisa a 30/20/10/5/0 días (app y
+correo), el funcionario puede solicitar la renovación y la administración
+puede completar o renovar claves. Las aprobaciones de acceso y de altas exigen
+vincular una clave. Requiere:
+  npm --prefix backend run migrate
+  (20261115_cuentas_autoservicio_claves.js y 20261116_avisos_clave.js)
+No borra datos: añade columnas de verificación/suspensión a `usuarios`, crea
+`tokens_cuenta`, `solicitudes_renovacion_clave` y `avisos_clave_enviados`,
+backfillea los vínculos existentes y recalcula `claves_acceso.usos`. Define
+`URL_PUBLICA` para los enlaces de correo y revisa las variables
+`VERIFICAR_CORREO_REGISTRO`, `CUENTAS_*` y `AVISOS_CLAVES_*` del `.env.example`.
+
+ACTUALIZACIÓN V2.11.6: «Descargar mapa» guarda las cuatro capas base
+(satélite, híbrido, topográfico y claro). Los comentarios de una incidencia
+admiten imágenes y vuelven a mostrarse en el detalle; un anónimo ya no puede
+comentar. Las imágenes citadas en un reporte de conversación solo las descarga
+el personal. El personal puede descargar el reporte de la incidencia en PDF y,
+al resolver, registra el costo de reparación y adjunta documentos (todo queda en
+el historial). La incidencia resuelta pasa al nuevo apartado «Archivo» a las 24
+horas. El acceso puede recordar el usuario y los términos se aceptan antes de
+crear la cuenta. Cualquier cuenta registrada puede reclamar una solución y la
+reclamación la evalúan el funcionario del municipio y la administración, que
+puede delegar la decisión en un funcionario; si se da la razón, la incidencia se
+reabre y se emite un informe preliminar. Requiere:
+  npm --prefix backend run migrate
+  (20261113_resolucion_archivo_reclamaciones.js)
+No borra datos: crea `reclamaciones` y añade a `incidencias` las columnas
+`costo_reparacion`, `documentos_resolucion` y `archivada_en`.
+
+ACTUALIZACIÓN V2.11.5: la bandeja permite bloquear y desbloquear personas (dejan
+de recibir mensajes en ambos sentidos, sin avisos ni sanciones) y muestra la
+pestaña «Bloqueados». Reportar una conversación ya funciona y los mensajes son
+opcionales: la descripción siempre es obligatoria. Se añade el panel «Mapas sin
+conexión» para descargar, actualizar, abrir, borrar y borrar todos los mapas
+guardados en el dispositivo. El modal de informes abre al instante y estrena un
+constructor con alcance, tipos, fechas, comparación y gráficas (barras, pastel,
+tendencia), vista previa, logo institucional y descargas PDF/CSV con los mismos
+filtros. Requiere:
+  npm --prefix backend run migrate
+  (20261112_bloqueos_usuario.js)
+No borra datos: crea `bloqueos_usuario` y añade `incluye_mensajes` (true por
+omisión) a `reportes_conversacion`.
+
+ACTUALIZACIÓN V2.11.4: el mapa se puede descargar por municipio para verlo sin
+conexión (hasta 20 MB y tres municipios por dispositivo, con progreso, cuota y
+borrado). La bandeja distingue mensaje interno, difusión y contacto directo,
+lleva Cancelar/Enviar al pie del modal, permite cambiar el tamaño del texto y
+previsualiza imágenes y PDF. Cualquier participante puede reportar una
+conversación adjuntando los últimos cinco mensajes de cada parte con sus
+archivos; moderación los ve en la pestaña «Conversaciones» y resuelve
+restringiendo mensajes, suspendiendo o dando de baja la cuenta, con opción de
+revertir la medida. Requiere:
+  npm --prefix backend run migrate
+  (20261111_reportes_conversacion.js)
+No borra datos: crea `reportes_conversacion` y `restricciones_mensajes` y añade
+cuatro columnas nullable a `usuarios` (`mensajes_restringidos*`). Ajuste a
+nginx/proxy: el mapa sin conexión descarga teselas de `server.arcgisonline.com`
+y `tile.opentopomap.org`; la CSP ya los permite.
 
 ACTUALIZACIÓN V2.11.3: se puede reactivar una cuenta dada de baja desde la
 tabla de usuarios (solo administración). El personal ya no crea cuentas

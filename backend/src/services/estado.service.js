@@ -22,13 +22,26 @@ export function diasActivos(incidencia, ahora = new Date()) {
   return incidencia.estado === 'resuelta' ? null : diasDesde(incidencia.fecha, ahora);
 }
 
+/** Horas que una incidencia resuelta permanece en la lista antes de archivar. */
+export const HORAS_ANTES_DE_ARCHIVAR = 24;
+
+/** ¿Ya pasó el día desde la resolución? */
+export function estaArchivada(incidencia, ahora = new Date()) {
+  if (incidencia?.estado !== 'resuelta' || !incidencia.fechaResolucion) return false;
+  if (incidencia.archivadaEn) return true;
+  const resuelta = new Date(incidencia.fechaResolucion).getTime();
+  if (Number.isNaN(resuelta)) return false;
+  return ahora.getTime() - resuelta >= HORAS_ANTES_DE_ARCHIVAR * 60 * 60 * 1000;
+}
+
 /** Añade los campos derivados que consume el frontend. */
 export function enriquecer(incidencia, ahora = new Date()) {
   if (!incidencia) return null;
   return {
     ...incidencia,
     color: colorPorAntiguedad(incidencia, ahora),
-    dias: diasActivos(incidencia, ahora)
+    dias: diasActivos(incidencia, ahora),
+    archivada: estaArchivada(incidencia, ahora)
   };
 }
 

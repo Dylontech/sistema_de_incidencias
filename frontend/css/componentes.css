@@ -176,7 +176,8 @@
 /* Notificaciones panel */
 .notif-panel {
   position: absolute; top: 100%; right: 16px;
-  width: 340px; max-height: 420px; overflow-y: auto;
+  width: 340px; max-width: calc(100vw - 32px); max-height: 420px; overflow-y: auto;
+  overflow-x: hidden;
   background: #fff; border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.2);
   z-index: 600; margin-top: 8px; display: none;
@@ -184,7 +185,7 @@
 .notif-panel.show { display: block; }
 .notif-header {
   padding: 12px 14px; border-bottom: 1px solid var(--borde);
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;
   align-items: center; background: #f8f9fc;
   border-radius: 12px 12px 0 0;
   font-size: 13px; font-weight: 700;

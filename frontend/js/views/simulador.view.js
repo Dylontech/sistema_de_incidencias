@@ -47,7 +47,7 @@ function campoHtml(accion, campo) {
   }
   return `<div class="form-group">${etiqueta}<input id="${id}" type="${esc(
     campo.tipo || 'text'
-  )}" maxlength="300" value="${esc(campo.defecto || '')}"></div>`;
+  )}" maxlength="300" autocomplete="off" value="${esc(campo.defecto || '')}"></div>`;
 }
 
 export function renderAcciones(acciones = []) {

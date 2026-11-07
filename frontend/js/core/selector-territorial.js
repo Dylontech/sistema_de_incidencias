@@ -95,7 +95,7 @@ export function crearSelectorTerritorial({
         modo !== 'estados'
           ? `
       <div class="terr-busqueda">
-        <input type="text" class="terr-input" placeholder="Escribe un municipio o estado…"
+        <input type="text" class="terr-input" autocomplete="off" placeholder="Escribe un municipio o estado…"
                autocomplete="off" aria-label="Buscar municipio">
         <select class="terr-filtro-estado" aria-label="Filtrar municipios por estado">
           <option value="">Todos los estados</option>

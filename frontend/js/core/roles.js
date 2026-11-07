@@ -7,6 +7,7 @@
  */
 
 export const ROLES_PERSONAL = [
+  'cuadrilla',
   'funcionario',
   'auditor',
   'enlace_estatal',

@@ -36,6 +36,14 @@ export function registrar() {
       intentar(async () => {
         const { folio } = await foliosService.detalle(valor);
         if (folio?.url) {
+          // Los tickets se abren en el modal, sin recargar la aplicación.
+          const destino = new URL(folio.url, location.origin);
+          const ticket = destino.searchParams.get('ticket');
+          if (ticket) {
+            const { abrirCon } = await import('./ticketsModal.controller.js');
+            await abrirCon(ticket);
+            return;
+          }
           window.location.assign(folio.url);
           return;
         }

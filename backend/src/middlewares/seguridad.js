@@ -45,7 +45,9 @@ export function directivasCsp() {
     // (canvas → File/objeto URL).
     imgSrc: ["'self'", 'data:', 'blob:', ...TESELAS, MAPAS_LOCALES],
     fontSrc: ["'self'"],
-    connectSrc: ["'self'", MAPAS_LOCALES],
+    // `connect-src` incluye las teselas: la descarga del mapa sin conexión las
+    // pide con fetch() desde la página (mapa-offline.js).
+    connectSrc: ["'self'", ...TESELAS, MAPAS_LOCALES],
     objectSrc: ["'none'"],
     // El visor de informes usa un iframe con un blob local para el PDF.
     frameSrc: ["'self'", 'blob:'],

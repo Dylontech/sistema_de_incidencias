@@ -11,8 +11,9 @@ import path from 'node:path';
 import { AppError } from '../utils/AppError.js';
 import { nuevoId } from '../utils/ids.js';
 import { config } from '../config/index.js';
-import { alcanceDe, esAlgunaAdmin, exigirVisibilidad, puedeVerOculto } from './alcance.service.js';
+import { alcanceDe, esAlgunaAdmin, esEmpleado, exigirVisibilidad, puedeVerOculto } from './alcance.service.js';
 import { descartar } from './uploads.service.js';
+import { tienePermiso } from './permisos.service.js';
 
 export const ADJUNTOS_POLITICA = {
   chat: {
@@ -32,6 +33,11 @@ export const ADJUNTOS_POLITICA = {
   comentario: {
     mimes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
     maxBytes: 5 * 1024 * 1024,
+    maxArchivos: 3
+  },
+  solicitud_acceso: {
+    mimes: ['application/pdf', 'image/png', 'image/jpeg'],
+    maxBytes: 10 * 1024 * 1024,
     maxArchivos: 3
   }
 };
@@ -135,8 +141,15 @@ export function publico(adjunto) {
   };
 }
 
-export async function vincularAdjuntos(repositorio, usuario, ids = [], { contextoTipo, contextoId, proposito }) {
-  const lista = Array.isArray(ids) ? [...new Set(ids.map(String).filter(Boolean))].slice(0, politica(proposito).maxArchivos) : [];
+/**
+ * Comprueba que los adjuntos existan, sigan pendientes, pertenezcan a la
+ * cuenta y correspondan al canal. Devuelve la lista normalizada sin repetidos.
+ * Se usa antes de crear el contenido para no dejar publicaciones a medias.
+ */
+export async function validarAdjuntos(repositorio, usuario, ids = [], { proposito = 'comentario' } = {}) {
+  const lista = Array.isArray(ids)
+    ? [...new Set(ids.map(String).filter(Boolean))].slice(0, politica(proposito).maxArchivos)
+    : [];
   for (const id of lista) {
     const adjunto = await repositorio.adjuntoPorId(id);
     if (!adjunto || adjunto.estado !== 'pendiente') {
@@ -145,9 +158,33 @@ export async function vincularAdjuntos(repositorio, usuario, ids = [], { context
     if (adjunto.subidoPorUsuarioId && adjunto.subidoPorUsuarioId !== usuario?.id) {
       throw AppError.prohibido('No puedes usar un adjunto de otra cuenta');
     }
+    if (
+      !adjunto.subidoPorUsuarioId &&
+      adjunto.subidoPorUserKey &&
+      adjunto.subidoPorUserKey !== usuario?.userKey
+    ) {
+      throw AppError.prohibido('No puedes usar un adjunto de otra cuenta');
+    }
     if (adjunto.proposito !== proposito) {
       throw AppError.solicitudInvalida('El adjunto no corresponde a este canal');
     }
+  }
+  return lista;
+}
+
+export async function vincularAdjuntos(
+  repositorio,
+  usuario,
+  ids = [],
+  { contextoTipo, contextoId, proposito, yaValidados = false }
+) {
+  const lista = yaValidados
+    ? [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))].slice(
+        0,
+        politica(proposito).maxArchivos
+      )
+    : await validarAdjuntos(repositorio, usuario, ids, { proposito });
+  for (const id of lista) {
     await repositorio.vincularAdjunto(id, { contextoTipo, contextoId });
   }
   return lista;
@@ -181,6 +218,10 @@ async function participaEnContacto(repositorio, usuario, contacto) {
 export async function autorizarDescarga(repositorio, usuario, adjunto) {
   if (!adjunto) return false;
   if (usuario?.rol === 'admin') return true;
+  // Las imágenes citadas en un reporte de conversación las revisa moderación:
+  // una cuenta ciudadana no las descarga aunque haya participado en el hilo.
+  const enReporte = await repositorio.reporteConversacionConAdjunto(adjunto.id);
+  if (enReporte && !esEmpleado(usuario)) return false;
   if (adjunto.subidoPorUsuarioId && adjunto.subidoPorUsuarioId === usuario?.id) return true;
   if (adjunto.contextoTipo === 'mensaje_directo') {
     const mensaje = await repositorio.mensajeDirectoPorId(adjunto.contextoId);
@@ -196,6 +237,9 @@ export async function autorizarDescarga(repositorio, usuario, adjunto) {
     if (!mensaje) return false;
     const contacto = await repositorio.contactoFuncionarioPorId(mensaje.contactoId);
     return participaEnContacto(repositorio, usuario, contacto);
+  }
+  if (adjunto.contextoTipo === 'solicitud_acceso') {
+    return tienePermiso(usuario, 'ver_solicitudes_acceso') || esAlgunaAdmin(usuario);
   }
   if (adjunto.contextoTipo === 'comentario') {
     const comentario = await repositorio.comentarioIncidenciaPorId(adjunto.contextoId);

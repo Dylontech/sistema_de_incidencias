@@ -225,6 +225,141 @@ export const EVENTOS_NOTIFICACION = {
     alcance: 'asignados',
     entidadTipo: 'alta'
   },
+  cuenta_verificada: {
+    etiqueta: 'Correo verificado',
+    descripcion: 'Confirma al titular que su correo quedó verificado.',
+    roles: [],
+    severidad: 'exito',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'cuenta'
+  },
+  cuenta_correo_cambiado: {
+    etiqueta: 'Correo de la cuenta actualizado',
+    descripcion: 'Avisa al titular que cambió el correo de avisos y debe confirmarlo.',
+    roles: [],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'cuenta'
+  },
+  cuenta_password_cambiada: {
+    etiqueta: 'Contraseña de la cuenta cambiada',
+    descripcion: 'Avisa al titular que su contraseña cambió y se cerraron sus sesiones.',
+    roles: [],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'cuenta'
+  },
+  cuenta_congelada: {
+    etiqueta: 'Cuenta congelada',
+    descripcion: 'Avisa al titular que su cuenta quedó congelada temporalmente.',
+    roles: [],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'cuenta'
+  },
+  cuenta_eliminada: {
+    etiqueta: 'Cuenta ciudadana eliminada',
+    descripcion: 'Aviso interno para administradores cuando una cuenta se elimina.',
+    roles: ['admin'],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'todos',
+    entidadTipo: 'cuenta'
+  },
+  reparacion_asignada: {
+    etiqueta: 'Reparación asignada',
+    descripcion: 'Avisa a la cuadrilla cuando se le asigna una reparación.',
+    roles: [],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'incidencia'
+  },
+  reparacion_iniciada: {
+    etiqueta: 'Reparación iniciada',
+    descripcion: 'Avisa al coordinador cuando la cuadrilla inicia los trabajos.',
+    roles: ['funcionario', 'admin_estatal', 'admin_municipal', 'admin'],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'incidencia'
+  },
+  reparacion_terminada: {
+    etiqueta: 'Reparación terminada',
+    descripcion: 'Avisa al coordinador cuando la cuadrilla termina los trabajos.',
+    roles: ['funcionario', 'admin_estatal', 'admin_municipal', 'admin'],
+    severidad: 'exito',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'incidencia'
+  },
+  reparacion_documentos: {
+    etiqueta: 'Documentos de reparación',
+    descripcion: 'Avisa al coordinador cuando se suben documentos oficiales del costo.',
+    roles: ['funcionario', 'admin_estatal', 'admin_municipal', 'admin'],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'incidencia'
+  },
+  reparacion_validada: {
+    etiqueta: 'Reparación validada',
+    descripcion: 'Avisa a la cuadrilla que el coordinador validó la reparación.',
+    roles: [],
+    severidad: 'exito',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'incidencia'
+  },
+  reporte_conversacion_creada: {
+    etiqueta: 'Reporte de una conversación',
+    descripcion: 'Avisa a la moderación cuando alguien reporta un hilo de mensajes.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal', 'funcionario'],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'municipios',
+    entidadTipo: 'conversacion'
+  },
+  reporte_conversacion_resuelta: {
+    etiqueta: 'Reporte de conversación resuelto',
+    descripcion: 'Avisa al denunciante y a la cuenta reportada de la medida aplicada.',
+    roles: [],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'conversacion'
+  },
+  reclamacion_creada: {
+    etiqueta: 'Reclamación de una incidencia',
+    descripcion: 'Avisa al funcionario y a la administración del municipio para mediar.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal', 'funcionario'],
+    severidad: 'alerta',
+    canal: 'app',
+    alcance: 'municipios',
+    entidadTipo: 'reclamacion'
+  },
+  reclamacion_delegada: {
+    etiqueta: 'Reclamación delegada',
+    descripcion: 'Avisa al funcionario en quien se delegó la decisión final.',
+    roles: [],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'reclamacion'
+  },
+  reclamacion_resuelta: {
+    etiqueta: 'Reclamación resuelta',
+    descripcion: 'Informa al funcionario y a quien reclamó de la decisión y el informe preliminar.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal', 'funcionario'],
+    severidad: 'info',
+    canal: 'app',
+    alcance: 'municipios',
+    entidadTipo: 'reclamacion'
+  },
   solicitud_informe_creada: {
     etiqueta: 'Nueva solicitud de informe público',
     descripcion: 'Avisa a los administradores cuando se pide un informe público.',
@@ -355,6 +490,34 @@ export const EVENTOS_NOTIFICACION = {
     descripcion: 'Aviso interno para administradores.',
     roles: ['admin'],
     severidad: 'alerta',
+    canal: 'app',
+    alcance: 'todos',
+    entidadTipo: 'clave'
+  },
+  clave_por_vencer: {
+    etiqueta: 'Clave de acceso por vencer',
+    descripcion:
+      'Avisa a las cuentas vinculadas a una clave 30, 20, 10, 5 y 0 días antes de su vencimiento.',
+    roles: [],
+    severidad: 'alerta',
+    canal: 'ambos',
+    alcance: 'asignados',
+    entidadTipo: 'clave'
+  },
+  clave_renovada: {
+    etiqueta: 'Clave de acceso renovada',
+    descripcion: 'Avisa a las cuentas vinculadas que la clave tiene una nueva vigencia.',
+    roles: [],
+    severidad: 'exito',
+    canal: 'app',
+    alcance: 'asignados',
+    entidadTipo: 'clave'
+  },
+  clave_renovacion_solicitada: {
+    etiqueta: 'Solicitud de renovación de clave',
+    descripcion: 'Avisa a la administración cuando un funcionario pide renovar su clave.',
+    roles: ['admin', 'admin_estatal', 'admin_municipal'],
+    severidad: 'info',
     canal: 'app',
     alcance: 'todos',
     entidadTipo: 'clave'

@@ -67,6 +67,16 @@ describe('Adjuntos privados', () => {
     assert.equal(lista.status, 200);
     const propio = lista.body.comentarios.find((c) => c.id === comentario.body.comentario.id);
     assert.equal(propio.adjuntos[0].tipo, 'image/png');
+
+    // El detalle de la incidencia es el que pinta la sección de comentarios
+    // del modal: debe traer la imagen para que la vista pueda mostrarla.
+    const detalle = await autora.get(`/api/incidencias/${incidenciaId}`);
+    assert.equal(detalle.status, 200);
+    const enDetalle = detalle.body.incidencia.comentarios.find(
+      (c) => c.id === comentario.body.comentario.id
+    );
+    assert.equal(enDetalle.adjuntos[0].tipo, 'image/png');
+    assert.match(enDetalle.adjuntos[0].url, /^\/api\/adjuntos\//);
   });
 
   test('los comentarios no aceptan PDF y las imágenes no se mezclan con chats', async () => {

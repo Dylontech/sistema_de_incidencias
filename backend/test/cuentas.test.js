@@ -201,7 +201,11 @@ describe('Cuentas: gestión del personal', () => {
 
   test('solo el administrador crea cuentas del personal', async () => {
     const funcionario = await Api.funcionario(app);
-    const datos = nuevoFuncionario();
+    const datos = {
+      ...nuevoFuncionario(),
+      generarClave: true,
+      claveExpiraEn: '2030-12-31'
+    };
 
     const intento = await funcionario.post('/api/usuarios', datos);
     assert.equal(intento.status, 403);
@@ -211,12 +215,13 @@ describe('Cuentas: gestión del personal', () => {
     assert.equal(creada.status, 201);
     assert.equal(creada.body.usuario.username, datos.username);
     assert.equal(creada.body.usuario.passwordHash, undefined);
+    assert.ok(creada.body.clave?.codigo, 'la cuenta nueva nace con una clave vinculada');
 
-    // Y la cuenta nueva puede entrar de verdad.
+    // Y la cuenta nueva puede entrar de verdad con esa clave.
     const entrada = await Api.entrarFuncionario(app, {
       username: datos.username,
       password: datos.password,
-      claveMunicipio: CLAVE_MARAVATIO
+      claveAcceso: creada.body.clave.codigo
     });
     assert.equal(entrada.status, 200);
   });
@@ -264,9 +269,14 @@ describe('Cuentas: gestión del personal', () => {
 
   test('el administrador edita nombre, rol, estado y contraseña de una cuenta', async () => {
     const admin = await Api.admin(app);
-    const datos = nuevoFuncionario();
+    const datos = {
+      ...nuevoFuncionario(),
+      generarClave: true,
+      claveExpiraEn: '2030-12-31'
+    };
     const creada = await admin.post('/api/usuarios', datos);
     const id = creada.body.usuario.id;
+    const claveAcceso = creada.body.clave.codigo;
 
     const editada = await admin.patch(`/api/usuarios/${id}`, {
       nombre: 'Funcionario Renombrado',
@@ -282,7 +292,7 @@ describe('Cuentas: gestión del personal', () => {
     const desactivada = await Api.entrarFuncionario(app, {
       username: datos.username,
       password: 'nuevaClave123',
-      claveMunicipio: CLAVE_MARAVATIO
+      claveAcceso
     });
     assert.equal(desactivada.status, 401);
 
@@ -291,7 +301,7 @@ describe('Cuentas: gestión del personal', () => {
     const entrada = await Api.entrarFuncionario(app, {
       username: datos.username,
       password: 'nuevaClave123',
-      claveMunicipio: CLAVE_MARAVATIO
+      claveAcceso
     });
     assert.equal(entrada.status, 200);
   });

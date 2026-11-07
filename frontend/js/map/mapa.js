@@ -18,6 +18,7 @@ import {
   aplicarEstilosDinamicos
 } from '../core/utils.js';
 import { anillosDe, boundsDePoligono } from '../core/geocerca.js';
+import * as capaVialidades from './vialidades.js';
 
 let mapa = null;
 let marcadores = {};
@@ -130,6 +131,53 @@ export function capaBaseActual() {
   return claveCapaActiva;
 }
 
+/**
+ * Definiciones de todas las capas base para guardarlas sin conexión.
+ *
+ * Satélite e híbrido comparten la misma imagen, así que la descarga deduplica
+ * por URL y el usuario recibe las cuatro capas disponibles.
+ */
+export function capasParaDescarga() {
+  return Object.keys(CATALOGO_CAPAS).map((clave) => ({ clave, ...teselasDeCapa(clave) }));
+}
+
+/**
+ * Plantilla de la capa base activa para la descarga sin conexión.
+ *
+ * El híbrido descarga solo la imagen (las etiquetas añadirían el doble de
+ * espacio); se avisa en la interfaz. Cualquier capa desconocida cae a satélite.
+ */
+export function teselasDeCapa(clave = claveCapaActiva) {
+  const plantillas = {
+    satelite: {
+      etiqueta: 'Satélite',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      subdominios: '',
+      maxZoom: 18
+    },
+    hibrido: {
+      etiqueta: 'Satélite con etiquetas',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      subdominios: '',
+      maxZoom: 18,
+      nota: 'Sin conexión se guarda la imagen; las etiquetas necesitan internet.'
+    },
+    calles: {
+      etiqueta: 'Calles',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      subdominios: '',
+      maxZoom: 18
+    },
+    relieve: {
+      etiqueta: 'Relieve',
+      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      subdominios: 'abc',
+      maxZoom: 17
+    }
+  };
+  return plantillas[clave] || plantillas.satelite;
+}
+
 /** Cambia la capa base y persiste la elección en el dispositivo. */
 export function cambiarCapaBase(clave) {
   if (!mapa || !CATALOGO_CAPAS[clave]) return false;
@@ -202,6 +250,7 @@ export function inicializar(municipio) {
 
   restaurarCapaBase();
   crearControlCapas();
+  capaVialidades.inicializar(mapa);
 
   // Encuadrar el municipio completo y no permitir alejarse más allá.
   if (bounds) {
@@ -568,6 +617,7 @@ export function cancelarModoElegir() {
 /** Cambia de municipio activo (paridad con `Mapa.resetMunicipio`). */
 export function reiniciarMunicipio(municipio) {
   limpiarUbicacionUsuario();
+  capaVialidades.limpiar();
   const bounds = boundsDe(municipio?.poligono);
   if (!mapa || !bounds) return;
   mapa.setMaxBounds(bounds.pad(0.03));

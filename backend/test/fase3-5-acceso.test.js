@@ -10,6 +10,11 @@ const entorno = prepararEntorno();
 await prepararBaseDeDatos(entorno);
 const { crearApp } = await import('../src/app.js');
 
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==',
+  'base64'
+);
+
 let app;
 before(() => {
   app = crearApp();
@@ -34,10 +39,10 @@ describe('Solicitudes de acceso', () => {
     const solicitud = pendientes.body.solicitudes.find((s) => s.folio === creada.body.folio);
     assert.ok(solicitud);
 
-    const aprobada = await admin.post(
-      `/api/admin/solicitudes-acceso/${solicitud.id}/aprobar`
-    );
-    assert.equal(aprobada.status, 200);
+    const aprobada = await admin
+      .post(`/api/admin/solicitudes-acceso/${solicitud.id}/aprobar`)
+      .send({ generarClave: true, claveExpiraEn: '2030-12-31' });
+    assert.equal(aprobada.status, 200, JSON.stringify(aprobada.body));
     assert.ok(aprobada.body.usuario?.username);
     assert.match(aprobada.body.clave?.codigo || '', /^[A-Z2-9]{4}-/);
 
@@ -46,6 +51,62 @@ describe('Solicitudes de acceso', () => {
       usuarios.body.usuarios.some((u) => u.username === aprobada.body.usuario.username),
       'la cuenta aprobada debe existir'
     );
+  });
+
+  test('no se aprueba una solicitud sin vincular una clave', async () => {
+    const creada = await request(app).post('/api/publico/solicitudes-acceso').send({
+      nombre: 'Sin Clave',
+      correo: `sin-clave-${Date.now().toString(36)}@ejemplo.mx`,
+      rolSolicitado: 'funcionario',
+      municipios: [MUNICIPIO_MARAVATIO],
+      justificacion: 'Solicitud para comprobar la clave obligatoria.'
+    });
+    assert.equal(creada.status, 201);
+
+    const admin = await Api.admin(app);
+    const pendientes = await admin.get('/api/admin/solicitudes-acceso');
+    const solicitud = pendientes.body.solicitudes.find((s) => s.folio === creada.body.folio);
+    assert.ok(solicitud);
+
+    const sinClave = await admin
+      .post(`/api/admin/solicitudes-acceso/${solicitud.id}/aprobar`)
+      .send({});
+    assert.equal(sinClave.status, 400, JSON.stringify(sinClave.body));
+    assert.match(String(sinClave.body.error), /clave/i);
+
+    const conClave = await admin
+      .post(`/api/admin/solicitudes-acceso/${solicitud.id}/aprobar`)
+      .send({ generarClave: true, claveExpiraEn: '2030-12-31' });
+    assert.equal(conClave.status, 200, JSON.stringify(conClave.body));
+    assert.ok(conClave.body.clave?.codigo);
+  });
+
+  test('la solicitud admite documentos de respaldo', async () => {
+    const subida = await request(app)
+      .post('/api/publico/solicitudes-acceso/documentos')
+      .attach('documentos', PNG, { filename: 'nombramiento.png', contentType: 'image/png' });
+    assert.equal(subida.status, 201, JSON.stringify(subida.body));
+    const documento = subida.body.documentos[0];
+    assert.match(documento.url, /^\/api\/adjuntos\//);
+
+    const creada = await request(app).post('/api/publico/solicitudes-acceso').send({
+      nombre: 'Documentos Prueba',
+      correo: `docs-${Date.now().toString(36)}@ejemplo.mx`,
+      rolSolicitado: 'funcionario',
+      municipios: [MUNICIPIO_MARAVATIO],
+      justificacion: 'Adjunto el nombramiento.',
+      documentos: [documento.id]
+    });
+    assert.equal(creada.status, 201, JSON.stringify(creada.body));
+
+    const admin = await Api.admin(app);
+    const lista = await admin.get('/api/admin/solicitudes-acceso');
+    const solicitud = lista.body.solicitudes.find((s) => s.folio === creada.body.folio);
+    assert.equal(solicitud.documentos.length, 1);
+    assert.equal(solicitud.documentos[0].nombre, 'nombramiento.png');
+
+    const descarga = await admin.get(documento.url);
+    assert.equal(descarga.status, 200);
   });
 
   test('no se admiten dos solicitudes abiertas del mismo correo', async () => {

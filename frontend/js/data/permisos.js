@@ -43,6 +43,10 @@ export const PERMISOS_LISTA = [
   'ver_monitoreo',
   'responder_tickets',
   'atender_tickets',
+  'ver_reparaciones_panel',
+  'coordinar_reparaciones',
+  'atender_reparaciones',
+  'subir_documentos_reparacion',
   'configurar_notificaciones',
   'ver_metricas',
   'ver_solicitudes_acceso',
@@ -53,10 +57,13 @@ export const PERMISOS_LISTA = [
   'rechazar_solicitudes_permisos',
   'gestionar_solicitudes_permisos',
   'revelar_password_usuarios',
+  'gestionar_reclamaciones',
   'gestionar_solicitudes_informe',
   'gestionar_legal',
   'gestionar_configuracion',
+  'gestionar_verificacion_cuentas',
   'gestionar_respaldos',
+  'gestionar_vialidades',
   'usar_simulador',
   'gestionar_publicidad',
   'gestionar_correos'
@@ -199,6 +206,10 @@ export const ETIQUETAS_PERMISO = {
   responder_tickets: 'Responder tickets',
   atender_tickets: 'Atender panel de soporte',
   configurar_notificaciones: 'Configurar notificaciones',
+  ver_reparaciones_panel: 'Ver el panel de reparaciones',
+  coordinar_reparaciones: 'Coordinar y asignar reparaciones',
+  atender_reparaciones: 'Atender reparaciones asignadas',
+  subir_documentos_reparacion: 'Subir documentos oficiales de la reparación',
   ver_metricas: 'Ver estadísticas y métricas',
   ver_solicitudes_acceso: 'Ver solicitudes de acceso',
   aprobar_solicitudes_acceso: 'Aprobar solicitudes de acceso',
@@ -211,7 +222,9 @@ export const ETIQUETAS_PERMISO = {
   gestionar_solicitudes_informe: 'Gestionar solicitudes de informe',
   gestionar_legal: 'Gestionar documentos legales',
   gestionar_configuracion: 'Gestionar configuración',
+  gestionar_verificacion_cuentas: 'Gestionar verificación de cuentas',
   gestionar_respaldos: 'Gestionar respaldos',
+  gestionar_vialidades: 'Gestionar catálogo de vialidades',
   usar_simulador: 'Usar simulador',
   gestionar_publicidad: 'Gestionar publicidad, QR y campañas',
   gestionar_correos: 'Gestionar correos institucionales'
@@ -256,7 +269,9 @@ export const GRUPOS_PERMISOS = [
       'gestionar_solicitudes_informe',
       'gestionar_legal',
       'gestionar_configuracion',
+      'gestionar_verificacion_cuentas',
       'gestionar_respaldos',
+      'gestionar_vialidades',
       'usar_simulador',
       'gestionar_publicidad',
       'gestionar_correos',
@@ -291,8 +306,12 @@ export const PERMISOS_BASE = {
     'ver_monitoreo',
     'responder_tickets',
     'atender_tickets',
-    'configurar_notificaciones',
-    'ver_metricas'
+    'ver_reparaciones_panel',
+    'coordinar_reparaciones',
+    'atender_reparaciones',
+    'subir_documentos_reparacion',
+    'ver_metricas',
+    'gestionar_vialidades'
   ],
   admin_municipal: [
     'gestionar_solicitudes_permisos',
@@ -317,8 +336,12 @@ export const PERMISOS_BASE = {
     'ver_firmas',
     'responder_tickets',
     'atender_tickets',
-    'configurar_notificaciones',
-    'ver_metricas'
+    'ver_reparaciones_panel',
+    'coordinar_reparaciones',
+    'atender_reparaciones',
+    'subir_documentos_reparacion',
+    'ver_metricas',
+    'gestionar_vialidades'
   ],
   funcionario: [
     'reportar',
@@ -337,8 +360,17 @@ export const PERMISOS_BASE = {
     'gestionar_zonas',
     'ver_firmas',
     'responder_tickets',
-    'configurar_notificaciones',
+    'ver_reparaciones_panel',
+    'coordinar_reparaciones',
+    'atender_reparaciones',
+    'subir_documentos_reparacion',
     'ver_metricas'
+  ],
+  cuadrilla: [
+    'ver_incidencias_panel',
+    'ver_reparaciones_panel',
+    'atender_reparaciones',
+    'subir_documentos_reparacion'
   ],
   auditor: [
     'exportar',
@@ -349,7 +381,6 @@ export const PERMISOS_BASE = {
     'ver_zonas',
     'ver_moderacion',
     'responder_tickets',
-    'configurar_notificaciones',
     'ver_metricas'
   ],
   soporte: [
@@ -357,7 +388,6 @@ export const PERMISOS_BASE = {
     'atender_tickets',
     'ver_incidencias_panel',
     'ver_moderacion',
-    'configurar_notificaciones',
     'ver_metricas'
   ],
   enlace_estatal: [
@@ -365,7 +395,6 @@ export const PERMISOS_BASE = {
     'ver_incidencias_panel',
     'ver_moderacion',
     'responder_tickets',
-    'configurar_notificaciones',
     'ver_monitoreo',
     'ver_metricas'
   ],
@@ -374,7 +403,6 @@ export const PERMISOS_BASE = {
     'ver_incidencias_panel',
     'ver_moderacion',
     'responder_tickets',
-    'configurar_notificaciones',
     'ver_monitoreo',
     'ver_metricas'
   ]
