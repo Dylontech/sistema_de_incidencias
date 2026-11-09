@@ -476,7 +476,10 @@ describe('V2.4/V2.5: accesos, informes, tickets y accesibilidad', () => {
     for (const id of ['controlesTexto', 'reglasTicketsPanel', 'reglasSimulacion']) {
       assert.match(html, new RegExp(`id="${id}"`));
     }
+    // Rediseño Bento: los filtros son la herramienta principal del panel y van
+    // antes de los accesos; el orden visual coincide con el del teclado.
     const posiciones = [
+      html.indexOf('class="filters"'),
       html.indexOf('data-action="folios:abrir"'),
       html.indexOf('data-action="ticketsModal:abrir"'),
       html.indexOf('id="linkSoporte"'),
@@ -484,7 +487,6 @@ describe('V2.4/V2.5: accesos, informes, tickets y accesibilidad', () => {
       html.indexOf('data-action="solicitudInforme:abrir"'),
       html.indexOf('data-action="tutorial:abrir"'),
       html.indexOf('class="link-terminos" href="/acerca"'),
-      html.indexOf('class="filters"'),
       html.indexOf('id="colindantesBox"')
     ];
     assert.ok(posiciones.every((posicion) => posicion >= 0));

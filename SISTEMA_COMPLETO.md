@@ -454,7 +454,7 @@ entre pestañas, permisos y documentación.
 | `#loginScreen` | Acceso con subpasos `#anonInicio`, `#anonLogin`, `#anonRegistro`. |
 | `#onboarding` | Municipio y aceptación legal (`#obMunicipio`, `#obTerminos`). |
 | `#app` | Contenedor autenticado. |
-| `#sidebar` | Identidad, avisos, accesos, filtros y lista. |
+| `#sidebar` | Identidad, avisos, bloque de texto, filtros, accesos y lista (orden Bento). |
 | `#listaIncidencias` | Tarjetas de incidencias filtradas. |
 | `#map` | Mapa Leaflet, marcadores y zonas. |
 | `#notifPanel` | Panel de la campana; `#btn-notif-config` abre las preferencias personales para el personal. |
@@ -462,6 +462,13 @@ entre pestañas, permisos y documentación.
 | `#modalAdminBox` | Caja redimensionable del panel. |
 
 ### 4.3 Barra lateral
+
+Desde el rediseño Bento el orden de lectura es: avisos de visibilidad y de cuenta, tamaño de
+texto, **filtros**, accesos y municipios colindantes. Los filtros van antes de los accesos
+para que la herramienta principal quede a la vista y el recorrido del teclado coincida con el
+orden visual. La cabecera tiene desplazamiento propio (`#sidebarFilters` incluido) y
+`#listaIncidencias` conserva su propio scroll, de modo que el listado siempre queda visible.
+Los estilos de esta capa viven en el bloque «REDISEÑO BENTO» de `frontend/css/extensiones.css`.
 
 | Grupo | Botón | Acción |
 |---|---|---|
@@ -651,9 +658,14 @@ Enlaces profundos relevantes:
 8. Los formularios validan en cliente, pero el servidor repite la validación.
 9. Accesibilidad: foco visible, `role="status"` para mensajes, textos alternativos y
    navegación por teclado. `frontend/css/legibilidad.css` fija el mínimo de 14px de los
-   textos secundarios; las utilidades `.u-fs-*` no bajan de ese valor.
+   textos secundarios; las utilidades `.u-fs-*` no bajan de ese valor. Excepción: los títulos
+   de sección de la barra lateral son etiquetas (11.5px, 12.5/13.5 con A+/A++) para que la
+   jerarquía del rediseño Bento se lea.
 10. Responsive: el panel se adapta de móvil a TV; `.admin-panel .filter-row > *` debe usar
     `flex: 0 0 auto` al apilarse.
+11. Paleta: los colores nuevos van como tokens `--bento-*` en `extensiones.css` y se mapean a
+    los nombres históricos. No se fijan colores de estado nuevos: un reporte peligroso o
+    resuelto conserva su color semántico.
 
 ### 4.9 Tutoriales
 

@@ -58,6 +58,8 @@ services:
       STORAGE_DRIVER: mysql
       JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET en el .env de la raíz}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      # Obligatoria en producción: cifra la copia consultable de las contraseñas.
+      PASSWORD_LLAVE: ${PASSWORD_LLAVE:?define PASSWORD_LLAVE en el .env de la raíz}
       # Dentro de la red del compose la base se llama por su servicio.
       DB_HOST: mariadb
       DB_PORT: 3306

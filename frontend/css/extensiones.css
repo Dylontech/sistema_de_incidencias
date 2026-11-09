@@ -3380,3 +3380,1248 @@ tr.fila-destacada { animation: fila-destacada 2.4s ease-out 3; outline: 2px soli
 .badge-negro { background: #111827; color: #fff; }
 .sim-vialidades-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 760px) { .sim-vialidades-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ============================================================================
+   REDISEÑO BENTO
+   ============================================================================
+   Capa visual propia. Vive aquí a propósito: `scripts/extraer-css.mjs`
+   reescribe base.css, layout.css, componentes.css y admin.css desde el
+   monolito de legacy/, así que cualquier retoque puesto allí se perdería.
+
+   Reglas de esta capa:
+   - Solo presentación. No cambia IDs, `data-*`, visibilidad ni permisos.
+   - Redefine los tokens heredados (`--primario`, `--fondo`, …) para que todo
+     el código existente adopte la paleta sin tocarse.
+   - Los colores de estado (verde/amarillo/naranja/rojo) se conservan: un
+     reporte peligroso no puede confundirse con una métrica dorada.
+   - Nada de estilos en línea: la CSP prohíbe el atributo `style`.
+   ========================================================================== */
+
+:root {
+  /* Paleta */
+  --bento-magenta: #9C1C55;
+  --bento-magenta-dark: #7A1442;
+  --bento-magenta-soft: #F9EEF3;
+  --bento-magenta-line: #EBD3DE;
+  --bento-gold: #C5A059;
+  --bento-gold-deep: #A8853F;   /* métricas grandes (contraste AA en tamaño grande) */
+  --bento-gold-ink: #7A5E22;    /* texto dorado pequeño (contraste AA) */
+  --bento-gold-soft: #FAF4E6;
+  --bento-canvas: #F4F5F7;
+  --bento-card: #FFFFFF;
+  --bento-ink: #1E232A;
+  --bento-ink-soft: #4A515B;
+  --bento-muted: #8C939E;
+
+  /* Estructura */
+  --bento-line: #E7E9ED;
+  --bento-line-strong: #DCE0E6;
+  --bento-radius-xl: 22px;
+  --bento-radius-lg: 16px;
+  --bento-radius-md: 12px;
+  --bento-radius-sm: 9px;
+  --bento-gap: 12px;
+  --bento-shadow-sm: 0 1px 2px rgba(30, 35, 42, 0.05);
+  --bento-shadow-md: 0 2px 6px rgba(30, 35, 42, 0.05), 0 14px 30px rgba(30, 35, 42, 0.07);
+
+  /* Alias al contrato existente: el resto del código sigue usando estos nombres. */
+  --primario: var(--bento-magenta);
+  --primario-claro: #B23A6F;
+  --oscuro: var(--bento-ink);
+  --fondo: var(--bento-canvas);
+  --borde: var(--bento-line);
+  --superficie: var(--bento-card);
+  --superficie-2: #FAFBFC;
+  --superficie-3: #F1F2F5;
+  --texto: var(--bento-ink);
+  --texto-suave: var(--bento-ink-soft);
+  --campo: #FFFFFF;
+  --campo-texto: var(--bento-ink);
+  --enlace: var(--bento-magenta);
+  --gris: #6B7280;
+  --sombra: var(--bento-shadow-md);
+}
+
+body {
+  background: var(--bento-canvas);
+  color: var(--bento-ink);
+}
+
+/* Foco visible uniforme y discreto. `:where()` no añade especificidad, así que
+   no pisa los estilos de cada componente; solo aporta el anillo. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--bento-magenta);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- Barra --- */
+
+.topbar {
+  margin: 10px 10px 0;
+  padding: 8px 10px;
+  gap: 8px;
+  background: var(--bento-card);
+  color: var(--bento-ink);
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.topbar .brand {
+  color: var(--bento-ink);
+  letter-spacing: -0.01em;
+}
+
+.topbar .brand > i {
+  color: var(--bento-magenta);
+}
+
+.topbar .muni-name {
+  color: var(--bento-muted);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.topbar .muni-picker {
+  background: #F5F6F8;
+  border: 1px solid var(--bento-line);
+  border-radius: 999px;
+  color: var(--bento-ink-soft);
+}
+
+.topbar .muni-picker > i {
+  color: var(--bento-gold-deep);
+}
+
+.topbar .muni-picker select,
+.topbar .muni-picker input[type='text'] {
+  color: var(--bento-ink);
+}
+
+.topbar .muni-picker input[type='text']::placeholder {
+  color: var(--bento-muted);
+}
+
+.topbar .muni-picker select option {
+  color: var(--bento-ink);
+  background: #FFF;
+}
+
+/* Botones del chrome: chips neutros. Solo las acciones primarias llevan color
+   pleno, para que la barra no compita consigo misma. */
+.boton-cristal {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--bento-ink-soft);
+}
+
+.boton-cristal:hover {
+  background: var(--bento-magenta-soft);
+  border-color: var(--bento-magenta-line);
+  color: var(--bento-magenta-dark);
+}
+
+.boton-menu-suave {
+  background: transparent;
+}
+
+.topbar .notif-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #F5F6F8;
+  border: 1px solid var(--bento-line);
+  color: var(--bento-ink-soft);
+}
+
+.topbar .notif-btn:hover {
+  background: var(--bento-magenta-soft);
+  border-color: var(--bento-magenta-line);
+  color: var(--bento-magenta);
+}
+
+.topbar .user-info {
+  background: var(--bento-magenta-soft);
+  border: 1px solid var(--bento-magenta-line);
+  color: var(--bento-magenta-dark);
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.topbar .user-info:hover {
+  background: #F3DEE8;
+}
+
+.notif-badge {
+  border-color: var(--bento-card);
+  background: var(--bento-magenta);
+}
+
+/* --------------------------------------------------------------- Layout --- */
+
+.main-layout {
+  padding: 10px;
+  gap: 10px;
+}
+
+.sidebar {
+  width: 350px;
+  background: transparent;
+  border-right: 0;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  display: grid;
+  /* Sin `flex: 0 0 auto` la cabecera se encogía a 0 cuando el listado crecía
+     (heredaba `flex-shrink: 1` de .sidebar-scroll) y las tarjetas se pintaban
+     encima del listado. */
+  flex: 0 0 auto;
+  gap: 10px;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+/* Orden del panel: avisos → tamaño de texto → filtros → accesos → colindantes.
+   Se resuelve en el marcado (no con `order`) para que el recorrido del teclado
+   coincida con el orden visual. */
+
+.sidebar-scroll {
+  /* La cabecera scrollea sola y el listado conserva su altura. Sin el
+     `flex: 0 0 auto` de arriba la cabecera se encogía a 0 y se pintaba encima. */
+  max-height: 66vh;
+  padding-right: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  /* Pista de que quedan bloques por ver (accesos, colindantes): el borde
+     inferior se difumina en lugar de cortar el texto a media línea. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+}
+
+/* Título de sección: etiqueta, no contenido. La jerarquía se hace con color,
+   mayúsculas y espaciado; el texto de contenido mantiene el mínimo legible. */
+.sidebar-header h3,
+.sidebar-grupo h3,
+.sidebar-filtros h3,
+.colindantes h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--bento-muted);
+}
+
+.sidebar-header h3 i,
+.sidebar-grupo h3 i,
+.colindantes h3 i {
+  color: var(--bento-gold-deep);
+}
+
+/* --- Tarjeta de accesos --------------------------------------------------- */
+
+/* Los accesos se reparten en dos columnas: nueve enlaces en una sola columna
+   empujaban los filtros y el listado fuera de la pantalla. Cada grupo aporta
+   su título a fila completa y `display: contents` deja que sus enlaces fluyan
+   en la rejilla. */
+.sidebar-accesos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+  margin-bottom: 0;
+  padding: 12px;
+  background: var(--bento-card);
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.sidebar-grupo {
+  display: contents;
+}
+
+.sidebar-grupo h3 {
+  grid-column: 1 / -1;
+  margin: 8px 0 2px;
+}
+
+.sidebar-grupo:first-child h3 {
+  margin-top: 0;
+}
+
+.sidebar-accesos .link-terminos,
+a.link-terminos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--bento-radius-sm);
+  background: transparent;
+  color: var(--bento-ink-soft);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  text-decoration: none;
+}
+
+.sidebar-accesos .link-terminos i {
+  flex: 0 0 16px;
+  width: 16px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--bento-muted);
+}
+
+.sidebar-accesos .link-terminos:hover,
+a.link-terminos:hover {
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+.sidebar-accesos .link-terminos:hover i {
+  color: var(--bento-magenta);
+}
+
+/* --- Controles de texto --------------------------------------------------- */
+
+.texto-controles {
+  gap: 6px;
+  margin-bottom: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.texto-controles-label {
+  color: var(--bento-muted);
+  font-weight: 600;
+}
+
+.boton-texto {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-sm);
+  background: #F7F8FA;
+  color: var(--bento-ink-soft);
+}
+
+.boton-texto:hover {
+  border-color: var(--bento-magenta-line);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+.boton-texto[aria-pressed='true'] {
+  border-color: var(--bento-magenta);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+/* --- Avisos de sesión ----------------------------------------------------- */
+
+.nota-visibilidad,
+.nota-cuenta {
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--bento-line);
+  border-left: 4px solid var(--bento-magenta);
+  border-radius: var(--bento-radius-md);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+/* El aviso de sesión no es una alerta: se queda en tono neutro para que el
+   único bloque teñido sea el de visibilidad. */
+.nota-cuenta {
+  border-color: var(--bento-line);
+  border-left-color: var(--bento-gold);
+  background: #F8F9FB;
+  color: var(--bento-ink-soft);
+}
+
+/* --- Filtros -------------------------------------------------------------- */
+
+.sidebar-filtros {
+  padding: 12px;
+  background: var(--bento-card);
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.sidebar-filtros h3 {
+  margin-bottom: 8px;
+}
+
+.filters-heading .filters-toggle {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--bento-line);
+  border-radius: 8px;
+  background: #F7F8FA;
+  color: var(--bento-ink-soft);
+}
+
+.filters-heading .filters-toggle:hover {
+  border-color: var(--bento-magenta-line);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta);
+}
+
+.filters {
+  gap: 8px;
+}
+
+.filter-row {
+  gap: 8px;
+}
+
+.filter-input,
+.filter-select {
+  padding: 8px 8px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-sm);
+  background: #FAFBFC;
+  color: var(--bento-ink);
+}
+
+/* «Todas las comunidades» es más largo que «Todas las vías»: la fila reparte
+   el ancho en proporción para que ninguno de los dos textos se corte. */
+.filter-row #filterZona {
+  flex: 1.6 1 0;
+}
+
+.filter-row #filterAmbito {
+  flex: 1 1 0;
+}
+
+.filter-input::placeholder {
+  color: var(--bento-muted);
+}
+
+.filter-input:focus,
+.filter-select:focus {
+  border-color: var(--bento-magenta);
+  background: #FFF;
+  box-shadow: 0 0 0 3px rgba(156, 28, 85, 0.12);
+}
+
+/* --- Municipios colindantes ---------------------------------------------- */
+
+.colindantes {
+  margin-top: 0;
+  padding: 12px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.colindantes-lista {
+  gap: 6px;
+  max-height: 120px;
+}
+
+.chip-municipio {
+  padding: 5px 10px;
+  border: 1px solid var(--bento-line);
+  border-radius: 999px;
+  background: #F7F8FA;
+  color: var(--bento-ink-soft);
+}
+
+.chip-municipio:hover {
+  border-color: var(--bento-magenta-line);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+.chip-estado {
+  color: var(--bento-muted);
+}
+
+/* ---------------------------------------------------------------- Lista --- */
+
+.list-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  gap: 8px;
+  min-height: 140px;
+  padding: 10px;
+  overflow-y: auto;
+  background: transparent;
+}
+
+.incidencia-card {
+  margin-bottom: 0;
+  padding: 12px 12px 11px;
+  border: 1px solid var(--bento-line);
+  border-left: 3px solid var(--bento-line-strong);
+  border-radius: var(--bento-radius-md);
+  background: var(--bento-card);
+  box-shadow: none;
+}
+
+.incidencia-card:hover {
+  border-color: var(--bento-magenta-line);
+  box-shadow: var(--bento-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.incidencia-card.estado-verde { border-left-color: var(--verde); }
+.incidencia-card.estado-amarillo { border-left-color: var(--amarillo); }
+.incidencia-card.estado-naranja { border-left-color: var(--naranja); }
+.incidencia-card.estado-rojo { border-left-color: var(--rojo); }
+
+.incidencia-card .inc-title {
+  color: var(--bento-ink);
+  letter-spacing: -0.01em;
+}
+
+.incidencia-card .inc-desc {
+  color: var(--bento-ink-soft);
+}
+
+.incidencia-card .inc-meta {
+  color: var(--bento-muted);
+}
+
+.empty-state {
+  color: var(--bento-muted);
+}
+
+.empty-state i {
+  color: var(--bento-line-strong);
+}
+
+/* ----------------------------------------------------------------- Mapa --- */
+
+.map-container {
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-xl);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-sm);
+  overflow: hidden;
+}
+
+#map {
+  border-radius: inherit;
+}
+
+#map .leaflet-control-zoom a {
+  border-radius: 8px;
+  color: var(--bento-ink-soft);
+}
+
+#map .leaflet-bar {
+  border: 1px solid var(--bento-line);
+  border-radius: 10px;
+  box-shadow: var(--bento-shadow-sm);
+  overflow: hidden;
+}
+
+.floating-btns {
+  right: 18px;
+  bottom: 18px;
+  gap: 8px;
+}
+
+.fab {
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--bento-line);
+  border-radius: 14px;
+  background: var(--bento-card);
+  color: var(--bento-magenta);
+  box-shadow: var(--bento-shadow-sm);
+  font-size: 1.2rem;
+}
+
+.fab:hover {
+  border-color: var(--bento-magenta-line);
+  background: var(--bento-magenta-soft);
+  transform: translateY(-1px);
+  box-shadow: var(--bento-shadow-md);
+}
+
+.fab.primary {
+  background: var(--bento-magenta);
+  border-color: var(--bento-magenta);
+  color: #FFF;
+}
+
+.fab.primary:hover {
+  background: var(--bento-magenta-dark);
+  border-color: var(--bento-magenta-dark);
+}
+
+.legend-box {
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-md);
+  color: var(--bento-ink-soft);
+}
+
+.legend-box .leg-title,
+.info-panel .leg-title {
+  color: var(--bento-gold-ink);
+  letter-spacing: 0.08em;
+}
+
+.mapa-capas {
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-md);
+}
+
+.mapa-capa {
+  border-radius: var(--bento-radius-sm);
+  color: var(--bento-ink-soft);
+}
+
+/* La capa activa se marca con un tinte suave: el único color pleno sobre el
+   mapa debe ser el botón de reportar. */
+.mapa-capa[aria-pressed='true'] {
+  background: var(--bento-magenta-soft);
+  box-shadow: inset 0 0 0 1px var(--bento-magenta-line);
+  color: var(--bento-magenta-dark);
+}
+
+/* -------------------------------------------------- Paneles de la barra --- */
+
+.notif-panel,
+.info-panel {
+  margin-top: 10px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  color: var(--bento-ink);
+  box-shadow: var(--bento-shadow-md);
+  overflow: hidden;
+}
+
+.notif-header {
+  background: #FBF7F9;
+  border-bottom: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg) var(--bento-radius-lg) 0 0;
+  color: var(--bento-ink);
+}
+
+.notif-item {
+  border-bottom-color: var(--bento-line);
+}
+
+.notif-item.unread {
+  background: var(--bento-magenta-soft);
+}
+
+.notif-item .n-title {
+  color: var(--bento-ink);
+}
+
+.notif-item .n-msg {
+  color: var(--bento-ink-soft);
+}
+
+.notif-item .n-time {
+  color: var(--bento-muted);
+}
+
+.notif-empty {
+  color: var(--bento-muted);
+}
+
+/* --------------------------------------------------------------- Botones --- */
+
+.btn {
+  border-radius: 11px;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: var(--bento-magenta);
+  color: #FFF;
+}
+
+.btn-primary:hover {
+  background: var(--bento-magenta-dark);
+}
+
+.btn-outline {
+  border: 1px solid var(--bento-line-strong);
+  color: var(--bento-ink-soft);
+  background: var(--bento-card);
+}
+
+.btn-outline:hover {
+  border-color: var(--bento-magenta-line);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+/* Insignias: se mantiene el significado del color; solo se suaviza el fondo. */
+.inc-badge,
+.badge-verde,
+.badge-amarillo,
+.badge-naranja,
+.badge-rojo,
+.badge-resuelta,
+.badge-vial,
+.badge-azul,
+.badge-negro {
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ------------------------------------------------------ Formularios base --- */
+
+.form-group label {
+  color: var(--bento-ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  border: 1px solid var(--bento-line-strong);
+  border-radius: var(--bento-radius-sm);
+  background: #FBFCFD;
+  color: var(--bento-ink);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: var(--bento-muted);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--bento-magenta);
+  background: #FFF;
+  box-shadow: 0 0 0 3px rgba(156, 28, 85, 0.12);
+}
+
+/* --------------------------------------------------------------- Modales --- */
+
+.modal-overlay {
+  background: rgba(30, 35, 42, 0.48);
+}
+
+.modal-box {
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--bento-radius-xl);
+  background: var(--bento-card);
+  box-shadow: 0 24px 70px rgba(30, 35, 42, 0.24);
+}
+
+.modal-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-xl) var(--bento-radius-xl) 0 0;
+  background: #FBF7F9;
+}
+
+.modal-head h3 {
+  color: var(--bento-ink);
+  letter-spacing: -0.01em;
+}
+
+.modal-head h3 i {
+  color: var(--bento-magenta);
+}
+
+.modal-close {
+  border-radius: 10px;
+  color: var(--bento-muted);
+}
+
+.modal-close:hover {
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta);
+}
+
+.modal-body {
+  background: var(--bento-card);
+}
+
+.modal-foot {
+  border-top: 1px solid var(--bento-line);
+  border-radius: 0 0 var(--bento-radius-xl) var(--bento-radius-xl);
+  background: #FBFCFD;
+}
+
+/* Piezas internas de modales que heredaban el verde del tema anterior. */
+.icon-picker {
+  border-color: var(--bento-line-strong);
+  border-radius: var(--bento-radius-md);
+  background: #FAFBFC;
+}
+
+.icon-opt:hover,
+.icon-opt.selected {
+  border-color: var(--bento-magenta);
+  background: var(--bento-magenta-soft);
+}
+
+.evidence-drop {
+  border-color: var(--bento-line-strong);
+  border-radius: var(--bento-radius-lg);
+  background: #FAFBFC;
+}
+
+.evidence-drop:hover {
+  border-color: var(--bento-magenta);
+  background: var(--bento-magenta-soft);
+}
+
+.evidence-drop i,
+.detail-row .label {
+  color: var(--bento-magenta);
+}
+
+.evidence-item {
+  border-radius: var(--bento-radius-sm);
+  border-color: var(--bento-line);
+}
+
+.comment-item .c-author {
+  color: var(--bento-magenta-dark);
+}
+
+/* ---------------------------------------------------------------- Admin --- */
+
+.admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 4px;
+  padding: 5px;
+  margin-bottom: 16px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-md);
+  background: #F7F8FA;
+}
+
+.admin-tab {
+  margin-bottom: 0;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: var(--bento-radius-sm);
+  color: var(--bento-ink-soft);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-tab:hover {
+  background: #FFF;
+  color: var(--bento-magenta-dark);
+}
+
+.admin-tab.active {
+  background: var(--bento-magenta);
+  border-bottom-color: transparent;
+  color: #FFF;
+}
+
+.admin-tab.active i {
+  color: #FFF;
+}
+
+.stats-grid {
+  gap: 12px;
+}
+
+.stat-card {
+  padding: 16px 14px;
+  border: 1px solid var(--bento-line);
+  border-top: 3px solid var(--bento-gold);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.stat-card .stat-num {
+  color: var(--bento-gold-deep);
+  font-size: 1.8rem;
+  letter-spacing: -0.02em;
+}
+
+.stat-card .stat-label {
+  color: var(--bento-muted);
+  letter-spacing: 0.06em;
+}
+
+.stat-card.verde .stat-num { color: #1E7A3C; }
+.stat-card.rojo .stat-num { color: #B3242F; }
+.stat-card.naranja .stat-num { color: #B35200; }
+.stat-card.amarillo .stat-num { color: var(--bento-gold-ink); }
+
+.data-table {
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-md);
+}
+
+.data-table th {
+  background: #F7F8FA;
+  border-bottom: 1px solid var(--bento-line-strong);
+  color: var(--bento-muted);
+  letter-spacing: 0.06em;
+}
+
+.data-table td {
+  border-bottom: 1px solid var(--bento-line);
+  color: var(--bento-ink-soft);
+}
+
+.data-table tbody tr:hover {
+  background: #FAFBFC;
+}
+
+.peligro-panel {
+  border: 1px solid #F3C9C9;
+  border-left: 4px solid var(--rojo);
+  border-radius: var(--bento-radius-lg);
+  background: #FFF6F6;
+}
+
+.peligro-card {
+  border: 1px solid #F3C9C9;
+  border-left: 4px solid var(--rojo);
+  border-radius: var(--bento-radius-md);
+  box-shadow: none;
+}
+
+/* -------------------------------------------------- Acceso y bienvenida --- */
+
+.login-screen,
+.boot-screen {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(197, 160, 89, 0.35), transparent 60%),
+    linear-gradient(140deg, #5E0F32 0%, #9C1C55 55%, #B23A6F 100%);
+}
+
+.login-card {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-top: 4px solid var(--bento-gold);
+  border-radius: var(--bento-radius-xl);
+  box-shadow: 0 28px 70px rgba(60, 8, 32, 0.35);
+}
+
+.login-card h1 {
+  color: var(--bento-ink);
+  letter-spacing: -0.02em;
+}
+
+.login-card h1 i {
+  color: var(--bento-magenta);
+}
+
+.login-card p.sub {
+  color: var(--bento-ink-soft);
+}
+
+/* El check de «recordar usuario» quedaba pegado al botón de entrada. */
+.login-card .check-line {
+  margin: 4px 0 14px;
+}
+
+.login-tabs {
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-md);
+  background: #F7F8FA;
+}
+
+.login-tab {
+  margin-bottom: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--bento-radius-sm);
+  color: var(--bento-ink-soft);
+}
+
+.login-tab.active {
+  background: var(--bento-magenta);
+  color: #FFF;
+}
+
+.login-tab.active::after {
+  content: none;
+}
+
+.boot-card h1 {
+  letter-spacing: -0.01em;
+}
+
+/* --------------------------------------------------- Páginas públicas --- */
+
+.acerca-cuerpo,
+body.pagina-publica {
+  background: var(--bento-canvas);
+}
+
+.acerca-volver,
+.acerca-seccion > h2,
+.acerca-tarjeta h3 i,
+.acerca-credito h3,
+.acerca-tec-bloque h3,
+.acerca-contacto i,
+.legal-nav-enlace {
+  color: var(--bento-magenta);
+}
+
+.acerca-tarjeta,
+.acerca-tec-bloque,
+.acerca-nota,
+.acerca-aviso,
+.acerca-contacto {
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+  background: var(--bento-card);
+  box-shadow: var(--bento-shadow-sm);
+}
+
+.acerca-cabecera {
+  border-bottom: 3px solid var(--bento-gold);
+}
+
+.acerca-distintivo {
+  border-radius: 999px;
+}
+
+.acerca-pasos li::before {
+  background: var(--bento-magenta);
+  color: #FFF;
+}
+
+.personal-nota {
+  color: var(--bento-ink-soft);
+}
+
+.personal-nota a {
+  color: var(--bento-magenta);
+  font-weight: 600;
+}
+
+/* ----------------------------------------------------------------- Avisos --- */
+
+.toast {
+  border: 1px solid var(--bento-line);
+  border-left: 4px solid var(--bento-magenta);
+  border-radius: var(--bento-radius-md);
+  background: var(--bento-card);
+  color: var(--bento-ink);
+  box-shadow: var(--bento-shadow-md);
+}
+
+.toast.ok {
+  border-left-color: var(--verde);
+  background: var(--bento-card);
+  color: #14532D;
+}
+
+.toast.err {
+  border-left-color: var(--rojo);
+  background: var(--bento-card);
+  color: #7F1D1D;
+}
+
+.toast.info {
+  border-left-color: var(--bento-gold);
+  background: var(--bento-card);
+  color: var(--bento-ink-soft);
+}
+
+.loading-overlay {
+  background: rgba(30, 35, 42, 0.5);
+}
+
+/* ------------------------------------------ Restos del tema verde anterior --- */
+/* Estas piezas fijaban el verde a mano y no pasan por --primario: se alinean
+   aquí en lugar de editar cada regla repartida por la hoja. */
+
+.combo-opcion:hover,
+.combo-opcion.activo {
+  background: var(--bento-magenta-soft);
+}
+
+.combo-opcion.activo {
+  outline-color: var(--bento-magenta-line);
+}
+
+.boton-verde-ancho {
+  border-radius: var(--bento-radius-sm);
+  background: var(--bento-magenta);
+}
+
+.boton-verde-ancho:hover {
+  background: var(--bento-magenta-dark);
+}
+
+.titulo-detalle {
+  color: var(--bento-magenta-dark);
+}
+
+.pastilla-activo {
+  border-radius: 999px;
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+.pastilla-personalizado {
+  color: var(--bento-magenta-dark);
+}
+
+.bandeja-etiqueta {
+  border-color: var(--bento-magenta-line);
+  border-radius: 999px;
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+.loc-status {
+  border-color: var(--bento-magenta-line);
+  background: var(--bento-magenta-soft);
+  color: var(--bento-magenta-dark);
+}
+
+.bandeja-hilo:hover,
+.bandeja-adjunto:hover,
+.mapa-capa:hover {
+  background: var(--bento-magenta-soft);
+}
+
+/* Capas oscuras: mismo velo grafito en toda la aplicación. */
+.onboarding {
+  background: rgba(38, 8, 22, 0.94);
+}
+
+.onboarding-card {
+  border-top: 4px solid var(--bento-gold);
+  border-radius: var(--bento-radius-xl);
+  box-shadow: 0 28px 70px rgba(30, 8, 20, 0.4);
+}
+
+.tutorial {
+  background: rgba(24, 12, 18, 0.72);
+}
+
+.bloqueo {
+  background: rgba(38, 8, 22, 0.94);
+}
+
+/* Tarjetas flotantes del tutorial y del bloqueo. */
+.tutorial-tarjeta,
+.bloqueo-card {
+  border: 1px solid var(--bento-line);
+  border-radius: var(--bento-radius-lg);
+}
+
+/* ------------------------------------------------------------ Responsive --- */
+@media (max-width: 900px) {
+  .topbar {
+    margin: 8px 8px 0;
+    border-radius: var(--bento-radius-md);
+  }
+  .main-layout {
+    padding: 8px;
+    gap: 8px;
+  }
+  .map-container {
+    border-radius: var(--bento-radius-lg);
+  }
+  .sidebar-scroll {
+    max-height: 62vh;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: min(88vw, 350px);
+  }
+  .floating-btns {
+    right: 12px;
+    bottom: 12px;
+  }
+  .fab {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+  .admin-tabs {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .admin-tab {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    margin: 6px 6px 0;
+    padding: 6px 8px;
+    gap: 6px;
+    border-radius: var(--bento-radius-md);
+  }
+  /* El acceso y el alta se quedan con el icono; conservan su nombre accesible
+     por `aria-label`, así que el topbar baja de cuatro filas a tres. */
+  #btn-login span {
+    display: none;
+  }
+  .main-layout {
+    padding: 6px;
+    gap: 6px;
+  }
+  .modal-overlay {
+    padding: 0;
+  }
+  .modal-box {
+    border-radius: var(--bento-radius-lg) var(--bento-radius-lg) 0 0;
+  }
+}
+
+/* Respeta la preferencia de menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .incidencia-card,
+  .fab,
+  .btn,
+  .admin-tab,
+  .login-tab {
+    transition: none;
+  }
+  .incidencia-card:hover,
+  .fab:hover {
+    transform: none;
+  }
+}

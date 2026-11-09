@@ -195,7 +195,6 @@ html[data-texto='muy-grande'] .list-container .inc-meta {
 .topbar .muni-name,
 .topbar .muni-picker input[type='text'],
 .topbar .user-info,
-.sidebar-grupo h3,
 .sidebar-accesos .link-terminos,
 .texto-controles-label,
 .boton-texto,
@@ -230,9 +229,6 @@ html[data-texto='muy-grande'] .list-container .inc-meta {
 .acerca-pie,
 .topbar .muni-picker,
 .topbar .muni-picker select,
-.sidebar-header h3,
-.sidebar-filtros h3,
-.colindantes h3,
 .legend-box,
 .legend-box .leg-title,
 .notif-badge,
@@ -248,6 +244,30 @@ html[data-texto='muy-grande'] .list-container .inc-meta {
 .notif-badge {
   min-width: 22px;
   height: 22px;
+}
+
+/* Los títulos de sección son etiquetas de navegación, no contenido: se quedan
+   por debajo del mínimo para que la jerarquía del rediseño Bento se lea. Todo
+   lo que la persona lee (enlaces, notas, campos, ayudas) sigue en --fs-min. */
+.sidebar-header h3,
+.sidebar-grupo h3,
+.sidebar-filtros h3,
+.colindantes h3 {
+  font-size: 11.5px;
+}
+
+html[data-texto='grande'] .sidebar-header h3,
+html[data-texto='grande'] .sidebar-grupo h3,
+html[data-texto='grande'] .sidebar-filtros h3,
+html[data-texto='grande'] .colindantes h3 {
+  font-size: 12.5px;
+}
+
+html[data-texto='muy-grande'] .sidebar-header h3,
+html[data-texto='muy-grande'] .sidebar-grupo h3,
+html[data-texto='muy-grande'] .sidebar-filtros h3,
+html[data-texto='muy-grande'] .colindantes h3 {
+  font-size: 13.5px;
 }
 
 }

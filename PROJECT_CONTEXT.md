@@ -182,6 +182,10 @@ V2.11.3 (reactivar cuentas, solicitud de alta y texto más grande): la pestaña 
 
 **Restricciones del funcionario (V2.11):** quien no es administrador solo crea y edita cuentas con plantilla `funcionario` dentro de sus municipios; no puede cambiar permisos (`exigirPuedeEditarPermisos`), ni contraseñas (`exigirPuedeCambiarPassword`), ni generar claves (`claves.crear/revocar/eliminar` exigen `esAlgunaAdmin` y `generarClave` responde 403). La contraseña inicial sí se fija al crear la cuenta. Nadie concede permisos que no tiene (`permisosOtorgables`), salvo el maestro.
 
+**Rediseño Bento (2026-11):** la interfaz deja el verde institucional por una paleta de tarjetas sobre lienzo claro. Los tokens viven en el bloque «REDISEÑO BENTO» de `frontend/css/extensiones.css` (`--bento-magenta: #9C1C55`, `--bento-gold: #C5A059`, `--bento-canvas: #F4F5F7`, `--bento-card: #FFFFFF`, `--bento-ink: #1E232A`, `--bento-muted: #8C939E`) y se mapean a los nombres históricos (`--primario`, `--fondo`, `--superficie`, `--texto`, `--enlace`, `--borde`), así que ni las vistas ni los controladores cambian. El bloque va en `extensiones.css` porque `scripts/extraer-css.mjs` reescribe `base.css`, `layout.css`, `componentes.css` y `admin.css` desde `legacy/`.
+
+La capa Bento es solo presentación: no añade ni renombra IDs, `data-*`, permisos ni acciones. Los colores de estado se conservan (verde/amarillo/naranja/rojo en tarjetas, badges y semáforo) y el oro se reserva para acentos y métricas; como `#C5A059` no alcanza contraste AA sobre blanco, el texto dorado usa `--bento-gold-ink` y las cifras grandes `--bento-gold-deep`. En la barra lateral los filtros pasan **antes** de los accesos (el orden del marcado coincide con el del teclado), la cabecera scrollea con un degradado inferior que avisa de que hay más bloques y el listado mantiene su propio desplazamiento. Las pestañas del panel se ordenan en rejilla de píldoras con la activa en magenta, y el acceso y el alta llevan `aria-label` porque en móvil se muestran solo con icono. `legibilidad.css` mantiene el mínimo de 14 px para el contenido, pero los títulos de sección de la barra lateral quedan como etiquetas de 11.5 px (12.5/13.5 con A+/A++). El contrato está cubierto por `backend/test/bento-ui.test.js`.
+
 ## 4. Roles y permisos
 
 Roles: `anonimo`, `ciudadano`, `funcionario`, `cuadrilla`, `auditor`, `enlace_estatal`, `enlace_federal`, `soporte`, `admin_municipal`, `admin_estatal`, `admin`. `cuadrilla` es personal operativo de campo: ve el panel y las reparaciones asignadas, inicia/termina trabajos y sube documentos, pero no coordina ni valida.
@@ -471,6 +475,7 @@ Variables V2.7:
 
 Variables V2.11:
 - `PASSWORD_LLAVE` (vacía en desarrollo): llave de 32 bytes para AES-256-GCM. **Obligatoria en producción** (`problemasDeConfiguracion()` la exige). Sin ella se deriva del secreto JWT en desarrollo. Cambiarla invalida las copias ya cifradas: el panel ofrecerá restablecerlas.
+- `compose.yaml` la pasa a la app como `${PASSWORD_LLAVE:?define PASSWORD_LLAVE en el .env de la raíz}`: el contenedor corre con `NODE_ENV=production`, así que sin la llave en el `.env` de la raíz el arranque aborta con «la configuración no es segura en producción».
 
 Variables V2.12.0:
 - `VERIFICAR_CORREO_REGISTRO` (true), `VERIFICAR_CORREO_EN_PRUEBAS` (false), `TOKEN_VERIFICACION_HORAS` (24), `TOKEN_RECUPERACION_MINUTOS` (60).
@@ -602,6 +607,23 @@ Al cambiar cualquiera de estos elementos, actualizar la sección correspondiente
 Un cambio no se considera terminado si este archivo no refleja el estado real.
 
 ## 13. Changelog
+
+### 2026-11-08 — Rediseño Bento de la interfaz
+
+- **Paleta nueva:** magenta `#9C1C55` para navegación y CTAs, oro `#C5A059` para acentos y métricas, lienzo `#F4F5F7`, tarjetas blancas, grafito `#1E232A` y gris `#8C939E`. Vive en el bloque «REDISEÑO BENTO» de `frontend/css/extensiones.css` y se aplica redefiniendo los tokens históricos, sin tocar vistas ni controladores.
+- **Saneamiento previo:** se resolvieron los marcadores de conflicto de `frontend/index.html` que duplicaban `filterText`, `filterEstado` y `filterTipo`, conservando los grupos de accesos, los controles A−/A+/A, los siete filtros y los enlaces legales.
+- **Barra lateral:** filtros antes de los accesos (coincide el orden visual con el del teclado), tarjetas por bloque, accesos en rejilla de dos columnas, cabecera con desplazamiento propio y aviso de contenido pendiente, y listado con scroll independiente.
+- **Panel, modales y mapas:** pestañas del panel en rejilla de píldoras, tarjetas de estadística con acento dorado, modales de radio 22 px, capas del mapa con la activa en tinte suave y acciones flotantes cuadradas. El mapa conserva `mapa.invalidarTamano()` al plegar el panel.
+- **Acceso y páginas públicas:** degradado magenta con borde dorado en acceso, paso previo, bloqueo y tutorial; `/personal`, `/cuenta`, `/legal`, `/suscripcion`, `/solicitud-acceso` y `/acerca` comparten los tokens de `extensiones.css`.
+- **Accesibilidad:** `aria-label` en `#btn-login` y `#btn-registro` (en móvil quedan solo con icono); foco visible magenta; `prefers-reduced-motion`; los colores de estado y peligro se mantienen diferenciados.
+- **Pruebas:** nueva `backend/test/bento-ui.test.js` (marcado sin conflictos, IDs únicos, tokens, semántica de estados y hojas compartidas) y orden de la barra lateral actualizado en `v2-ui.test.js`. Suite JSON **534/534**.
+- Sin cambios de API, esquema, permisos ni acciones delegadas.
+
+### 2026-11-08 — Arranque en Docker: `PASSWORD_LLAVE` obligatoria en compose
+
+- **`compose.yaml`** pasa `PASSWORD_LLAVE: ${PASSWORD_LLAVE:?...}` al servicio `app`. El contenedor corre con `NODE_ENV=production` y `problemasDeConfiguracion()` exige la llave AES-256-GCM, así que sin ella el contenedor entraba en bucle de reinicio con «la configuración no es segura en producción».
+- **Migración huérfana:** una base antigua registraba `010_cuentas_seguras.js`, archivo que ya no existe en `backend/db/migrations/`; knex abortaba con «The migration directory is corrupt». Se retiró esa fila de `knex_migrations` y se aplicaron las 57 pendientes.
+- La aplicación queda configurable por `.env`: `APP_PORT` (puerto publicado) y `URL_PUBLICA` (base de los enlaces de correo) deben apuntar al mismo sitio.
 
 ### 2026-11-06 — V2.17.0 (red vial poligonal real y semáforo con degradado)
 
