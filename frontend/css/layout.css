@@ -102,6 +102,15 @@
   display: flex; align-items: center; gap: 6px;
   margin-bottom: 8px;
 }
+.sidebar-header h3.filters-heading { gap: 6px; }
+.filters-toggle {
+  margin-left: auto; padding: 2px 6px; border: 0; border-radius: 5px;
+  color: var(--primario); background: transparent; cursor: pointer;
+  font-size: 12px; line-height: 1.4;
+}
+.filters-toggle:hover, .filters-toggle:focus-visible { background: #e8eef3; }
+.filters-toggle:focus-visible { outline: 2px solid var(--primario); outline-offset: 1px; }
+.filters[hidden] { display: none; }
 .filters { display: flex; flex-direction: column; gap: 6px; }
 .filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .filter-row > * { flex: 1; min-width: 0; }

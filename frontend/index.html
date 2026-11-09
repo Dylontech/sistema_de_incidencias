@@ -418,11 +418,13 @@
          cuanto la sesión tiene cuenta propia (ciudadana o del personal). -->
     <button type="button" class="btn btn-outline boton-cristal u-oculto" id="btn-login"
             data-action="auth:mostrarLogin" data-valor="login"
+            aria-label="Iniciar sesión"
             title="Entra con el nombre o pseudónimo de tu cuenta">
       <i class="bi bi-box-arrow-in-right"></i> <span>Iniciar sesión</span>
     </button>
     <button type="button" class="btn btn-outline boton-cristal u-oculto" id="btn-registro"
             data-action="auth:mostrarLogin" data-valor="registro"
+            aria-label="Crear cuenta"
             title="Crea una cuenta para recibir avisos de tus reportes">
       <i class="bi bi-person-plus-fill"></i> <span>Crear cuenta</span>
     </button>
@@ -506,6 +508,59 @@
                   title="Restablecer tamaño del texto" aria-label="Restablecer tamaño del texto">A</button>
         </div>
 
+        <div class="sidebar-filtros">
+          <h3 class="filters-heading">
+            <i class="bi bi-funnel-fill" aria-hidden="true"></i>
+            <span>Filtros</span>
+            <button type="button" class="filters-toggle" data-action="lista:filtros:toggle"
+                    aria-expanded="true" aria-controls="sidebarFilters" aria-label="Plegar filtros"
+                    title="Plegar filtros">
+              <i class="bi bi-chevron-up" aria-hidden="true"></i>
+            </button>
+          </h3>
+          <div class="filters" id="sidebarFilters">
+            <input type="text" class="filter-input" id="filterText" autocomplete="off" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
+            <div class="filter-row">
+              <select class="filter-select" id="filterEstado" data-change="lista:filtrar">
+                <option value="todos">Todos los estados</option>
+                <option value="reportada">Reportadas</option>
+                <option value="en_proceso">En proceso</option>
+                <option value="resuelta">Resueltas</option>
+              </select>
+              <select class="filter-select" id="filterTipo" data-change="lista:filtrar">
+                <option value="todos">Todos los tipos</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <select class="filter-select" id="filterColor" data-change="lista:filtrar">
+                <option value="todos">Todos los colores</option>
+                <option value="verde">🟢 Resueltas</option>
+                <option value="amarillo">🟡 &lt; 15 días</option>
+                <option value="naranja">🟠 &gt; 15 días</option>
+                <option value="rojo">🔴 &gt; 30 días</option>
+              </select>
+              <select class="filter-select" id="filterOrden" data-change="lista:filtrar">
+                <option value="reciente">Más recientes</option>
+                <option value="antigua">Más antiguas</option>
+                <option value="prioridad">Prioridad</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <select class="filter-select" id="filterZona" data-change="lista:filtrar">
+                <option value="todos">Todas las comunidades</option>
+              </select>
+              <select class="filter-select" id="filterAmbito" data-change="lista:filtrar">
+                <option value="todos">Todas las vías</option>
+                <option value="urbano">Urbanas</option>
+                <option value="carretera_estatal">Carreteras estatales</option>
+                <option value="carretera_federal">Carreteras federales</option>
+                <option value="autopista">Autopistas</option>
+                <option value="camino_rural">Caminos rurales</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <nav class="sidebar-accesos" aria-label="Accesos y ayuda">
           <div class="sidebar-grupo">
             <h3><i class="bi bi-person-check-fill"></i> Mi actividad</h3>
@@ -553,51 +608,6 @@
             </a>
           </div>
         </nav>
-
-        <div class="sidebar-filtros">
-          <h3><i class="bi bi-funnel-fill"></i> Filtros</h3>
-          <div class="filters">
-            <input type="text" class="filter-input" id="filterText" autocomplete="off" placeholder="Buscar por título o descripción…" data-input="lista:filtrar">
-            <div class="filter-row">
-              <select class="filter-select" id="filterEstado" data-change="lista:filtrar">
-                <option value="todos">Todos los estados</option>
-                <option value="reportada">Reportadas</option>
-                <option value="en_proceso">En proceso</option>
-                <option value="resuelta">Resueltas</option>
-              </select>
-              <select class="filter-select" id="filterTipo" data-change="lista:filtrar">
-                <option value="todos">Todos los tipos</option>
-              </select>
-            </div>
-            <div class="filter-row">
-              <select class="filter-select" id="filterColor" data-change="lista:filtrar">
-                <option value="todos">Todos los colores</option>
-                <option value="verde">🟢 Resueltas</option>
-                <option value="amarillo">🟡 &lt; 15 días</option>
-                <option value="naranja">🟠 &gt; 15 días</option>
-                <option value="rojo">🔴 &gt; 30 días</option>
-              </select>
-              <select class="filter-select" id="filterOrden" data-change="lista:filtrar">
-                <option value="reciente">Más recientes</option>
-                <option value="antigua">Más antiguas</option>
-                <option value="prioridad">Prioridad</option>
-              </select>
-            </div>
-            <div class="filter-row">
-              <select class="filter-select" id="filterZona" data-change="lista:filtrar">
-                <option value="todos">Todas las comunidades</option>
-              </select>
-              <select class="filter-select" id="filterAmbito" data-change="lista:filtrar">
-                <option value="todos">Todas las vías</option>
-                <option value="urbano">Urbanas</option>
-                <option value="carretera_estatal">Carreteras estatales</option>
-                <option value="carretera_federal">Carreteras federales</option>
-                <option value="autopista">Autopistas</option>
-                <option value="camino_rural">Caminos rurales</option>
-              </select>
-            </div>
-          </div>
-        </div>
 
         <!-- Atajos a los municipios que tocan las fronteras del activo -->
         <div class="colindantes u-oculto" id="colindantesBox">

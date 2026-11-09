@@ -488,6 +488,18 @@ export function registrar() {
 
   registrarAcciones({
     /* --------------------------- listado --------------------------- */
+    'lista:filtros:toggle': ({ elemento }) => {
+      const filtros = document.getElementById('sidebarFilters');
+      const desplegado = elemento.getAttribute('aria-expanded') !== 'true';
+      if (!filtros) return;
+      filtros.hidden = !desplegado;
+      elemento.setAttribute('aria-expanded', String(desplegado));
+      elemento.setAttribute('aria-label', desplegado ? 'Plegar filtros' : 'Desplegar filtros');
+      elemento.title = desplegado ? 'Plegar filtros' : 'Desplegar filtros';
+      const icono = elemento.querySelector('i');
+      icono?.classList.toggle('bi-chevron-up', desplegado);
+      icono?.classList.toggle('bi-chevron-down', !desplegado);
+    },
     'lista:filtrar': ({ evento }) => {
       store.actualizar({ filtros: leerFiltrosDelDom() }, 'filtros');
       if (evento?.type === 'input') refrescarConRetraso();
