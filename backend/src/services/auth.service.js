@@ -6,6 +6,7 @@
  * Aquí las contraseñas se verifican con bcrypt y el rol/municipio viajan
  * firmados dentro del JWT.
  */
+import { createHmac, randomBytes } from 'node:crypto';
 import { AppError } from '../utils/AppError.js';
 import { firmarToken } from '../utils/jwt.js';
 import { nuevoId } from '../utils/ids.js';
@@ -31,7 +32,7 @@ import * as claves from './claves.service.js';
 import * as cuentas from './cuenta.service.js';
 import { cifrarPassword } from '../utils/cifrado.js';
 
-const PATRON_ANON = /^[a-zA-Z0-9_-]{6,64}$/;
+const PATRON_ANON = /^[a-f0-9]{64}$/;
 
 /**
  * ¿El código escrito es una clave de acceso vigente?
@@ -116,6 +117,7 @@ function sesion({ usuario, municipioActivo = null, claveId = null }) {
       username: usuario.username,
       nombre: usuario.nombre,
       rol: usuario.rol,
+      ...(usuario.rol === 'anonimo' ? { identidadAnonima: 2 } : {}),
       municipioId: usuario.municipioId || null,
       correo: usuario.correo || null,
       userKey: usuario.userKey,
@@ -221,15 +223,17 @@ async function contextoPersonal(repositorio, cuenta) {
 
 /**
  * Entrada como ciudadano anónimo.
- * `anonId` lo conserva el navegador (como el viejo localStorage.anon_id) para
- * que el ciudadano siga viendo sus propios reportes en visitas posteriores.
+ * `anonId` es un secreto de recuperación de 256 bits que conserva el navegador.
+ * La identidad pública se deriva con HMAC: nunca permite recuperar el secreto.
  *
  * Esta sesión NO tiene buzón: sin cuenta no hay a quién avisar de que el
  * reporte cambió de estado (decisión del sistema de cuentas). Para recibir
  * avisos hay que registrarse con correo o abrir una cuenta ciudadana.
  */
 export async function entrarAnonimo(repositorio, { anonId, municipioId } = {}) {
-  const id = PATRON_ANON.test(String(anonId || '')) ? String(anonId) : nuevoId();
+  const secreto = PATRON_ANON.test(String(anonId || '')) ? String(anonId) : randomBytes(32).toString('hex');
+  const id = createHmac('sha256', config.jwt.secret)
+    .update(`identidad-anonima-v2:${secreto}`).digest('base64url');
   const municipios = await repositorio.todosMunicipios();
   const elegido =
     municipios.find((m) => m.id === municipioId) ||
@@ -245,7 +249,7 @@ export async function entrarAnonimo(repositorio, { anonId, municipioId } = {}) {
     userKey: `anon_${id}`
   };
 
-  return { ...sesion({ usuario, municipioActivo: elegido }), anonId: id };
+  return { ...sesion({ usuario, municipioActivo: elegido }), anonId: secreto };
 }
 
 /**

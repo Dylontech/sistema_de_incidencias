@@ -352,7 +352,7 @@ describe('Tutorial por rol y enciclopedia', () => {
     const modulo = await import(url);
     assert.ok(modulo.guiasPara({ rol: 'anonimo' }).some((g) => g.id === 'bienvenida'));
     const controlador = leer('js/controllers/tutorial.controller.js');
-    assert.match(controlador, /inc_tutorial_bienvenida_v1/);
+    assert.match(controlador, /inc_tutorial_bienvenida_v2/);
     assert.match(controlador, /inc_tutorial_v1/);
     assert.match(controlador, /quizáMostrar/);
   });
@@ -493,6 +493,20 @@ describe('V2.4/V2.5: accesos, informes, tickets y accesibilidad', () => {
     assert.deepEqual(posiciones, [...posiciones].sort((a, b) => a - b));
   });
 
+  test('los tutoriales apuntan a los controles visibles del rediseño Bento', () => {
+    const tutoriales = leer('js/data/tutoriales.js');
+    const controlador = leer('js/controllers/tutorial.controller.js');
+    assert.match(tutoriales, /#sidebarFilters/);
+    assert.match(tutoriales, /\[data-action="incidencias:reportar"\]/);
+    assert.match(tutoriales, /\[data-action="notificaciones:toggle"\]/);
+    assert.match(tutoriales, /\.mapa-capas/);
+    assert.match(tutoriales, /\.mapa-capa\[data-capa="calles"\]/);
+    assert.doesNotMatch(tutoriales, /\.fab\.primary|#notif-badge|paso\('\.filters'/);
+    assert.match(controlador, /const CLAVE = 'inc_tutorial_bienvenida_v2'/);
+    assert.match(controlador, /objetivo: '#sidebarFilters'/);
+    assert.match(controlador, /objetivo: '\[data-action="incidencias:reportar"\]'/);
+  });
+
   test('el visor de informes y los sandboxes de tutorial existen', () => {
     const html = leer('index.html');
     for (const id of [
@@ -535,10 +549,24 @@ describe('V2.4/V2.5: accesos, informes, tickets y accesibilidad', () => {
     const url = pathToFileURL(path.join(frontend, 'js', 'data', 'tutoriales.js')).href;
     const modulo = await import(url);
     const guia = modulo.GUIA_TUTORIALES.find((g) => g.id === 'reportar');
+    assert.equal(guia.pasos.length, 5);
+    assert.deepEqual(
+      guia.pasos.map((paso) => paso.titulo),
+      [
+        'Paso 1: describe el problema',
+        'Paso 2: explica el detalle',
+        'Paso 3: elige la ubicación en el mapa',
+        'Paso 4: firma y evidencia',
+        'Paso 5: envía el reporte'
+      ]
+    );
     const tipos = guia.pasos.map((paso) => paso.simulacion?.tipo).filter(Boolean);
     assert.ok(tipos.includes('demoReportar'));
     assert.ok(tipos.includes('demoReportarMapa'));
     assert.ok(tipos.includes('demoReportarReabrir'));
+    const controlador = leer('js/controllers/tutorial.controller.js');
+    assert.match(controlador, /querySelector\('\[data-action="incidencias:reportar"\]'\)\?\.click\(\)/);
+    assert.doesNotMatch(controlador, /simulacion\.tipo[\s\S]{0,500}\.fab\.primary/);
   });
 
   test('los tutoriales de informes y tickets usan sus modales y no navegan fuera', async () => {
@@ -646,6 +674,85 @@ describe('V2.11.1: móvil compacto y sin tema', () => {
     assert.doesNotMatch(sw, /tema-publico\.js/);
     for (const ruta of ['js/core/tema.js', 'js/core/tema-publico.js', 'css/tema-oscuro.css']) {
       assert.equal(fs.existsSync(path.join(frontend, ruta)), false, ruta);
+    }
+  });
+});
+
+describe('Estado de madurez de los paneles del administrador', () => {
+  const VALIDADOS = ['stats', 'incidencias', 'moderacion', 'municipios'];
+  const html = leer('index.html');
+
+  function pestañas() {
+    return [
+      ...html.matchAll(/<button[^>]*data-action="admin:tab"[^>]*>[\s\S]*?<\/button>/g)
+    ].map((m) => m[0]);
+  }
+
+  function valorDe(boton) {
+    return boton.match(/data-valor="([a-z-]+)"/)?.[1];
+  }
+
+  function estadoDe(boton) {
+    return boton.match(/data-estado="([a-z]+)"/)?.[1];
+  }
+
+  test('todas las pestañas declaran su estado de madurez', () => {
+    const lista = pestañas();
+    assert.ok(lista.length >= 29, `Solo se encontraron ${lista.length} pestañas`);
+    for (const boton of lista) {
+      const estado = estadoDe(boton);
+      assert.ok(estado, `La pestaña no declara data-estado: ${boton}`);
+      assert.ok(['beta', 'validado'].includes(estado), `Estado desconocido: ${estado}`);
+    }
+  });
+
+  test('solo Estadísticas, Incidencias, Moderación y Municipios están validados', () => {
+    const validados = pestañas()
+      .filter((boton) => estadoDe(boton) === 'validado')
+      .map(valorDe)
+      .sort();
+    assert.deepEqual(validados, [...VALIDADOS].sort());
+  });
+
+  test('la insignia de la pestaña coincide con su estado', () => {
+    for (const boton of pestañas()) {
+      const valor = valorDe(boton);
+      if (estadoDe(boton) === 'validado') {
+        assert.match(boton, /class="panel-estado panel-estado--ok"/, valor);
+        assert.match(boton, /aria-label="Panel validado"/, valor);
+        assert.doesNotMatch(boton, /panel-estado--beta/, valor);
+      } else {
+        assert.match(boton, /class="panel-estado panel-estado--beta"/, valor);
+        assert.match(boton, /panel-estado--beta[^>]*>Beta</, valor);
+        assert.doesNotMatch(boton, /panel-estado--ok/, valor);
+      }
+    }
+  });
+
+  test('cada panel repite su estado al abrirse', () => {
+    for (const boton of pestañas()) {
+      const valor = valorDe(boton);
+      const inicio = html.indexOf(`id="panel-${valor}"`);
+      assert.ok(inicio > 0, `No existe el panel de ${valor}`);
+      const apertura = html.slice(inicio, inicio + 500);
+      if (estadoDe(boton) === 'validado') {
+        assert.match(apertura, /class="panel-marca-ok"/, valor);
+      } else {
+        assert.match(apertura, /class="panel-aviso-beta"/, valor);
+        assert.match(apertura, /versión beta/, valor);
+      }
+    }
+  });
+
+  test('los estilos del estado viven en extensiones.css', () => {
+    const css = leer('css/extensiones.css');
+    for (const clase of [
+      '.panel-estado--beta',
+      '.panel-estado--ok',
+      '.panel-aviso-beta',
+      '.panel-marca-ok'
+    ]) {
+      assert.ok(css.includes(clase), `Falta ${clase} en extensiones.css`);
     }
   });
 });

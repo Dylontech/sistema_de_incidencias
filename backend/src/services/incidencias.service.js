@@ -305,6 +305,8 @@ export async function crear(repositorio, usuario, datos) {
     lat: entrada.lat,
     lng: entrada.lng
   };
+  const reintentada = claveIdempotencia && previas.find((p) => p.claveIdempotencia === claveIdempotencia);
+  if (reintentada) return enriquecer(reintentada);
   if (previas.some((p) => esDuplicado(p, candidato))) {
     throw AppError.conflicto('Ya reportaste esta misma incidencia recientemente en esta ubicación.');
   }
@@ -319,7 +321,8 @@ export async function crear(repositorio, usuario, datos) {
   incidencia.claveIdempotencia = claveIdempotencia;
   incidencia.folio = folioDeIncidencia(incidencia.fecha);
 
-  await repositorio.crearIncidencia(incidencia);
+  const guardada = await repositorio.crearIncidencia(incidencia);
+  if (guardada.id !== incidencia.id) return enriquecer(guardada);
 
   // Acuse al autor (si tiene cuenta) y aviso al personal que sigue el municipio.
   await notificar(
@@ -331,7 +334,7 @@ export async function crear(repositorio, usuario, datos) {
   );
   await avisarNuevaIncidencia(repositorio, incidencia, { municipio: municipioFinalObj });
 
-  return enriquecer(incidencia);
+  return enriquecer(guardada);
 }
 
 export async function actualizar(repositorio, usuario, id, datos) {
@@ -385,8 +388,7 @@ export async function actualizar(repositorio, usuario, id, datos) {
   }
 
   const editada = aplicarEdicion(actual, entrada);
-  await repositorio.actualizarIncidencia(id, editada);
-  return enriquecer(editada);
+  return enriquecer(await repositorio.actualizarIncidencia(id, editada));
 }
 
 export async function cambiarEstado(repositorio, usuario, id, estado) {
@@ -418,7 +420,7 @@ export async function cambiarEstado(repositorio, usuario, id, estado) {
     })
   };
 
-  await repositorio.actualizarIncidencia(id, actualizada);
+  const guardada = await repositorio.actualizarIncidencia(id, actualizada);
   await notificar(
     repositorio,
     actualizada,
@@ -427,7 +429,7 @@ export async function cambiarEstado(repositorio, usuario, id, estado) {
     `"${actualizada.titulo}" cambió a "${estado}".`
   );
 
-  return enriquecer(actualizada);
+  return enriquecer(guardada);
 }
 
 export async function resolver(
@@ -510,7 +512,7 @@ export async function resolver(
     })
   };
 
-  await repositorio.actualizarIncidencia(id, actualizada);
+  const guardada = await repositorio.actualizarIncidencia(id, actualizada);
   const detalleAviso = [
     costo !== null ? `Costo: $${costo.toFixed(2)}` : '',
     documentos.length ? `${documentos.length} documento(s)` : ''
@@ -525,7 +527,7 @@ export async function resolver(
     `"${actualizada.titulo}" ha sido marcada como resuelta.${detalleAviso ? ` ${detalleAviso}.` : ''}`
   );
 
-  return enriquecer(actualizada);
+  return enriquecer(guardada);
 }
 
 export async function eliminar(repositorio, usuario, id) {
@@ -587,7 +589,7 @@ export async function marcarPeligro(repositorio, usuario, id, { peligrosa = true
     })
   };
 
-  await repositorio.actualizarIncidencia(id, actualizada);
+  const guardada = await repositorio.actualizarIncidencia(id, actualizada);
 
   const destinatario = destinatarioDeIncidencia(actualizada);
   if (destinatario && destinatario !== usuario.userKey) {
@@ -602,7 +604,7 @@ export async function marcarPeligro(repositorio, usuario, id, { peligrosa = true
     );
   }
 
-  return enriquecer(actualizada);
+  return enriquecer(guardada);
 }
 
 /** Crea la notificación dirigida al autor del reporte y la empuja por SSE. */

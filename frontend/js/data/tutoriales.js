@@ -52,10 +52,10 @@ export const GUIA_TUTORIALES = [
     pasos: [
       { centrado: true, titulo: '¡Bienvenido!', texto: 'Este recorrido te muestra dónde está cada cosa sin salir de la vista principal.' },
       paso('#municipioBuscar', 'Tu municipio', 'Desde aquí puedes buscar y cambiar el municipio activo.', 'abajo'),
-      paso('.filters', 'Filtros', 'Filtra los reportes por texto, estado, tipo, antigüedad o comunidad.', 'derecha'),
+      paso('#sidebarFilters', 'Filtros', 'Filtra los reportes por texto, estado, tipo, antigüedad o comunidad.', 'derecha'),
       paso('#listaIncidencias', 'Los reportes', 'Toca una tarjeta para ver el detalle, los comentarios y el seguimiento.', 'derecha'),
       paso('#map', 'El mapa', 'Los puntos muestran los reportes y su color indica la antigüedad.', 'dentro-abajo'),
-      paso('.fab.primary', 'Reportar', 'El botón + abre el formulario para crear una incidencia.', 'izquierda'),
+      paso('[data-action="incidencias:reportar"]', 'Reportar', 'El botón + abre el formulario para crear una incidencia.', 'izquierda'),
       paso('[data-action="notificaciones:toggle"]', 'Tus avisos', 'La campana reúne los cambios de tus reportes y los avisos del sistema.', 'abajo'),
       { centrado: true, titulo: '¡Listo!', texto: 'Puedes repetir esta guía desde la enciclopedia de tutoriales.' }
     ]
@@ -67,12 +67,11 @@ export const GUIA_TUTORIALES = [
     categoria: 'Ciudadanía',
     roles: TODOS,
     pasos: [
-      paso('.fab.primary', 'Abre el reporte', 'El botón + abre el formulario. Elige el tipo, describe el problema y marca la ubicación en el mapa.', 'izquierda'),
-      paso('#incTitulo', 'Paso 1: describe el problema', 'En la demo se abre el formulario y se rellena un título y una descripción de ejemplo; no se envía nada.', 'auto', { tipo: 'demoReportar' }),
+      paso('#incTitulo', 'Paso 1: describe el problema', 'El botón + abre el formulario y la demo rellena un título y una descripción de ejemplo; no se envía nada.', 'auto', { tipo: 'demoReportar' }),
       paso('#incDescripcion', 'Paso 2: explica el detalle', 'Añade referencias claras para que el personal pueda localizar el problema.', 'auto', { tipo: 'demoReportar' }),
       paso('#map', 'Paso 3: elige la ubicación en el mapa', 'Al pulsar «Elegir en el mapa» el formulario se oculta para que puedas tocar el punto. La demo cierra el modal para mostrarte el mapa.', 'dentro-abajo', { tipo: 'demoReportarMapa' }),
       paso('#incFirmaBox', 'Paso 4: firma y evidencia', 'Al volver al formulario decides si firmas con tu nombre o publicas como anónimo, y puedes adjuntar fotografías.', 'auto', { tipo: 'demoReportarReabrir' }),
-      paso('[data-action="incidencias:guardar"]', 'Paso 5: envía el reporte', 'El botón Enviar reporte solo se usa cuando la ubicación y los datos están completos. En esta demo no se guarda nada.', 'abajo')
+      paso('[data-action="incidencias:guardar"]', 'Paso 5: envía el reporte', 'El botón Enviar reporte solo se usa cuando la ubicación y los datos están completos. Sin conexión, se conserva en este dispositivo y se envía cuando vuelvas con la misma identidad. Un fallo del servidor no borra el pendiente. En esta demo no se guarda nada.', 'abajo')
     ]
   },
   {
@@ -85,7 +84,7 @@ export const GUIA_TUTORIALES = [
       paso('#listaIncidencias', 'Abre un reporte', 'Toca una tarjeta para ver el detalle y la sección de comentarios.', 'derecha'),
       paso('#modalDetalle', 'Comenta con respeto', 'La demo abre el detalle del primer reporte. No publiques datos personales ni spam.', 'auto', { tipo: 'demoComentar' }),
       paso('#listaIncidencias', 'Vuelve a la lista', 'La demo cierra el detalle para que puedas seguir recorriendo los reportes y el mapa.', 'derecha', { tipo: 'demoCerrarDetalle' }),
-      paso('#notif-badge', 'Recibe avisos', 'Si tienes cuenta, la campana te avisa cuando alguien comenta tu reporte.', 'abajo')
+      paso('[data-action="notificaciones:toggle"]', 'Recibe avisos', 'Si tienes cuenta, la campana te avisa cuando alguien comenta tu reporte.', 'abajo')
     ]
   },
   {
@@ -182,8 +181,8 @@ export const GUIA_TUTORIALES = [
     categoria: 'Mapa',
     roles: TODOS,
     pasos: [
-      paso('#map', 'Cambia de capa', 'Arriba a la derecha puedes elegir Satélite, Satélite con etiquetas, Calles o Relieve. La elección se recuerda.', 'dentro-abajo', { tipo: 'demoMapa', capa: 'satelite' }),
-      paso('.mapa-capas', 'Selector accesible', 'Cada botón indica la capa activa. En móvil se muestran solo los iconos.', 'izquierda', { tipo: 'demoMapa', capa: 'calles' }),
+      paso('.mapa-capas', 'Cambia de capa', 'Arriba a la derecha puedes elegir Satélite, Satélite con etiquetas, Calles o Relieve. La elección se recuerda.', 'izquierda', { tipo: 'demoMapa', capa: 'satelite' }),
+      paso('.mapa-capa[data-capa="calles"]', 'Selector accesible', 'Cada botón indica la capa activa. En móvil se muestran solo los iconos.', 'izquierda', { tipo: 'demoMapa', capa: 'calles' }),
       paso('[data-action="mapa:centrarUsuario"]', 'Tu ubicación', 'El botón de la diana centra el mapa en tu GPS y deja un marcador azul con forma de persona. No se confunde con los pines de las incidencias.', 'izquierda')
     ]
   },

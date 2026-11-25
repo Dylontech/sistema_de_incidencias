@@ -457,6 +457,8 @@ entre pestañas, permisos y documentación.
 | `#sidebar` | Identidad, avisos, bloque de texto, filtros, accesos y lista (orden Bento). |
 | `#listaIncidencias` | Tarjetas de incidencias filtradas. |
 | `#map` | Mapa Leaflet, marcadores y zonas. |
+| `#sidebarFilters` | Filtros Bento que usa el tutorial para enfocar el bloque completo. |
+| `.mapa-capas` | Control accesible de capas base creado por el mapa. |
 | `#notifPanel` | Panel de la campana; `#btn-notif-config` abre las preferencias personales para el personal. |
 | `#infoPanel` | Leyenda del mapa. |
 | `#modalAdminBox` | Caja redimensionable del panel. |
@@ -560,40 +562,48 @@ Controles adicionales: filtros `#filterText`, `#filterEstado`, `#filterTipo`, `#
 
 ### 4.5 Panel administrativo (29 pestañas)
 
-| `data-valor` | Título | `data-permiso` | Panel |
-|---|---|---|---|
-| `stats` | Estadísticas | `ver_metricas` | `#panel-stats` |
-| `incidencias` | Incidencias | `ver_incidencias_panel` | `#panel-incidencias` |
-| `reparaciones` | Reparaciones | `ver_reparaciones_panel` | `#panel-reparaciones` |
-| `tipos` | Tipos | `ver_tipos` | `#panel-tipos` |
-| `municipios` | Municipios | `ver_municipios_panel` | `#panel-municipios` |
-| `mapas` | Mapas sin conexión | `ver_municipios_panel` | `#panel-mapas` |
-| `vialidades` | Vialidades | `gestionar_vialidades` | `#panel-vialidades` |
-| `claves` | Claves de acceso | `ver_claves` | `#panel-claves` |
-| `avisos-clave` | Avisos por clave | `ver_avisos_clave` | `#panel-avisos-clave` |
-| `zonas` | Zonas | `ver_zonas` | `#panel-zonas` |
-| `usuarios` | Usuarios | `ver_usuarios` | `#panel-usuarios` |
-| `solicitudes` | Solicitudes | `ver_solicitudes_acceso` | `#panel-solicitudes` |
-| `tickets` | Tickets | `atender_tickets` | `#panel-tickets` |
-| `sesiones` | Conectados | `ver_monitoreo` | `#panel-sesiones` |
-| `auditoria` | Auditoría | `ver_auditoria` | `#panel-auditoria` |
-| `notificaciones` | Notificaciones | `configurar_notificaciones` | `#panel-notificaciones` |
-| `moderacion` | Moderación | `ver_moderacion` | `#panel-moderacion` |
-| `reportes-conversacion` | Conversaciones | `ver_moderacion` | `#panel-reportes-conversacion` |
-| `reclamaciones` | Reclamaciones | `gestionar_reclamaciones` | `#panel-reclamaciones` |
-| `archivo` | Archivo | `ver_incidencias_panel` | `#panel-archivo` |
-| `firmas` | Firmas | `ver_firmas` | `#panel-firmas` |
-| `solicitudes-informe` | Solicitudes de informe | `gestionar_solicitudes_informe` | `#panel-solicitudes-informe` |
-| `legal` | Legal | `gestionar_legal` | `#panel-legal` |
-| `configuracion` | Configuración | `gestionar_configuracion` | `#panel-configuracion` |
-| `verificacion` | Acceso y verificación | `gestionar_verificacion_cuentas` | `#panel-verificacion` |
-| `respaldos` | Respaldos | `gestionar_respaldos` | `#panel-respaldos` |
-| `simulador` | Simulador | `usar_simulador` | `#panel-simulador` |
-| `publicidad` | Publicidad y campañas | `gestionar_publicidad` | `#panel-publicidad` |
-| `correos` | Correos institucionales | `gestionar_correos` | `#panel-correos` |
+| `data-valor` | Título | `data-permiso` | Panel | Estado |
+|---|---|---|---|---|
+| `stats` | Estadísticas | `ver_metricas` | `#panel-stats` | Validado |
+| `incidencias` | Incidencias | `ver_incidencias_panel` | `#panel-incidencias` | Validado |
+| `reparaciones` | Reparaciones | `ver_reparaciones_panel` | `#panel-reparaciones` | Beta |
+| `tipos` | Tipos | `ver_tipos` | `#panel-tipos` | Beta |
+| `municipios` | Municipios | `ver_municipios_panel` | `#panel-municipios` | Validado |
+| `mapas` | Mapas sin conexión | `ver_municipios_panel` | `#panel-mapas` | Beta |
+| `vialidades` | Vialidades | `gestionar_vialidades` | `#panel-vialidades` | Beta |
+| `claves` | Claves de acceso | `ver_claves` | `#panel-claves` | Beta |
+| `avisos-clave` | Avisos por clave | `ver_avisos_clave` | `#panel-avisos-clave` | Beta |
+| `zonas` | Zonas | `ver_zonas` | `#panel-zonas` | Beta |
+| `usuarios` | Usuarios | `ver_usuarios` | `#panel-usuarios` | Beta |
+| `solicitudes` | Solicitudes | `ver_solicitudes_acceso` | `#panel-solicitudes` | Beta |
+| `tickets` | Tickets | `atender_tickets` | `#panel-tickets` | Beta |
+| `sesiones` | Conectados | `ver_monitoreo` | `#panel-sesiones` | Beta |
+| `auditoria` | Auditoría | `ver_auditoria` | `#panel-auditoria` | Beta |
+| `notificaciones` | Notificaciones | `configurar_notificaciones` | `#panel-notificaciones` | Beta |
+| `moderacion` | Moderación | `ver_moderacion` | `#panel-moderacion` | Validado |
+| `reportes-conversacion` | Conversaciones | `ver_moderacion` | `#panel-reportes-conversacion` | Beta |
+| `reclamaciones` | Reclamaciones | `gestionar_reclamaciones` | `#panel-reclamaciones` | Beta |
+| `archivo` | Archivo | `ver_incidencias_panel` | `#panel-archivo` | Beta |
+| `firmas` | Firmas | `ver_firmas` | `#panel-firmas` | Beta |
+| `solicitudes-informe` | Solicitudes de informe | `gestionar_solicitudes_informe` | `#panel-solicitudes-informe` | Beta |
+| `legal` | Legal | `gestionar_legal` | `#panel-legal` | Beta |
+| `configuracion` | Configuración | `gestionar_configuracion` | `#panel-configuracion` | Beta |
+| `verificacion` | Acceso y verificación | `gestionar_verificacion_cuentas` | `#panel-verificacion` | Beta |
+| `respaldos` | Respaldos | `gestionar_respaldos` | `#panel-respaldos` | Beta |
+| `simulador` | Simulador | `usar_simulador` | `#panel-simulador` | Beta |
+| `publicidad` | Publicidad y campañas | `gestionar_publicidad` | `#panel-publicidad` | Beta |
+| `correos` | Correos institucionales | `gestionar_correos` | `#panel-correos` | Beta |
 
 `PERMISO_POR_TAB` en `admin.controller.js` repite el mapeo; `permisos-panel.test.js` falla
 si una pestaña y su controlador no coinciden.
+
+**Estado de madurez.** Cada pestaña declara `data-estado="beta"` o `data-estado="validado"`.
+El estado se muestra en la propia pestaña (insignia `Beta` o palomita verde) y se repite
+al inicio del panel: un aviso `.panel-aviso-beta` con el texto «Función en versión beta» o
+una marca `.panel-marca-ok` con la palomita. Solo **Estadísticas**, **Incidencias**,
+**Moderación** y **Municipios** están validados; el resto son Beta. Los estilos viven en el
+bloque de estado de `frontend/css/extensiones.css` y `v2-ui.test.js` comprueba que la
+clasificación siga siendo exactamente esa.
 
 ### 4.6 Navegación
 
@@ -674,7 +684,14 @@ Enlaces profundos relevantes:
 - Cada guía declara `vista: 'panel' | 'monitoreo' | 'informes'` y `tab` cuando necesita abrir
   una pestaña antes de señalar el paso.
 - Cada guía incluye al menos un paso `simulacion` no destructivo.
-- La bienvenida se muestra una vez por dispositivo (`inc_tutorial_bienvenida_v1`).
+- La bienvenida se muestra una vez por dispositivo (`inc_tutorial_bienvenida_v2`). Tras el
+  rediseño Bento, los pasos usan `#sidebarFilters`,
+  `[data-action="incidencias:reportar"]`, `.mapa-capas` y
+  `[data-action="notificaciones:toggle"]`; no deben volver a apuntar a `.fab.primary`,
+  `.filters` o `#notif-badge`, porque son clases visuales o elementos que pueden ocultarse.
+- La guía `reportar` tiene cinco pasos numerados: descripción, detalle, ubicación, evidencia
+  y envío. Su demo abre y reabre el formulario con
+  `[data-action="incidencias:reportar"]` y cierra el modal durante la selección del mapa.
 - Al añadir una vista o pestaña, valorar una guía nueva y registrarla en la enciclopedia.
 
 ## 5. Catálogo de acciones
@@ -837,6 +854,8 @@ Reglas:
 ---
 
 ## 6. API y flujos
+
+**Integridad (2026-11-24):** el acceso anónimo utiliza un secreto de recuperación de 256 bits; la identidad pública es una derivación HMAC. Los JWT anónimos antiguos se invalidan y los reportes existentes se conservan sin recuperación por identificadores expuestos. La cola offline conserva los pendientes ante errores y exige su propietario original para enviarlos; los registros antiguos sin propietario permanecen guardados sin envío automático. La clave de idempotencia se genera antes del primer envío y se conserva en los reintentos.
 
 ### 6.1 Convención REST
 
@@ -1123,6 +1142,8 @@ incluyen contraseñas, tokens ni claves.
 
 ## 7. Modelo de datos
 
+**Revisión de incidencias:** `revision` empieza en 0 y aumenta con cada escritura completa o modificación de comentarios. Una copia obsoleta produce 409. MySQL garantiza unicidad de `(user_key, clave_idempotencia)` y JSON comprueba la combinación dentro de la transacción de colección.
+
 ### 7.1 Entidades principales
 
 ```mermaid
@@ -1188,6 +1209,8 @@ erDiagram
 ---
 
 ## 8. Reglas para las migraciones
+
+**Migración 20261124_integridad_incidencias:** añade `revision` y el índice único de idempotencia. Conserva todos los reportes preexistentes; ante claves duplicadas mantiene la del primer reporte por fecha/id y deja las demás en NULL. Aplicar `npm run migrate` antes de arrancar el backend actualizado. El rollback no recupera esas claves duplicadas.
 
 ### 8.1 Principios
 
@@ -1757,6 +1780,7 @@ priorizarlos.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-11-24 | Correcciones de identidad anónima, concurrencia de incidencias, idempotencia, conservación de cola offline y validación de origen/IPC en Electron. |
 | 2026-10-31 | Creación del documento: diagramas, inventarios de vistas y acciones, permisos, flujos, reglas de migraciones, módulos, permisos, roles, vistas y CRUD, puerta de decisión, ideas descartadas y backlog. |
 
 ---
@@ -1764,5 +1788,4 @@ priorizarlos.
 > **Mantenimiento:** al cerrar una versión, revisar §0.2 (cifras), §4 (vistas y pestañas),
 > §5 (dominios), §3 (permisos y roles), §8 (migraciones) y §15.3 (deuda técnica). Ejecutar
 > `cd backend && node --test test/sistema-documentado.test.js` antes de dar el cambio por terminado.
-
 

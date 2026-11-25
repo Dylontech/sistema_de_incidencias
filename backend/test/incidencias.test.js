@@ -68,9 +68,9 @@ describe('Incidencias: creación', () => {
     assert.equal(inc.esAnonimo, true);
     // La autoría interna se conserva (permite editar el reporte y dirigirle
     // avisos), pero lo que se muestra es «Anónimo».
-    assert.equal(inc.autor, 'anonimo_ciudadano1001');
+    assert.equal(inc.autor, anon.usuario.username);
     assert.equal(inc.autorNombre, 'Anónimo');
-    assert.equal(inc.userKey, 'anon_ciudadano1001');
+    assert.equal(inc.userKey, anon.usuario.userKey);
     assert.equal(inc.historial.length, 1);
     assert.equal(inc.historial[0].accion, 'Incidencia reportada');
     // colorAuto ya no se persiste (una sola fuente de verdad).

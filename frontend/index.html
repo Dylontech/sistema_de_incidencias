@@ -1356,38 +1356,39 @@
     </div>
     <div class="modal-body">
       <div class="admin-tabs">
-        <button class="admin-tab active" data-action="admin:tab" data-valor="stats" data-permiso="ver_metricas"><i class="bi bi-bar-chart-fill"></i> Estadísticas</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="incidencias" data-permiso="ver_incidencias_panel"><i class="bi bi-list-ul"></i> Incidencias</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="reparaciones" data-permiso="ver_reparaciones_panel"><i class="bi bi-tools"></i> Reparaciones</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="tipos" data-permiso="ver_tipos"><i class="bi bi-tags-fill"></i> Tipos</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="municipios" data-permiso="ver_municipios_panel"><i class="bi bi-geo-fill"></i> Municipios</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="mapas" data-permiso="ver_municipios_panel"><i class="bi bi-cloud-arrow-down-fill"></i> Mapas sin conexión</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="vialidades" data-permiso="gestionar_vialidades"><i class="bi bi-signpost-split-fill"></i> Vialidades</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="claves" id="tabClaves" data-permiso="ver_claves"><i class="bi bi-key-fill"></i> Claves de acceso</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="avisos-clave" id="tabAvisosClave" data-permiso="ver_avisos_clave"><i class="bi bi-bell-fill"></i> Avisos por clave</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="zonas" data-permiso="ver_zonas"><i class="bi bi-bounding-box-circles"></i> Zonas</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="usuarios" data-permiso="ver_usuarios"><i class="bi bi-people-fill"></i> Usuarios</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes" data-permiso="ver_solicitudes_acceso"><i class="bi bi-person-check-fill"></i> Solicitudes</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="tickets" data-permiso="atender_tickets"><i class="bi bi-life-preserver"></i> Tickets</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="sesiones" data-permiso="ver_monitoreo"><i class="bi bi-activity"></i> Conectados</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="auditoria" data-permiso="ver_auditoria"><i class="bi bi-journal-text"></i> Auditoría</button>
-        <button class="admin-tab" id="tabNotificaciones" data-action="admin:tab" data-valor="notificaciones" data-permiso="configurar_notificaciones"><i class="bi bi-bell-fill"></i> Notificaciones</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="moderacion" data-permiso="ver_moderacion"><i class="bi bi-shield-fill-check"></i> Moderación</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="reportes-conversacion" data-permiso="ver_moderacion"><i class="bi bi-flag-fill"></i> Conversaciones</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="reclamaciones" data-permiso="gestionar_reclamaciones"><i class="bi bi-megaphone-fill"></i> Reclamaciones</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="archivo" data-permiso="ver_incidencias_panel"><i class="bi bi-archive-fill"></i> Archivo</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="firmas" id="tabFirmas" data-permiso="ver_firmas"><i class="bi bi-pen-fill"></i> Firmas</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes-informe" id="tabSolicitudesInforme" data-permiso="gestionar_solicitudes_informe"><i class="bi bi-file-earmark-bar-graph-fill"></i> Solicitudes de informe</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="legal" id="tabLegal" data-permiso="gestionar_legal"><i class="bi bi-file-earmark-text-fill"></i> Legal</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="configuracion" id="tabConfiguracion" data-permiso="gestionar_configuracion"><i class="bi bi-sliders"></i> Configuración</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="verificacion" id="tabVerificacion" data-permiso="gestionar_verificacion_cuentas"><i class="bi bi-shield-lock-fill"></i> Acceso y verificación</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="respaldos" id="tabRespaldos" data-permiso="gestionar_respaldos"><i class="bi bi-hdd-stack-fill"></i> Respaldos</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="simulador" id="tabSimulador" data-permiso="usar_simulador"><i class="bi bi-robot"></i> Simulador</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="publicidad" id="tabPublicidad" data-permiso="gestionar_publicidad"><i class="bi bi-megaphone-fill"></i> Publicidad y campañas</button>
-        <button class="admin-tab" data-action="admin:tab" data-valor="correos" id="tabCorreos" data-permiso="gestionar_correos"><i class="bi bi-envelope-at-fill"></i> Correos institucionales</button>
+        <button class="admin-tab active" data-action="admin:tab" data-valor="stats" data-permiso="ver_metricas" data-estado="validado"><i class="bi bi-bar-chart-fill"></i> Estadísticas<span class="panel-estado panel-estado--ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="incidencias" data-permiso="ver_incidencias_panel" data-estado="validado"><i class="bi bi-list-ul"></i> Incidencias<span class="panel-estado panel-estado--ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="reparaciones" data-permiso="ver_reparaciones_panel" data-estado="beta"><i class="bi bi-tools"></i> Reparaciones<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="tipos" data-permiso="ver_tipos" data-estado="beta"><i class="bi bi-tags-fill"></i> Tipos<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="municipios" data-permiso="ver_municipios_panel" data-estado="validado"><i class="bi bi-geo-fill"></i> Municipios<span class="panel-estado panel-estado--ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="mapas" data-permiso="ver_municipios_panel" data-estado="beta"><i class="bi bi-cloud-arrow-down-fill"></i> Mapas sin conexión<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="vialidades" data-permiso="gestionar_vialidades" data-estado="beta"><i class="bi bi-signpost-split-fill"></i> Vialidades<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="claves" id="tabClaves" data-permiso="ver_claves" data-estado="beta"><i class="bi bi-key-fill"></i> Claves de acceso<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="avisos-clave" id="tabAvisosClave" data-permiso="ver_avisos_clave" data-estado="beta"><i class="bi bi-bell-fill"></i> Avisos por clave<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="zonas" data-permiso="ver_zonas" data-estado="beta"><i class="bi bi-bounding-box-circles"></i> Zonas<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="usuarios" data-permiso="ver_usuarios" data-estado="beta"><i class="bi bi-people-fill"></i> Usuarios<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes" data-permiso="ver_solicitudes_acceso" data-estado="beta"><i class="bi bi-person-check-fill"></i> Solicitudes<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="tickets" data-permiso="atender_tickets" data-estado="beta"><i class="bi bi-life-preserver"></i> Tickets<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="sesiones" data-permiso="ver_monitoreo" data-estado="beta"><i class="bi bi-activity"></i> Conectados<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="auditoria" data-permiso="ver_auditoria" data-estado="beta"><i class="bi bi-journal-text"></i> Auditoría<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" id="tabNotificaciones" data-action="admin:tab" data-valor="notificaciones" data-permiso="configurar_notificaciones" data-estado="beta"><i class="bi bi-bell-fill"></i> Notificaciones<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="moderacion" data-permiso="ver_moderacion" data-estado="validado"><i class="bi bi-shield-fill-check"></i> Moderación<span class="panel-estado panel-estado--ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="reportes-conversacion" data-permiso="ver_moderacion" data-estado="beta"><i class="bi bi-flag-fill"></i> Conversaciones<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="reclamaciones" data-permiso="gestionar_reclamaciones" data-estado="beta"><i class="bi bi-megaphone-fill"></i> Reclamaciones<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="archivo" data-permiso="ver_incidencias_panel" data-estado="beta"><i class="bi bi-archive-fill"></i> Archivo<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="firmas" id="tabFirmas" data-permiso="ver_firmas" data-estado="beta"><i class="bi bi-pen-fill"></i> Firmas<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="solicitudes-informe" id="tabSolicitudesInforme" data-permiso="gestionar_solicitudes_informe" data-estado="beta"><i class="bi bi-file-earmark-bar-graph-fill"></i> Solicitudes de informe<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="legal" id="tabLegal" data-permiso="gestionar_legal" data-estado="beta"><i class="bi bi-file-earmark-text-fill"></i> Legal<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="configuracion" id="tabConfiguracion" data-permiso="gestionar_configuracion" data-estado="beta"><i class="bi bi-sliders"></i> Configuración<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="verificacion" id="tabVerificacion" data-permiso="gestionar_verificacion_cuentas" data-estado="beta"><i class="bi bi-shield-lock-fill"></i> Acceso y verificación<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="respaldos" id="tabRespaldos" data-permiso="gestionar_respaldos" data-estado="beta"><i class="bi bi-hdd-stack-fill"></i> Respaldos<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="simulador" id="tabSimulador" data-permiso="usar_simulador" data-estado="beta"><i class="bi bi-robot"></i> Simulador<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="publicidad" id="tabPublicidad" data-permiso="gestionar_publicidad" data-estado="beta"><i class="bi bi-megaphone-fill"></i> Publicidad y campañas<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
+        <button class="admin-tab" data-action="admin:tab" data-valor="correos" id="tabCorreos" data-permiso="gestionar_correos" data-estado="beta"><i class="bi bi-envelope-at-fill"></i> Correos institucionales<span class="panel-estado panel-estado--beta" title="Función en versión beta">Beta</span></button>
       </div>
 
       <div class="admin-panel active" id="panel-stats">
+        <div class="panel-marca-ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></div>
         <div class="panel-blanco u-mb-10">
           <h4 class="titulo-seccion u-mb-8">
             <i class="bi bi-funnel-fill"></i> Territorio de las estadísticas
@@ -1430,6 +1431,7 @@
       </div>
 
       <div class="admin-panel" id="panel-incidencias">
+        <div class="panel-marca-ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></div>
         <div id="peligrosasDestacadas"></div>
         <div class="u-fila-env u-mb-10">
           <input type="text" class="filter-input u-max-280" id="adminBuscar" autocomplete="off" placeholder="Buscar…" data-input="admin:buscar">
@@ -1453,6 +1455,10 @@
       </div>
 
       <div class="admin-panel" id="panel-reparaciones">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <div class="panel-blanco u-mb-10">
           <h4 class="titulo-seccion u-mb-8"><i class="bi bi-tools"></i> Reparaciones de campo</h4>
           <p class="campo-nota u-mb-10">
@@ -1486,6 +1492,10 @@
       </div>
 
       <div class="admin-panel" id="panel-tipos">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <button class="btn btn-primary btn-sm u-mb-12" data-action="tipos:abrir">
           <i class="bi bi-plus-circle"></i> Nuevo tipo
         </button>
@@ -1493,6 +1503,7 @@
       </div>
 
       <div class="admin-panel" id="panel-municipios">
+        <div class="panel-marca-ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></div>
         <div class="panel-blanco u-mb-12" id="municipioActivoBox">
           <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-pin-map-fill"></i> Municipio activo
@@ -1548,6 +1559,10 @@
       </div>
 
       <div class="admin-panel" id="panel-mapas">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <div class="panel-blanco u-mb-12">
           <h4 class="titulo-seccion u-mb-10">
             <i class="bi bi-cloud-arrow-down-fill"></i> Mapas guardados en este dispositivo
@@ -1589,6 +1604,10 @@
       </div>
 
       <div class="admin-panel" id="panel-vialidades">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Administra la red vial real como polígonos de calzada. El semáforo de colores se pinta
           sobre las calles, caminos, carreteras y autopistas; el ancho permite generar el polígono
@@ -1686,6 +1705,10 @@
       </div>
 
       <div class="admin-panel" id="panel-claves">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Una clave cubre uno o varios estados y municipios, puede tener vigencia y usos limitados,
           y se elimina en cualquier momento. Al eliminarla se cierran sus sesiones abiertas.
@@ -1708,6 +1731,10 @@
       </div>
 
       <div class="admin-panel" id="panel-avisos-clave">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Elige de qué municipios puede recibir avisos cada clave. El permiso se puede revocar
           sin invalidar la clave: la persona sigue entrando, pero deja de recibir notificaciones.
@@ -1723,6 +1750,10 @@
       </div>
 
       <div class="admin-panel" id="panel-zonas">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-mb-12">
           Comunidades (localidades del INEGI) del municipio activo, con sus reportes. Los reportes
           ciudadanos se aceptan en todo el término municipal y quedan asignados a su comunidad
@@ -1732,6 +1763,10 @@
       </div>
 
       <div class="admin-panel" id="panel-usuarios">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <div class="u-fila-sep-alto u-mb-10">
           <p class="u-fs-125px u-gris u-m-0 u-max-620 u-lh-145">
             Cuentas del <strong>personal del municipio</strong> (funcionarios y administradores).
@@ -1800,6 +1835,10 @@
       <!-- Moderación: denuncias por atender, publicaciones ocultas y cuentas
            advertidas o suspendidas. Ver controllers/moderacion.controller.js. -->
       <div class="admin-panel" id="panel-reclamaciones">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Reclamaciones de personas que consideran que su incidencia no quedó resuelta.
           El funcionario del municipio y la administración pueden mediar; si se acepta,
@@ -1827,6 +1866,10 @@
       </div>
 
       <div class="admin-panel" id="panel-archivo">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Incidencias resueltas hace más de un día. Se agrupan por mes y día para consultar el
           expediente completo con su historial, costo y documentos.
@@ -1850,6 +1893,7 @@
       </div>
 
       <div class="admin-panel" id="panel-moderacion">
+        <div class="panel-marca-ok" role="img" aria-label="Panel validado" title="Panel validado"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></div>
         <p class="u-fs-125px u-gris u-m-0 u-max-720 u-lh-145 u-mb-12">
           Los vecinos pueden <strong>denunciar</strong> publicaciones y comentarios que les parezcan
           inapropiados. Aquí se atienden esas denuncias: puedes ocultar el contenido, descartar el
@@ -1878,6 +1922,10 @@
       </div>
 
       <div class="admin-panel" id="panel-reportes-conversacion">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Reportes de conversaciones entre cuentas. Cada reporte incluye copia de los últimos
           cinco mensajes de cada persona con sus adjuntos. Con <strong>ver moderación</strong> se
@@ -1888,6 +1936,10 @@
       </div>
 
       <div class="admin-panel" id="panel-solicitudes">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-mb-12">
           Solicitudes enviadas desde el formulario público. Al aprobar se crea la cuenta, se
           genera una clave para sus municipios y se envían las credenciales por correo.
@@ -1896,6 +1948,10 @@
       </div>
 
       <div class="admin-panel" id="panel-tickets">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-mb-12">
           Errores y solicitudes de soporte enviados por las cuentas. Puedes abrir el hilo,
           responder y cerrar el ticket.
@@ -1952,6 +2008,10 @@
       </div>
 
       <div class="admin-panel" id="panel-sesiones">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-mb-12">
           Sesiones con actividad reciente y la clave de acceso con la que entró cada una.
           La IP se guarda solo como huella SHA-256. Puedes revocar una sesión concreta; al
@@ -1961,6 +2021,10 @@
       </div>
 
       <div class="admin-panel" id="panel-auditoria">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Bitácora de cada acción que modifica datos: quién la hizo, con qué rol, permisos y
           clave, qué ruta tocó y con qué resultado. Las contraseñas y los tokens nunca se guardan.
@@ -2042,6 +2106,10 @@
       </div>
 
       <div class="admin-panel" id="panel-notificaciones">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-mb-12">
           Decide qué eventos avisan, por qué canal y a quién. Los roles y el alcance se aplican
           a las cuentas del personal; cada persona puede ajustar su canal por tipo desde la campana.
@@ -2058,6 +2126,10 @@
       </div>
 
       <div class="admin-panel" id="panel-firmas">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Recolecciones de firmas de incidencias y municipios. El autor fija la meta; el
           administrador media, revisa firmantes y puede enviar el documento al funcionario.
@@ -2079,6 +2151,10 @@
       </div>
 
       <div class="admin-panel" id="panel-solicitudes-informe">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Solicitudes públicas de informe. Puedes ver el detalle, previsualizar el PDF/CSV,
           generarlo, enviarlo por correo, rechazarlo o reintentarlo.
@@ -2106,6 +2182,10 @@
       </div>
 
       <div class="admin-panel" id="panel-legal">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Edita el texto de Términos, Privacidad y «Acerca de este sistema». Los cambios se
           guardan como borrador y solo se publican cuando pulsas «Publicar». Las vistas
@@ -2162,6 +2242,10 @@
       </div>
 
       <div class="admin-panel" id="panel-configuracion">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Límites globales del sistema. Algunos afectan formularios públicos y se aplican
           de inmediato; otros se usan en la siguiente operación.
@@ -2175,6 +2259,10 @@
       </div>
 
       <div class="admin-panel" id="panel-verificacion">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Define cómo se activan las cuentas y cuánto duran los enlaces de verificación y
           recuperación. Los cambios se aplican en la siguiente operación, sin reiniciar.
@@ -2188,6 +2276,10 @@
       </div>
 
       <div class="admin-panel" id="panel-respaldos">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Copias de seguridad completas. Puedes crear un respaldo manual, buscarlo por nombre,
           descargarlo y restaurarlo. La restauración crea antes un respaldo de seguridad.
@@ -2243,6 +2335,10 @@
       </div>
 
       <div class="admin-panel" id="panel-simulador">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Ejecuta acciones reales con el rol que elijas. Todo lo creado queda marcado como
           SIMULADO, no envía correos ni SSE y se puede revertir sin tocar los datos reales.
@@ -2322,6 +2418,10 @@
       </div>
 
       <div class="admin-panel" id="panel-publicidad">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Estudio de publicidad del sistema: elige una plantilla, ajusta el texto y los colores,
           descarga la imagen lista para publicar o llévala a Canva. Más abajo están las
@@ -2728,6 +2828,10 @@
       </div>
 
       <div class="admin-panel" id="panel-correos">
+        <div class="panel-aviso-beta">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <p><strong>Función en versión beta.</strong> Puede cambiar o presentar fallos; revisa la información antes de tomar decisiones oficiales.</p>
+        </div>
         <p class="u-fs-125px u-gris u-m-0 u-max-760 u-lh-145 u-mb-12">
           Directorio editable de correos institucionales. Incluye búsquedas asistidas,
           importación/exportación CSV e invitaciones. No hace scraping.

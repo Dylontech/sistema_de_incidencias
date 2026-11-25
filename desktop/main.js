@@ -7,6 +7,8 @@
  */
 const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const { urlPermitida, emisorPermitido } = require('./src/seguridad');
 const config = require('./src/config');
 const servidor = require('./src/servidor');
 const mapas = require('./src/mapas');
@@ -61,13 +63,15 @@ function crearVentanaPrincipal() {
     return { action: 'deny' };
   });
 
-  ventanaPrincipal.webContents.on('will-navigate', (evento, destino) => {
+  const controlarNavegacion = (evento, destino) => {
     const permitido = origenPermitido();
-    if (!permitido || !destino.startsWith(permitido)) {
+    if (!urlPermitida(destino, permitido)) {
       evento.preventDefault();
       if (/^https?:/i.test(destino)) shell.openExternal(destino);
     }
-  });
+  };
+  ventanaPrincipal.webContents.on('will-navigate', controlarNavegacion);
+  ventanaPrincipal.webContents.on('will-redirect', controlarNavegacion);
 
   ventanaPrincipal.webContents.on('did-fail-load', (_evento, codigo, descripcion, _url, esPrincipal) => {
     if (!esPrincipal) return;
@@ -162,7 +166,19 @@ async function conectar() {
 }
 
 function registrarIpc() {
-  ipcMain.handle('app:info', () => ({
+  function registrar(canal, manejar, { soloLocal = false } = {}) {
+    ipcMain.handle(canal, (evento, ...args) => {
+      const ventanas = [
+        { ventana: ventanaConfig, url: pathToFileURL(path.join(__dirname, 'ui', 'config.html')).href },
+        { ventana: ventanaOffline, url: pathToFileURL(path.join(__dirname, 'ui', 'offline.html')).href }
+      ];
+      if (!soloLocal) ventanas.push({ ventana: ventanaPrincipal, url: configActual?.urlServidor });
+      if (!emisorPermitido(evento, ventanas)) throw new Error('Origen IPC no autorizado');
+      return manejar(evento, ...args);
+    });
+  }
+
+  registrar('app:info', () => ({
     version: app.getVersion(),
     plataforma: process.platform,
     electron: process.versions.electron,
@@ -174,26 +190,26 @@ function registrarIpc() {
     }
   }));
 
-  ipcMain.handle('config:obtener', () => configActual);
-  ipcMain.handle('config:guardar', (_evento, datos = {}) => {
+  registrar('config:obtener', () => configActual, { soloLocal: true });
+  registrar('config:guardar', (_evento, datos = {}) => {
     configActual = config.guardar(app, datos);
     return configActual;
-  });
+  }, { soloLocal: true });
 
-  ipcMain.handle('servidor:probar', (_evento, url) =>
-    servidor.probar(config.normalizarUrl(url) || configActual.urlServidor)
+  registrar('servidor:probar', (_evento, url) =>
+    servidor.probar(config.normalizarUrl(url) || configActual.urlServidor), { soloLocal: true }
   );
 
-  ipcMain.handle('app:conectar', () => conectar());
-  ipcMain.handle('ventana:config', () => {
+  registrar('app:conectar', () => conectar(), { soloLocal: true });
+  registrar('ventana:config', () => {
     mostrarConfig();
     return true;
   });
-  ipcMain.handle('ventana:reintentar', () => conectar());
-  ipcMain.handle('app:reiniciar', () => {
+  registrar('ventana:reintentar', () => conectar(), { soloLocal: true });
+  registrar('app:reiniciar', () => {
     app.relaunch();
     app.exit(0);
-  });
+  }, { soloLocal: true });
 }
 
 function crearMenu() {

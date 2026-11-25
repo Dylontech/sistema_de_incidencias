@@ -3,7 +3,7 @@ import { registrarAcciones } from '../core/eventos.js';
 import { abrirModal, cerrarModal, loading, modalAbierto, preguntar, toast } from '../core/ui.js';
 import { intentar, mensajeDeError } from '../core/errores.js';
 import { $, debounce, descargar, formatoBytes } from '../core/utils.js';
-import { api } from '../core/api.js';
+import { api, token } from '../core/api.js';
 import { verAdjunto } from '../core/visor-adjunto.js';
 import { store } from '../core/store.js';
 import { sesion } from '../core/session.js';
@@ -237,6 +237,8 @@ async function agregarEvidencia(archivos, destino) {
 }
 
 async function guardarIncidencia() {
+  const tokenSesion = token.leer();
+  const propietario = token.propietario(tokenSesion);
   const datos = formView.leerFormulario();
   const { editarId, ubicacion, zona, evidencia } = store.estado.formulario;
   const municipioId = datos.municipioId || store.estado.formulario.municipioId;
@@ -253,6 +255,7 @@ async function guardarIncidencia() {
   }
 
   const carga = {
+    ...(!editarId ? { claveIdempotencia: offline.nuevaClaveReporte() } : {}),
     tipoId: datos.tipoId,
     titulo: datos.titulo,
     descripcion: datos.descripcion,
@@ -282,22 +285,29 @@ async function guardarIncidencia() {
   };
 
   loading(true, editarId ? 'Guardando cambios…' : 'Enviando reporte…');
+  const fotosPendientes = store.estado.formulario.evidenciaArchivos || [];
+  const guardarPendiente = async () => {
+    await offline.encolarReporte(carga, fotosPendientes, propietario);
+    cerrarFormulario();
+    toast('Reporte guardado en este dispositivo. Se enviará cuando haya conexión y esté activa tu identidad.', 'ok');
+  };
   try {
+    if (!editarId && (!navigator.onLine || fotosPendientes.length)) {
+      await guardarPendiente();
+      return;
+    }
     if (editarId) {
       await incidenciasService.actualizar(editarId, carga);
       toast('Incidencia actualizada', 'ok');
     } else {
-      await incidenciasService.crear(carga);
+      await incidenciasService.crear(carga, { tokenSesion });
       toast('Reporte enviado correctamente', 'ok');
     }
     cerrarFormulario();
     await refrescarDatos();
   } catch (error) {
     if (error?.estado === 0 && !editarId) {
-      const fotos = store.estado.formulario.evidenciaArchivos || [];
-      await offline.encolarReporte(carga, fotos);
-      cerrarFormulario();
-      toast('Sin conexión: el reporte quedó guardado y se enviará automáticamente.', 'ok');
+      await guardarPendiente();
       return;
     }
     toast(mensajeDeError(error), 'err');

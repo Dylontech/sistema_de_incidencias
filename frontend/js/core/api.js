@@ -20,6 +20,15 @@ export const token = {
   leer() {
     return localStorage.getItem(CLAVE_TOKEN) || '';
   },
+  /** Solo identifica el propietario local; el servidor valida la firma. */
+  propietario(valor = this.leer()) {
+    try {
+      const payload = JSON.parse(atob(valor.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.userKey || null;
+    } catch {
+      return null;
+    }
+  },
   guardar(valor) {
     if (valor) localStorage.setItem(CLAVE_TOKEN, valor);
     else localStorage.removeItem(CLAVE_TOKEN);
@@ -57,9 +66,9 @@ const RUTAS_ENTRADA = [
   '/auth/cuenta/restablecer'
 ];
 
-async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
+async function peticion(ruta, { metodo = 'GET', cuerpo, formulario, tokenSesion = token.leer() } = {}) {
   const cabeceras = {};
-  const actual = token.leer();
+  const actual = tokenSesion;
   if (actual) cabeceras.Authorization = `Bearer ${actual}`;
 
   let body;
@@ -82,7 +91,7 @@ async function peticion(ruta, { metodo = 'GET', cuerpo, formulario } = {}) {
 
   if (!respuesta.ok) {
     // Sesión caducada o token inválido: se avisa para volver al login.
-    if (respuesta.status === 401 && actual && !RUTAS_ENTRADA.includes(ruta)) {
+    if (respuesta.status === 401 && actual && actual === token.leer() && !RUTAS_ENTRADA.includes(ruta)) {
       token.borrar();
       document.dispatchEvent(new CustomEvent('sesion-expirada'));
     }
@@ -130,7 +139,7 @@ async function descarga(ruta) {
   if (!respuesta.ok) {
     const tipo = respuesta.headers.get('content-type') || '';
     const datos = tipo.includes('application/json') ? await respuesta.json() : null;
-    if (respuesta.status === 401 && actual) {
+    if (respuesta.status === 401 && actual && actual === token.leer()) {
       token.borrar();
       document.dispatchEvent(new CustomEvent('sesion-expirada'));
     }
@@ -145,7 +154,7 @@ async function descarga(ruta) {
 
 export const api = {
   get: (ruta) => peticion(ruta),
-  post: (ruta, cuerpo) => peticion(ruta, { metodo: 'POST', cuerpo }),
+  post: (ruta, cuerpo, opciones = {}) => peticion(ruta, { ...opciones, metodo: 'POST', cuerpo }),
   put: (ruta, cuerpo) => peticion(ruta, { metodo: 'PUT', cuerpo }),
   patch: (ruta, cuerpo) => peticion(ruta, { metodo: 'PATCH', cuerpo }),
   del: (ruta) => peticion(ruta, { metodo: 'DELETE' }),
@@ -159,9 +168,9 @@ export const api = {
     return respuesta.text();
   },
   /** Sube archivos; por defecto usa el campo `archivos` de evidencia. */
-  subir: (ruta, archivos, { campo = 'archivos' } = {}) => {
+  subir: (ruta, archivos, { campo = 'archivos', tokenSesion = token.leer() } = {}) => {
     const formulario = new FormData();
     Array.from(archivos).forEach((archivo) => formulario.append(campo, archivo, archivo.name));
-    return peticion(ruta, { metodo: 'POST', formulario });
+    return peticion(ruta, { metodo: 'POST', formulario, tokenSesion });
   }
 };

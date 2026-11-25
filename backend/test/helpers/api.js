@@ -1,5 +1,6 @@
 /** Cliente de pruebas: envuelve supertest y adjunta el token cuando existe. */
 import request from 'supertest';
+import { createHash } from 'node:crypto';
 
 /** Sufijo único para correos y nombres de prueba (el nombre no se repite). */
 const sufijo = () =>
@@ -37,8 +38,11 @@ export class Api {
   }
 
   static async anonimo(app, anonId) {
-    const r = await request(app).post('/api/auth/anonimo').send({ anonId });
-    return new Api(app, r.body.token);
+    const secreto = anonId ? createHash('sha256').update(anonId).digest('hex') : undefined;
+    const r = await request(app).post('/api/auth/anonimo').send({ anonId: secreto });
+    const cliente = new Api(app, r.body.token);
+    cliente.usuario = r.body.usuario;
+    return cliente;
   }
 
   /**

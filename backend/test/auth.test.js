@@ -20,14 +20,15 @@ describe('Autenticación', () => {
   test('el ciudadano entra como anónimo y recibe un token con su userKey', async () => {
     const r = await request(app)
       .post('/api/auth/anonimo')
-      .send({ anonId: 'ciudadano0001' });
+      .send({ anonId: 'a'.repeat(64) });
 
     assert.equal(r.status, 201);
     assert.ok(r.body.token);
     assert.equal(r.body.usuario.rol, 'anonimo');
-    assert.equal(r.body.usuario.userKey, 'anon_ciudadano0001');
+    assert.match(r.body.usuario.userKey, /^anon_/);
+    assert.ok(!r.body.usuario.userKey.includes(r.body.anonId));
     assert.equal(r.body.usuario.esAnonimo, true);
-    assert.equal(r.body.anonId, 'ciudadano0001');
+    assert.equal(r.body.anonId, 'a'.repeat(64));
     assert.equal(r.body.municipioActivo.id, MUNICIPIO_MARAVATIO);
     // La clave del municipio nunca debe salir en la respuesta.
     assert.equal(r.body.municipioActivo.clave, undefined);

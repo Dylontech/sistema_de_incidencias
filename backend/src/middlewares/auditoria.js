@@ -22,6 +22,7 @@ const CLAVES_OCULTAS = new Set([
   'claveAcceso',
   'claveMunicipio',
   'token',
+  'anonId',
   'authorization',
   'passwordhash',
   'passwordHash',

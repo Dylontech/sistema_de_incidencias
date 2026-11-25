@@ -16,12 +16,12 @@
 import { token } from './api.js';
 
 const CLAVE_SESION = 'inc_sesion_v2';
-const CLAVE_ANON = 'inc_anon_id_v2';
+// No reutilizar el identificador anterior: aparecía en los reportes públicos.
+const CLAVE_ANON = 'inc_anon_secreto_v3';
 
 function nuevoAnonId() {
-  return (crypto.randomUUID?.() || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`)
-    .replace(/-/g, '')
-    .slice(0, 32);
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)),
+    (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export const sesion = {

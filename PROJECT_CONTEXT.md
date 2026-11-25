@@ -2,7 +2,7 @@
 
 > Documento vivo. **Cada cambio en esquema, rutas, servicios, roles, permisos, configuración, eventos o flujos de interfaz debe actualizar este archivo antes de considerarse terminado.**
 >
-> Última actualización: 2026-11-06 · Versión del documento: 2.17.0 · Estado: V2.17.0 completada (red vial poligonal real, semáforo con degradado, importación KML/GeoJSON/OSM y auditoría con filtros/informes). Suite JSON 526/526; MySQL dirigido del archivo nuevo 5/5.
+> Última actualización: 2026-11-11 · Versión del documento: 2.17.0 · Estado: V2.17.0 completada (red vial poligonal real, semáforo con degradado, importación KML/GeoJSON/OSM y auditoría con filtros/informes). Suite JSON 526/526; MySQL dirigido del archivo nuevo 5/5.
 
 ## 1. Qué es este sistema
 
@@ -73,6 +73,8 @@ La aplicación queda en `http://localhost:3000` si `PORT=3000` en `backend/.env`
 
 ## 3. Arquitectura
 
+**Integridad offline (2026-11-24):** la cola IndexedDB guarda el propietario y la clave del envío original. Solo sincroniza con esa identidad, fija su token durante las peticiones y conserva reportes ante errores con espera progresiva (30 s–1 h). Las fotos confirmadas se reutilizan; el guardado solo se considera exitoso al confirmar la transacción. Los pendientes antiguos sin propietario se conservan sin envío automático, con aviso en el indicador. El armazón pasa a `incidencias-shell-v2.17.1`.
+
 ```
 backend/    API REST Express + MVC + Repository (MySQL/MariaDB y JSON)
 frontend/   SPA modular con ES Modules, sin bundler, servida por Express
@@ -127,6 +129,8 @@ Procesos de fondo:
 La interfaz no usa `onclick`. Cada elemento declara `data-action="dominio:accion"` (o `data-change`, `data-input`, `data-submit`) y los controladores se registran con `registrarAcciones()`.
 
 Onboarding: `consentimiento.cargarVersion()` consulta `/api/legal/terminos`; la versión publicada (no una fecha fija) decide si hay que volver a aceptar. El panel admin incluye pestañas Municipios (con ficha), Claves de acceso, Simulador, Publicidad y campañas (fusionadas) y Correos institucionales. El botón del usuario abre «Mi cuenta» para consultar permisos y solicitar permisos extra. Las guías de la enciclopedia abren automáticamente el panel, la pestaña, Monitoreo o Informes que necesitan (`vista`/`tab` en `data/tutoriales.js`).
+
+Estado de madurez del panel: cada `.admin-tab` declara `data-estado="beta"` o `data-estado="validado"`. La pestaña muestra la insignia (`.panel-estado--beta` con el texto `Beta`, o `.panel-estado--ok` con la palomita) y el panel repite el estado como primer hijo (`.panel-aviso-beta` con «Función en versión beta» o `.panel-marca-ok`). Solo Estadísticas, Incidencias, Moderación y Municipios están validados; el resto son Beta. Es presentación pura: no altera `data-permiso`, `PERMISO_POR_TAB`, rutas ni servicios.
 
 V2.4: la barra lateral se agrupa en «Mi actividad», «Participación» y «Ayuda», con filtros y colindantes separados; incluye controles A−/A+/restablecer persistentes (`inc_accesibilidad_v1`). El tutorial admite un bloque `simulacion` por paso: abre modales, prellena campos y muestra previews sin ejecutar acciones destructivas; los formularios públicos de informe y ticket tienen sandboxes (`modalDemoInforme`, `modalDemoTicket`). El panel de soporte se oculta y se bloquea en cliente si `/api/auth/me` no devuelve `puedeAtenderTickets`. Las solicitudes de informe generan archivos únicos por folio y se abren en el visor modal (`modalVisorInforme`); en Electron/VS Code, donde el visor PDF de Chromium no siempre está disponible, el modal ofrece abrir el PDF fuera y descargarlo.
 
@@ -185,6 +189,10 @@ V2.11.3 (reactivar cuentas, solicitud de alta y texto más grande): la pestaña 
 **Rediseño Bento (2026-11):** la interfaz deja el verde institucional por una paleta de tarjetas sobre lienzo claro. Los tokens viven en el bloque «REDISEÑO BENTO» de `frontend/css/extensiones.css` (`--bento-magenta: #9C1C55`, `--bento-gold: #C5A059`, `--bento-canvas: #F4F5F7`, `--bento-card: #FFFFFF`, `--bento-ink: #1E232A`, `--bento-muted: #8C939E`) y se mapean a los nombres históricos (`--primario`, `--fondo`, `--superficie`, `--texto`, `--enlace`, `--borde`), así que ni las vistas ni los controladores cambian. El bloque va en `extensiones.css` porque `scripts/extraer-css.mjs` reescribe `base.css`, `layout.css`, `componentes.css` y `admin.css` desde `legacy/`.
 
 La capa Bento es solo presentación: no añade ni renombra IDs, `data-*`, permisos ni acciones. Los colores de estado se conservan (verde/amarillo/naranja/rojo en tarjetas, badges y semáforo) y el oro se reserva para acentos y métricas; como `#C5A059` no alcanza contraste AA sobre blanco, el texto dorado usa `--bento-gold-ink` y las cifras grandes `--bento-gold-deep`. En la barra lateral los filtros pasan **antes** de los accesos (el orden del marcado coincide con el del teclado), la cabecera scrollea con un degradado inferior que avisa de que hay más bloques y el listado mantiene su propio desplazamiento. Las pestañas del panel se ordenan en rejilla de píldoras con la activa en magenta, y el acceso y el alta llevan `aria-label` porque en móvil se muestran solo con icono. `legibilidad.css` mantiene el mínimo de 14 px para el contenido, pero los títulos de sección de la barra lateral quedan como etiquetas de 11.5 px (12.5/13.5 con A+/A++). El contrato está cubierto por `backend/test/bento-ui.test.js`.
+
+**Tutoriales tras Bento (2026-11-09):** los pasos de la bienvenida y las guías de reporte usan anclajes semánticos (`#sidebarFilters` y `data-action="incidencias:reportar"`) en lugar de clases visuales genéricas. La guía de capas enfoca `.mapa-capas` y sus botones, y las notificaciones enfocan el botón de campana, no `#notif-badge`, porque el badge se oculta cuando no hay avisos. La clave de autoapertura pasó a `inc_tutorial_bienvenida_v2` para que la corrección llegue a dispositivos que ya completaron la versión anterior; `backend/test/v2-ui.test.js` protege estos contratos.
+
+**Guía de reporte (2026-11-10):** la demo abre el formulario mediante la acción registrada `incidencias:reportar` y la guía muestra cinco pasos numerados, incluyendo la apertura y descripción en el primer paso. La transición de ubicación cierra el modal y el paso de firma lo reabre sin duplicar la apertura.
 
 ## 4. Roles y permisos
 
@@ -270,6 +278,8 @@ Roles propios (V2.11):
 
 ## 5. Modelo de datos
 
+**Integridad de incidencias:** `revision` (entero, inicial 0) protege las escrituras completas y se incrementa también al crear, modificar o eliminar comentarios. En MySQL, `(user_key, clave_idempotencia)` tiene índice único; JSON comprueba la misma combinación dentro de la transacción de colección. Los registros JSON anteriores sin `revision` se interpretan como versión 0.
+
 Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracion.js`, `20261025_configuracion_actor.js`, `20261026_simulacion_contexto.js`, `20261027_mejoras_v23.js`, `20261028_aceptaciones_legales.js`, `20261028_claves_estados_sesiones_auditoria.js`, `20261029_avisos_por_clave.js`, `20261030_publicidad_avanzada.js`, `20261031_adjuntos.js`, `20261101_acceso_por_nombre.js`, `20261102_correo_unico.js`, `20261103_permisos_clave.js`, `20261104_roles_permisos.js`, `20261105_password_cifrada.js`, `20261106_solicitudes_permisos_estados.js`, `20261107_roles_permisos_v211.js`, `20261108_solicitudes_baja.js`, `20261109_solicitudes_password_solicitante.js`, `20261110_solicitudes_usuario.js`, `20261111_reportes_conversacion.js`, `20261112_bloqueos_usuario.js`, `20261113_resolucion_archivo_reclamaciones.js`, `20261114_claves_activacion.js`, `20261115_cuentas_autoservicio_claves.js`, `20261116_avisos_clave.js`, `20261117_solicitudes_acceso_usuario.js`, `20261118_reparaciones_desglose.js`, `20261119_rol_cuadrilla.js` y `20261120_vialidades.js`.
 
 ### Catálogos
@@ -347,6 +357,8 @@ Migraciones actuales: `001`–`020`, `022`–`036`, `20260929_crear_configuracio
 - Migración `20261027_mejoras_v23.js`: `municipios_informacion`, `roles_personalizados`, `solicitudes_permisos`, `usuarios.rol_personalizado_id`, correo de contacto en claves y columnas de edición de publicaciones.
 
 ## 6. API (resumen por módulo)
+
+**Corrección 2026-11-24:** `POST /api/auth/anonimo` recibe/devuelve `anonId` como secreto de recuperación de 64 caracteres hexadecimales; si falta o es inválido, genera uno aleatorio. `userKey`/`username` contienen una derivación HMAC, nunca ese secreto. El cliente guarda la credencial nueva en `inc_anon_secreto_v3`. Los JWT anónimos antiguos dejan de autenticar. Las escrituras de incidencias rechazan con 409 una revisión interna obsoleta; los reintentos de creación con el mismo usuario y clave de idempotencia devuelven el reporte existente, incluso concurrentes.
 
 ### Público
 - `POST /api/auth/anonimo`, `/api/auth/registro`, `/api/auth/ciudadano`, `/api/auth/funcionario`, `/api/auth/admin`. El alta (`/registro`) rechaza nombres y correos repetidos (409). V2.13.0: `/auth/ciudadano` acepta `identificador` (nombre, pseudónimo o correo) o el par `nombre`/`correo`; `/auth/funcionario` y `/auth/admin` aceptan el usuario o el correo en `username`/`identificador`. El correo identifica una sola cuenta y también sirve para recuperar la contraseña.
@@ -492,6 +504,9 @@ Claves V2.14.0 (runtime, tabla `configuracion`; el panel las edita sin reiniciar
 
 ## 9. Seguridad y CSP
 
+- Identidad anónima: la actualización invalida las sesiones antiguas y no reutiliza los identificadores expuestos como credenciales. Los reportes históricos se conservan, pero su autoría no se recupera con el identificador público antiguo. La identidad nueva depende del secreto del dispositivo y de `JWT_SECRET`; cambiar este último también cambia la derivación anónima.
+- Electron valida el origen exacto en navegación y redirecciones. IPC exige una ventana registrada y su frame principal; configuración, conexiones y reinicio solo se aceptan desde las páginas locales autorizadas.
+
 - CSP estricta: `default-src 'self'`, `script-src 'self'`, `style-src 'self'`, `style-src-attr 'none'`, `script-src-attr 'none'`.
 - Prohibido: `style="..."`, `<style>`, `onclick`, `<script>` sin `src`.
 - Estilos dinámicos solo por CSSOM o clases; los tests `sin-estilos-inline.test.js` lo verifican.
@@ -561,6 +576,8 @@ Claves V2.14.0 (runtime, tabla `configuracion`; el panel las edita sin reiniciar
 
 ## 11. Migraciones y datos
 
+- `20261124_integridad_incidencias.js`: añade `revision` e índice único de idempotencia. Si ya hay claves duplicadas, conserva **todos** los reportes: el primero por fecha/id retiene la clave y los demás pasan a `NULL`. El rollback no reconstruye las claves duplicadas. Aplicar con `npm run migrate` antes de arrancar el backend actualizado; no ejecutar la semilla en una instalación con datos.
+
 - `npm run migrate` aplica migraciones pendientes (incluye `20261027_mejoras_v23.js`).
 - V2.4 no añade tablas ni columnas: `atender_tickets`, el estado `generada` y los nombres únicos de archivo son lógica de aplicación.
 - V2.5 tampoco añade tablas ni columnas: el logo se guarda en `uploads/` y su ruta, posición y márgenes viven en `configuracion`. No hay migración nueva.
@@ -607,6 +624,35 @@ Al cambiar cualquiera de estos elementos, actualizar la sección correspondiente
 Un cambio no se considera terminado si este archivo no refleja el estado real.
 
 ## 13. Changelog
+
+### 2026-11-24 — Identidad anónima, concurrencia y cola offline
+
+- Corregidas la recuperación anónima mediante identificadores públicos, la sobrescritura de incidencias con copias obsoletas y la idempotencia concurrente.
+- Pendientes offline ligados al propietario, conservados ante errores, con evidencia reutilizable y confirmación de IndexedDB. Los pendientes antiguos sin propietario requieren revisión y no se asignan automáticamente a otra cuenta.
+- Electron comprueba orígenes completos y emisores IPC.
+- Regresiones: `integridad-incidencias.test.js`, `offline-integridad.test.js` y `desktop-seguridad.test.js`; los escenarios de persistencia se ejecutan con ambos drivers. Se mantiene pendiente la separación de los módulos administrativos grandes.
+- Validación final: suite JSON con 553 pruebas aprobadas y una omitida por ser exclusiva de MySQL. En MariaDB temporal se validaron 32 escenarios de integridad, migración, incidencias, comentarios y reparaciones (la prueba de migración se repitió tras corregir sus datos de prueba). Documentación, sintaxis frontend y `git diff --check` sin errores. No se aplicó la migración a la base de la instalación.
+
+### 2026-11-11 — Estado de madurez en las pestañas del panel
+
+- **Advertencias Beta:** las 25 pestañas del panel que no están validadas muestran una insignia `Beta` en la pestaña y un aviso `.panel-aviso-beta` al inicio del contenido («Función en versión beta»), para que la advertencia siga visible al cambiar de pestaña.
+- **Excepciones validadas:** Estadísticas (`stats`), Incidencias (`incidencias`), Moderación (`moderacion`) y Municipios (`municipios`) muestran una palomita verde (`.panel-estado--ok` en la pestaña y `.panel-marca-ok` en el panel) con nombre accesible «Panel validado», sin texto visible.
+- **Marcado:** el estado viaja en `data-estado="beta"|"validado"` en cada `.admin-tab`; el hueco de la insignia se reserva con `padding-right`, así la etiqueta se recorta con puntos suspensivos en lugar de quedar tapada, y en móvil las pestañas siguen creciendo a su contenido.
+- **Estilos:** bloque de estado en `frontend/css/extensiones.css` (no se toca `admin.css`, que se regenera desde el monolito). La palomita conserva el verde incluso en la pestaña activa, donde `.admin-tab.active i` pinta los iconos de blanco.
+- **Sin cambios de API, permisos, datos ni acciones:** es presentación estática; no hay JavaScript nuevo ni estilos en línea.
+- **Pruebas:** `backend/test/v2-ui.test.js` añade el bloque «Estado de madurez de los paneles del administrador» (cobertura de las 29 pestañas, clasificación exacta de las cuatro excepciones, insignia por pestaña, aviso en cada panel y presencia de las clases en `extensiones.css`). 45/45 en el archivo.
+
+### 2026-11-10 — Corrección del tutorial de reporte
+
+- La demo del reporte usa el `data-action` estable para abrir y reabrir el formulario, sin depender de la clase visual `.fab.primary`.
+- La guía de reporte queda contabilizada en cinco pasos, alineados con sus títulos y con la secuencia formulario, detalle, ubicación, evidencia y envío.
+- Se añadió una regresión estática en `backend/test/v2-ui.test.js`.
+
+### 2026-11-09 — Anclajes de tutoriales tras el rediseño Bento
+
+- Las guías ya enfocan `#sidebarFilters`, el botón `[data-action="incidencias:reportar"]`, el control `.mapa-capas` y la campana de notificaciones, evitando clases genéricas y el badge ocultable.
+- La bienvenida usa `inc_tutorial_bienvenida_v2` para volver a mostrarse con los objetivos corregidos.
+- `backend/test/v2-ui.test.js` añade una regresión estática para los selectores visibles del rediseño.
 
 ### 2026-11-08 — Rediseño Bento de la interfaz
 

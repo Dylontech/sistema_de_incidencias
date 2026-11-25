@@ -22,7 +22,7 @@ import * as mapa from '../map/mapa.js';
 import { GUIA_TUTORIALES, guiasPara } from '../data/tutoriales.js';
 import { abrirTab } from './admin.controller.js';
 
-const CLAVE = 'inc_tutorial_bienvenida_v1';
+const CLAVE = 'inc_tutorial_bienvenida_v2';
 const CLAVE_ANTERIOR = 'inc_tutorial_v1';
 
 /* ------------------------- simulación de tutoriales ---------------------- */
@@ -275,7 +275,7 @@ async function simularPaso(paso) {
       break;
     case 'demoReportar': {
       if (!document.getElementById('modalIncidencia')?.classList.contains('show')) {
-        document.querySelector('.fab.primary')?.click();
+        document.querySelector('[data-action="incidencias:reportar"]')?.click();
         modalesSimulados.add('modalIncidencia');
         await new Promise((resolver) => setTimeout(resolver, 100));
       }
@@ -288,8 +288,10 @@ async function simularPaso(paso) {
       break;
     case 'demoReportarReabrir':
       mapa.cancelarModoElegir();
-      document.querySelector('.fab.primary')?.click();
-      modalesSimulados.add('modalIncidencia');
+      if (!document.getElementById('modalIncidencia')?.classList.contains('show')) {
+        document.querySelector('[data-action="incidencias:reportar"]')?.click();
+        modalesSimulados.add('modalIncidencia');
+      }
       await new Promise((resolver) => setTimeout(resolver, 120));
       fijarCampo('#incTitulo', 'Bache de ejemplo', { evento: 'input' });
       fijarCampo('#incDescripcion', 'Reporte de demostración: no se enviará.', { evento: 'input' });
@@ -491,7 +493,7 @@ function pasosDe(usuario, guiaId = null) {
 
   pasos.push(
     {
-      objetivo: '.filters',
+      objetivo: '#sidebarFilters',
       colocacion: 'derecha',
       titulo: 'Filtros',
       texto:
@@ -512,7 +514,7 @@ function pasosDe(usuario, guiaId = null) {
         'Cada punto es un reporte y su color dice la antigüedad: amarillo menos de 15 días, naranja de 15 a 30 y rojo más de 30; verde si ya se resolvió. Arriba a la derecha cambias de capa (satélite, calles, relieve).'
     },
     {
-      objetivo: '.fab.primary',
+      objetivo: '[data-action="incidencias:reportar"]',
       colocacion: 'izquierda',
       titulo: 'Reportar es el botón +',
       texto:

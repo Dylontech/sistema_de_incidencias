@@ -63,6 +63,7 @@
  * @property {number} lng
  * @property {string} fecha            ISO de creación
  * @property {string} actualizado      ISO de última modificación
+ * @property {number} [revision]       versión del registro; las escrituras y cambios de comentarios la incrementan
  * @property {'reportada'|'en_proceso'|'resuelta'} estado
  * @property {boolean} esAnonimo
  * @property {string} autor            identidad interna (username); no se muestra si es anónimo
@@ -182,8 +183,8 @@
  * @property {(municipioId:string, vialidades:Array<Object>, opciones:{reemplazar?:boolean}) => Promise<{total:number,creadas:number,actualizadas:number}>} sincronizarVialidades
  * @property {() => Promise<Incidencia[]>} todasLasIncidencias
  * @property {(id:string) => Promise<Incidencia|null>} incidenciaPorId
- * @property {(incidencia:Incidencia) => Promise<Incidencia>} crearIncidencia
- * @property {(id:string, incidencia:Incidencia) => Promise<Incidencia|null>} actualizarIncidencia
+ * @property {(incidencia:Incidencia) => Promise<Incidencia>} crearIncidencia Devuelve la existente si coincide usuario + clave de idempotencia.
+ * @property {(id:string, incidencia:Incidencia) => Promise<Incidencia|null>} actualizarIncidencia Exige la revision leída (0 en datos antiguos); incrementa revision o lanza 409 si cambió.
  * @property {(id:string) => Promise<boolean>} eliminarIncidencia
  * @property {(incidencias:Incidencia[]) => Promise<number>} insertarIncidencias
  * @property {() => Promise<number>} borrarIncidencias

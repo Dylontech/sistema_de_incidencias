@@ -4252,6 +4252,124 @@ a.link-terminos:hover {
   color: #FFF;
 }
 
+/* --- Estado de madurez de los paneles -------------------------------------
+   Cada pestaña declara su estado en `data-estado`: «beta» (advertencia) o
+   «validado» (palomita verde). La insignia de la pestaña se pinta sobre el
+   hueco reservado a la derecha, así la etiqueta se recorta con puntos
+   suspensivos en vez de quedar tapada. El mismo estado se repite dentro del
+   panel, de modo que la advertencia sigue visible al cambiar de pestaña. */
+
+/* La insignia ocupa un hueco fijo a la derecha; el título puede partirse en
+   dos líneas para no perder texto (en móvil la tira ya es desplazable y los
+   títulos largos siguen en una sola línea). */
+.admin-tab[data-estado] {
+  position: relative;
+  padding-right: 36px;
+  white-space: normal;
+  text-overflow: clip;
+  line-height: 1.25;
+}
+
+.panel-estado {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 15px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.panel-estado--beta {
+  border: 1px solid #e3b341;
+  background: #fff7dd;
+  color: #7a5200;
+}
+
+.admin-tab.active .panel-estado--beta {
+  border-color: #ffdf8a;
+  background: rgba(255, 255, 255, .2);
+  color: #fff8e1;
+}
+
+.panel-estado--ok {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #15803d;
+  font-size: 13px;
+}
+
+/* `.admin-tab.active i` pinta de blanco todos los iconos de la pestaña activa;
+   la palomita conserva el verde (aclarado sobre el fondo magenta). */
+.admin-tab .panel-estado--ok i {
+  color: inherit;
+}
+
+.admin-tab.active .panel-estado--ok {
+  color: #c9f7d8;
+}
+
+.admin-tab.active .panel-estado--ok i {
+  color: #c9f7d8;
+}
+
+/* Aviso que encabeza cada panel. Beta se explica con texto; los paneles
+   validados muestran únicamente la palomita verde con nombre accesible. */
+.panel-aviso-beta {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid #f0d48a;
+  border-left: 4px solid #c58b00;
+  border-radius: var(--bento-radius-sm);
+  background: #fffbea;
+  color: #6b4e00;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.panel-aviso-beta i {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #b45309;
+  font-size: 13px;
+}
+
+.panel-aviso-beta p {
+  margin: 0;
+}
+
+.panel-aviso-beta strong {
+  color: #5a3f00;
+}
+
+.panel-marca-ok {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 15px;
+}
+
 .stats-grid {
   gap: 12px;
 }

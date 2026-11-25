@@ -15,6 +15,7 @@ import knexFactory from 'knex';
 import { config } from '../../config/index.js';
 import { ROLES_PERSONAL } from '../../config/constantes.js';
 import { nuevoId } from '../../utils/ids.js';
+import { AppError } from '../../utils/AppError.js';
 
 const TABLAS = [
   'municipios',
@@ -106,6 +107,7 @@ const COLUMNAS = {
     'creado_en'
   ],
   incidencias: [
+    'revision',
     'clave_idempotencia',
     'folio',
     'meta_firmas',
@@ -1271,6 +1273,7 @@ export class RepositorioMysql {
   #aFilaIncidencia(inc) {
     return {
       id: inc.id,
+      revision: inc.revision || 0,
       tipo_id: inc.tipoId,
       icono_custom: inc.iconoCustom || '',
       titulo: inc.titulo,
@@ -1415,6 +1418,7 @@ export class RepositorioMysql {
       autorNombre: fila.autor_nombre,
       userKey: fila.user_key,
       claveIdempotencia: fila.clave_idempotencia || null,
+      revision: Number(fila.revision) || 0,
       folio: fila.folio || null,
       metaFirmas: fila.meta_firmas === null || fila.meta_firmas === undefined ? null : Number(fila.meta_firmas),
       municipioId: fila.municipio_id,
@@ -1860,8 +1864,17 @@ export class RepositorioMysql {
   }
 
   async crearIncidencia(incidencia) {
-    await this.knex.transaction((trx) => this.#insertarEnTransaccion(trx, incidencia));
-    return incidencia;
+    const nueva = { ...incidencia, revision: 0 };
+    try {
+      await this.knex.transaction((trx) => this.#insertarEnTransaccion(trx, nueva));
+      return nueva;
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY' && incidencia.claveIdempotencia) {
+        const previa = await this.incidenciaPorIdempotencia(incidencia.userKey, incidencia.claveIdempotencia);
+        if (previa) return previa;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -1870,18 +1883,21 @@ export class RepositorioMysql {
    * (igual que en el driver JSON), así que se reescriben tal cual.
    */
   async actualizarIncidencia(id, incidencia) {
-    const existente = await this.knex('incidencias').where({ id }).first();
-    if (!existente) return null;
-
-    await this.knex.transaction(async (trx) => {
-      await trx('incidencias').where({ id }).update(this.#aFilaIncidencia({ ...incidencia, id }));
+    return this.knex.transaction(async (trx) => {
+      const existente = await trx('incidencias').where({ id }).forUpdate().first();
+      if (!existente) return null;
+      const revision = Number(existente.revision) || 0;
+      if ((incidencia.revision || 0) !== revision) {
+        throw AppError.conflicto('La incidencia cambió. Recarga los datos antes de guardar.');
+      }
+      const actualizada = { ...incidencia, id, revision: revision + 1 };
+      await trx('incidencias').where({ id }).update(this.#aFilaIncidencia(actualizada));
       await trx('incidencia_evidencias').where({ incidencia_id: id }).del();
       await trx('incidencia_historial').where({ incidencia_id: id }).del();
       await trx('incidencia_comentarios').where({ incidencia_id: id }).del();
-      await this.#insertarHijos(trx, id, incidencia);
+      await this.#insertarHijos(trx, id, actualizada);
+      return actualizada;
     });
-
-    return incidencia;
   }
 
   async #insertarHijos(trx, id, incidencia) {
@@ -3533,23 +3549,27 @@ export class RepositorioMysql {
   }
 
   async crearComentarioIncidencia(incidenciaId, comentario) {
-    await this.knex('incidencia_comentarios').insert({
-      id: comentario.id,
-      incidencia_id: incidenciaId,
-      fecha: aFecha(comentario.fecha) || new Date(),
-      autor: comentario.autor,
-      texto: comentario.texto,
-      user_key: comentario.userKey ?? null,
-      oculto: comentario.oculto === true,
-      oculto_por: comentario.ocultoPor ?? null,
-      oculto_fecha: aFecha(comentario.ocultoFecha),
-      oculto_motivo: comentario.ocultoMotivo ?? null,
-      eliminado_en: aFecha(comentario.eliminadoEn),
-      editado_en: aFecha(comentario.editadoEn),
-      simulado: comentario.simulado === true,
-      simulacion_id: comentario.simulacionId ?? null
+    return this.knex.transaction(async (trx) => {
+      const padre = await trx('incidencias').where({ id: incidenciaId }).increment('revision', 1);
+      if (!padre) return null;
+      await trx('incidencia_comentarios').insert({
+        id: comentario.id,
+        incidencia_id: incidenciaId,
+        fecha: aFecha(comentario.fecha) || new Date(),
+        autor: comentario.autor,
+        texto: comentario.texto,
+        user_key: comentario.userKey ?? null,
+        oculto: comentario.oculto === true,
+        oculto_por: comentario.ocultoPor ?? null,
+        oculto_fecha: aFecha(comentario.ocultoFecha),
+        oculto_motivo: comentario.ocultoMotivo ?? null,
+        eliminado_en: aFecha(comentario.eliminadoEn),
+        editado_en: aFecha(comentario.editadoEn),
+        simulado: comentario.simulado === true,
+        simulacion_id: comentario.simulacionId ?? null
+      });
+      return comentario;
     });
-    return comentario;
   }
 
   async actualizarComentarioIncidencia(incidenciaId, comentarioId, cambios = {}) {
@@ -3561,20 +3581,28 @@ export class RepositorioMysql {
     if ('ocultoMotivo' in cambios) fila.oculto_motivo = cambios.ocultoMotivo ?? null;
     if ('eliminadoEn' in cambios) fila.eliminado_en = aFecha(cambios.eliminadoEn);
     if ('editadoEn' in cambios) fila.editado_en = aFecha(cambios.editadoEn);
-    if (Object.keys(fila).length) {
-      await this.knex('incidencia_comentarios')
-        .where({ id: comentarioId, incidencia_id: incidenciaId })
-        .update(fila);
-    }
-    const actual = await this.knex('incidencia_comentarios').where({ id: comentarioId }).first();
-    return actual ? this.#desdeComentario(actual) : null;
+    return this.knex.transaction(async (trx) => {
+      const padre = await trx('incidencias').where({ id: incidenciaId }).increment('revision', 1);
+      if (!padre) return null;
+      if (Object.keys(fila).length) {
+        await trx('incidencia_comentarios')
+          .where({ id: comentarioId, incidencia_id: incidenciaId })
+          .update(fila);
+      }
+      const actual = await trx('incidencia_comentarios').where({ id: comentarioId, incidencia_id: incidenciaId }).first();
+      return actual ? this.#desdeComentario(actual) : null;
+    });
   }
 
   async eliminarComentarioIncidencia(incidenciaId, comentarioId) {
-    const borrados = await this.knex('incidencia_comentarios')
-      .where({ id: comentarioId, incidencia_id: incidenciaId })
-      .del();
-    return borrados > 0;
+    return this.knex.transaction(async (trx) => {
+      const padre = await trx('incidencias').where({ id: incidenciaId }).increment('revision', 1);
+      if (!padre) return false;
+      const borrados = await trx('incidencia_comentarios')
+        .where({ id: comentarioId, incidencia_id: incidenciaId })
+        .del();
+      return borrados > 0;
+    });
   }
 
   async restriccionComentariosVigente({ usuarioId = null, userKey = null } = {}) {

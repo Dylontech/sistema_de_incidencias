@@ -60,8 +60,8 @@ export const incidenciasService = {
   obtener(id) {
     return api.get(`/incidencias/${id}`);
   },
-  crear(datos) {
-    return api.post('/incidencias', datos);
+  crear(datos, opciones) {
+    return api.post('/incidencias', datos, opciones);
   },
   actualizar(id, datos) {
     return api.put(`/incidencias/${id}`, datos);
@@ -98,8 +98,8 @@ export const incidenciasService = {
     return api.del(`/incidencias/${id}/comentarios/${comentarioId}`);
   },
   /** Sube archivos y devuelve sus metadatos (id, url, tipo, tamaño…). */
-  async subirEvidencia(archivos) {
-    const respuesta = await api.subir('/uploads', archivos);
+  async subirEvidencia(archivos, opciones) {
+    const respuesta = await api.subir('/uploads', archivos, opciones);
     return respuesta.evidencia;
   }
 };

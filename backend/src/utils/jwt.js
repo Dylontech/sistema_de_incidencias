@@ -9,7 +9,10 @@ export function firmarToken(payload) {
 /** Devuelve el payload o null si el token es inválido/expirado. */
 export function verificarToken(token) {
   try {
-    return jwt.verify(token, config.jwt.secret);
+    const payload = jwt.verify(token, config.jwt.secret);
+    // Las sesiones antiguas podían obtenerse con identificadores públicos.
+    if (payload.rol === 'anonimo' && payload.identidadAnonima !== 2) return null;
+    return payload;
   } catch {
     return null;
   }

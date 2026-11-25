@@ -93,7 +93,7 @@ test('el motor PDF se configura y se pregunta desde el modal', () => {
 
 test('el service worker precarga las gráficas, la versión y las fuentes', () => {
   const sw = leer('frontend/sw.js');
-  assert.match(sw, /incidencias-shell-v2\.17\.0/);
+  assert.match(sw, /incidencias-shell-v2\.17\.1/);
   assert.match(sw, /\/js\/views\/graficos-svg\.js/);
   assert.match(sw, /\/js\/controllers\/versionPdf\.controller\.js/);
   assert.match(sw, /\/fonts\/SourceSans3-Regular\.woff2/);

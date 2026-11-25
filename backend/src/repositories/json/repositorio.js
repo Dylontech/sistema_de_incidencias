@@ -16,6 +16,7 @@ import { hashearPassword } from '../../models/usuario.model.js';
 import { coincideTexto } from '../../models/incidencia.model.js';
 import { normalizarBusqueda } from '../../utils/validacion.js';
 import { nuevoId } from '../../utils/ids.js';
+import { AppError } from '../../utils/AppError.js';
 
 export class RepositorioJson {
   constructor({ directorio = config.paths.data } = {}) {
@@ -1029,19 +1030,26 @@ export class RepositorioJson {
   }
 
   async crearIncidencia(incidencia) {
-    return this.almacen.transaccion('incidencias', [], (lista) => ({
-      datos: [...lista, incidencia],
-      resultado: incidencia
-    }));
+    return this.almacen.transaccion('incidencias', [], (lista) => {
+      const previa = incidencia.claveIdempotencia && lista.find((i) =>
+        i.userKey === incidencia.userKey && i.claveIdempotencia === incidencia.claveIdempotencia);
+      if (previa) return { datos: lista, resultado: previa };
+      const nueva = { ...incidencia, revision: 0 };
+      return { datos: [...lista, nueva], resultado: nueva };
+    });
   }
 
   async actualizarIncidencia(id, incidencia) {
     return this.almacen.transaccion('incidencias', [], (lista) => {
       const indice = lista.findIndex((i) => i.id === id);
       if (indice === -1) return { datos: lista, resultado: null };
+      const revision = lista[indice].revision || 0;
+      if ((incidencia.revision || 0) !== revision) {
+        throw AppError.conflicto('La incidencia cambió. Recarga los datos antes de guardar.');
+      }
       const copia = lista.slice();
-      copia[indice] = incidencia;
-      return { datos: copia, resultado: incidencia };
+      copia[indice] = { ...incidencia, id, revision: revision + 1 };
+      return { datos: copia, resultado: copia[indice] };
     });
   }
 
@@ -2131,7 +2139,7 @@ export class RepositorioJson {
       const comentarios = Array.isArray(copia[indice].comentarios)
         ? [...copia[indice].comentarios, comentario]
         : [comentario];
-      copia[indice] = { ...copia[indice], comentarios, actualizado: new Date().toISOString() };
+      copia[indice] = { ...copia[indice], revision: (copia[indice].revision || 0) + 1, comentarios, actualizado: new Date().toISOString() };
       return { datos: copia, resultado: copia[indice] };
     });
   }
@@ -2144,7 +2152,7 @@ export class RepositorioJson {
         c.id === comentarioId ? { ...c, ...cambios, id: comentarioId } : c
       );
       const copia = lista.slice();
-      copia[indice] = { ...copia[indice], comentarios };
+      copia[indice] = { ...copia[indice], revision: (copia[indice].revision || 0) + 1, comentarios };
       return {
         datos: copia,
         resultado: comentarios.find((c) => c.id === comentarioId) || null
@@ -2159,7 +2167,7 @@ export class RepositorioJson {
       const previos = lista[indice].comentarios || [];
       const comentarios = previos.filter((c) => c.id !== comentarioId);
       const copia = lista.slice();
-      copia[indice] = { ...copia[indice], comentarios };
+      copia[indice] = { ...copia[indice], revision: (copia[indice].revision || 0) + 1, comentarios };
       return { datos: copia, resultado: comentarios.length !== previos.length };
     });
   }
