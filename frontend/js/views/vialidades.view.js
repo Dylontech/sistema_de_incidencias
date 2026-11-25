@@ -127,17 +127,6 @@ export function renderLista(datos = {}, { municipios = [], tipos = [], fuentes =
 }
 
 export function renderMunicipios(municipios = [], activo = '') {
-  const selector = $('vialidadMunicipio');
-  if (selector) {
-    selector.innerHTML = municipios
-      .map(
-        (municipio) =>
-          `<option value="${esc(municipio.id)}" ${
-            String(municipio.id) === String(activo) ? 'selected' : ''
-          }>${esc(municipio.nombre)} — ${esc(municipio.estado)}</option>`
-      )
-      .join('');
-  }
   const filtro = $('vialidadesMunicipioFiltro');
   if (filtro) {
     filtro.innerHTML = municipios
@@ -166,7 +155,12 @@ export function prepararModal(via = null, { municipios = [], municipioActivo = '
   const geometria = $('vialidadGeometria');
   const eje = $('vialidadEje');
   if (id) id.value = via?.id || '';
-  if (municipio) municipio.value = via?.municipioId || municipioActivo || '';
+  if (municipio) {
+    municipio.innerHTML = municipios.map((item) =>
+      `<option value="${esc(item.id)}">${esc(item.nombre)} — ${esc(item.estado)}</option>`
+    ).join('');
+    municipio.value = via?.municipioId || municipioActivo || '';
+  }
   if (nombre) nombre.value = via?.nombre || '';
   if (clave) clave.value = via?.clave || '';
   if (tipo) {
@@ -194,6 +188,18 @@ export function prepararModal(via = null, { municipios = [], municipioActivo = '
   if (ancho) ancho.value = via?.anchoM ?? '';
   if (geometria) geometria.value = via?.geometria ? JSON.stringify(via.geometria) : '';
   if (eje) eje.value = via?.eje ? JSON.stringify(via.eje) : '';
+  const editable = !via || permiteEditarExtremos(via.geometria, via.eje);
+  for (const campo of ['vialidadLngInicio', 'vialidadLatInicio', 'vialidadLngFin', 'vialidadLatFin']) {
+    const elemento = $(campo);
+    if (elemento) {
+      elemento.readOnly = !editable;
+      elemento.required = editable;
+    }
+  }
+  const ayuda = $('vialidadGeometriaNota');
+  if (ayuda) ayuda.textContent = editable
+    ? 'Captura el inicio y el fin. Al moverlos se conservan los puntos intermedios. Los cambios de texto conservan el trazado completo.'
+    : 'Este trazado conserva su forma importada. Las coordenadas son de consulta; para modificar su forma, importa un archivo actualizado.';
   const camino = coordenadasDeGeometria(via?.eje || via?.geometria);
   const inicio = camino[0] || [];
   const fin = camino[camino.length - 1] || [];
@@ -227,17 +233,26 @@ export function geometriaDeFormulario(original, lngInicio, latInicio, lngFin, la
     Number(puntos[0]?.[1]) === latInicio &&
     Number(puntos.at(-1)?.[0]) === lngFin &&
     Number(puntos.at(-1)?.[1]) === latFin;
-  if (sinCambios) {
-    // Conserva los puntos intermedios y el polígono si solo se editó texto.
-    return original || puntos;
+  if (![lngInicio, latInicio, lngFin, latFin].every(Number.isFinite)) {
+    throw new Error('Completa las cuatro coordenadas del tramo');
   }
-  if ([lngInicio, latInicio, lngFin, latFin].every((n) => Number.isFinite(n))) {
-    return [
-      [lngInicio, latInicio],
-      [lngFin, latFin]
-    ];
+  if (Math.abs(lngInicio) > 180 || Math.abs(lngFin) > 180 ||
+      Math.abs(latInicio) > 90 || Math.abs(latFin) > 90) {
+    throw new Error('Las coordenadas están fuera de rango');
   }
-  return original || puntos;
+  const nuevos = [[lngInicio, latInicio], ...puntos.slice(1, -1), [lngFin, latFin]];
+  if (!nuevos.some(([lng, lat]) => lng !== lngInicio || lat !== latInicio)) {
+    throw new Error('El tramo debe tener longitud mayor que cero');
+  }
+  if (sinCambios) return original;
+  return nuevos;
+}
+
+function permiteEditarExtremos(geometria, eje) {
+  if (['MultiPolygon', 'MultiLineString'].includes(geometria?.type)) return false;
+  const linea = eje || geometria;
+  return linea?.type === 'LineString' || (Array.isArray(linea) &&
+    (!linea.length || !Array.isArray(linea[0]?.[0])));
 }
 
 export function leerFormulario() {
@@ -262,19 +277,25 @@ export function leerFormulario() {
   } catch {
     ejeOriginal = null;
   }
-  const geometria = geometriaDeFormulario(
-    original,
+  const referencia = ejeOriginal || original;
+  const editable = permiteEditarExtremos(original, ejeOriginal);
+  const geometria = editable ? geometriaDeFormulario(
+    referencia,
     lngInicio,
     latInicio,
     lngFin,
     latFin
-  );
-  const sinCambios = geometria === original;
+  ) : referencia;
+  const sinCambios = geometria === referencia;
   let eje = sinCambios ? ejeOriginal : null;
-  let geometriaFinal = geometria;
+  let geometriaFinal = sinCambios ? original : geometria;
   if (!sinCambios && Array.isArray(geometria)) {
     eje = { type: 'LineString', coordinates: geometria };
     geometriaFinal = eje;
+  }
+  const anchoM = numero('vialidadAncho');
+  if (anchoM !== null && (!Number.isFinite(anchoM) || anchoM < 2 || anchoM > 60)) {
+    throw new Error('El ancho de calzada debe estar entre 2 y 60 metros');
   }
   return {
     id: valor('vialidadId'),
@@ -283,7 +304,7 @@ export function leerFormulario() {
     clave: valor('vialidadClave'),
     tipo: valor('vialidadTipo'),
     fuente: valor('vialidadFuente'),
-    anchoM: numero('vialidadAncho'),
+    anchoM,
     googleMapsUrl: valor('vialidadGoogleMaps'),
     notas: valor('vialidadNotas'),
     geometria: geometriaFinal,

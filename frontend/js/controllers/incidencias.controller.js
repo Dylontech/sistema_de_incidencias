@@ -34,12 +34,19 @@ const FORMULARIO_INICIAL = {
   evidenciaResolver: []
 };
 
+let consultaVialidadesActual = 0;
+
 /** Descarga y pinta la red vial real del municipio activo. */
 async function consultarCapaVialidades() {
+  const consulta = ++consultaVialidadesActual;
   const municipio = store.estado.municipioActivo;
   if (!municipio) return null;
+  const vigente = () => consulta === consultaVialidadesActual &&
+    municipio.id === store.estado.municipioActivo?.id;
   if (!(store.estado.zonas || []).length) await aplicacion.cargarZonas(municipio.id);
+  if (!vigente()) return null;
   const datos = await incidenciasService.vialidades({ municipio: municipio.id });
+  if (!vigente()) return null;
   vialidadesMapa.dibujar(datos, store.estado.zonas || []);
   return datos;
 }

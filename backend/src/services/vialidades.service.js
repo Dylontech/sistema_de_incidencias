@@ -17,6 +17,7 @@ import {
   distanciaPuntoAGeometriaMetros,
   esGeometriaLinea,
   esGeometriaPoligono,
+  lineasDeGeometria,
   normalizarGeometria,
   posicionEnLinea
 } from './geometria.service.js';
@@ -316,7 +317,7 @@ function tramosReales(vialidades, puntos) {
     .map((via) => {
       const condicion = segmentosDeVia(via, via.puntos, ahora);
       const camino = via.eje
-        ? via.eje.coordinates.map(([lng, lat]) => [lat, lng])
+        ? lineasDeGeometria(via.eje)[0].map(([lng, lat]) => [lat, lng])
         : caminoDePoligono(via.geometria);
       const { puntos: _puntos, ...resto } = via;
       return {
@@ -479,18 +480,49 @@ function enlaceGoogle(valor) {
   return enlace;
 }
 
-function datosDeVia(usuario, datos = {}, { crear = false } = {}) {
+function geometriaValidada(valor, campo = 'geometría') {
+  let cruda = valor;
+  if (typeof cruda === 'string') {
+    try { cruda = JSON.parse(cruda); } catch { cruda = null; }
+  }
+  if (cruda?.type === 'Feature') cruda = cruda.geometry;
+  const coordenadasValidas = (coordenadas) => {
+    if (!Array.isArray(coordenadas) || !coordenadas.length) return false;
+    if (Array.isArray(coordenadas[0])) return coordenadas.every(coordenadasValidas);
+    const [lng, lat] = coordenadas;
+    return coordenadas.length >= 2 && Number.isFinite(lng) && Number.isFinite(lat) &&
+      Math.abs(lng) <= 180 && Math.abs(lat) <= 90;
+  };
+  const geometria = normalizarGeometria(cruda);
+  if (!geometria || !coordenadasValidas(Array.isArray(cruda) ? cruda : cruda?.coordinates)) {
+    throw AppError.solicitudInvalida(`La ${campo} debe contener coordenadas completas y dentro de rango`);
+  }
+  if (esGeometriaLinea(geometria) && lineasDeGeometria(geometria).some((linea) =>
+    !linea.some(([lng, lat]) => lng !== linea[0][0] || lat !== linea[0][1])
+  )) {
+    throw AppError.solicitudInvalida('El tramo debe tener longitud mayor que cero');
+  }
+  return geometria;
+}
+
+function datosDeVia(usuario, datos = {}, { crear = false, actual = null } = {}) {
   const municipioId = municipioDeVia(usuario, datos.municipioId);
   const nombre = texto(datos.nombre, 'nombre', { max: 160, requerido: true });
   const tipo = CLAVES_TIPO.has(String(datos.tipo || '')) ? String(datos.tipo) : 'calle';
   const fuente = CLAVES_FUENTE.has(String(datos.fuente || '')) ? String(datos.fuente) : 'manual';
   const clave = texto(datos.clave, 'clave', { max: 160 }) || claveDeVia(nombre);
-  const geometriaCruda = normalizarGeometria(datos.geometria);
-  if (!geometriaCruda) {
-    throw AppError.solicitudInvalida('Agrega una geometría válida para delimitar la vialidad');
+  const geometriaCruda = geometriaValidada(datos.geometria);
+  const anchoVacio = datos.anchoM === null || datos.anchoM === undefined ||
+    (typeof datos.anchoM === 'string' && !datos.anchoM.trim());
+  const anchoM = anchoVacio ? anchoPorTipo(tipo) : Number(datos.anchoM);
+  if ((!anchoVacio && !['number', 'string'].includes(typeof datos.anchoM)) ||
+      !Number.isFinite(anchoM) || anchoM < 2 || anchoM > 60) {
+    throw AppError.solicitudInvalida('El ancho de calzada debe estar entre 2 y 60 metros');
   }
-  const anchoM = Number(datos.anchoM) || anchoPorTipo(tipo);
-  let eje = normalizarGeometria(datos.eje);
+  let eje = datos.eje == null ? null : geometriaValidada(datos.eje, 'geometría del eje');
+  if (eje && !esGeometriaLinea(eje)) {
+    throw AppError.solicitudInvalida('El eje debe ser una línea');
+  }
   let geometria = geometriaCruda;
   let geometriaTipo = 'poligono';
   if (esGeometriaLinea(geometriaCruda)) {
@@ -505,6 +537,17 @@ function datosDeVia(usuario, datos = {}, { crear = false } = {}) {
   } else if (esGeometriaPoligono(geometriaCruda)) {
     eje = eje && esGeometriaLinea(eje) ? eje : null;
     geometriaTipo = geometriaCruda.type === 'MultiPolygon' ? 'multipoligono' : 'poligono';
+    const conservaGenerada = actual?.geometriaTipo === 'poligono_generado' && eje &&
+      JSON.stringify(geometriaCruda) === JSON.stringify(normalizarGeometria(actual.geometria)) &&
+      JSON.stringify(eje) === JSON.stringify(normalizarGeometria(actual.eje));
+    if (conservaGenerada) {
+      geometriaTipo = 'poligono_generado';
+      if (anchoM !== Number(actual.anchoM)) {
+        const buffer = bufferizarEje(eje, anchoM, { segmentos: false, soloVertices: true });
+        if (!buffer) throw AppError.solicitudInvalida('No se pudo generar el polígono de la vialidad');
+        geometria = buffer.geometria;
+      }
+    }
   } else {
     throw AppError.solicitudInvalida('La vialidad debe ser una línea o un polígono');
   }
@@ -611,7 +654,7 @@ export async function actualizarAdmin(repositorio, usuario, id, datos = {}) {
   const actual = await repositorio.vialidadPorId(id);
   if (!actual) throw AppError.noEncontrado('Vialidad no encontrada');
   municipioDeVia(usuario, actual.municipioId);
-  const via = datosDeVia(usuario, { ...actual, ...datos }, { crear: false });
+  const via = datosDeVia(usuario, { ...actual, ...datos }, { actual });
   return repositorio.actualizarVialidad(id, {
     ...via,
     verificadaEn: new Date().toISOString(),

@@ -1635,7 +1635,7 @@
         <div class="filter-row u-mb-8">
           <div class="form-group">
             <label for="vialidadesMunicipioFiltro">Municipio</label>
-            <select id="vialidadesMunicipioFiltro" class="filter-select"></select>
+            <select id="vialidadesMunicipioFiltro" class="filter-select" data-change="vialidades:filtrar"></select>
           </div>
           <div class="form-group">
             <label for="vialidadesTipoFiltro">Tipo</label>
@@ -1701,6 +1701,10 @@
           <p class="campo-nota" id="vialidadesArchivoNota">Sin archivo seleccionado.</p>
         </div>
         <div id="vialidadesResumen" class="campo-nota u-mb-8"></div>
+        <div id="vialidadesRecargaAviso" class="campo-nota u-mb-8" role="status" hidden>
+          <span id="vialidadesRecargaMensaje"></span>
+          <button class="btn btn-outline btn-sm" data-action="vialidades:recargar">Reintentar actualización</button>
+        </div>
         <div id="vialidadesLista"></div>
       </div>
 
@@ -5068,7 +5072,7 @@
         </div>
         <fieldset class="form-group">
           <legend>Eje y polígono de la vialidad</legend>
-          <p class="campo-nota">Captura el inicio y el fin. El servidor genera el polígono de calzada con el ancho indicado. Si editas solo textos, se conserva el trazado importado.</p>
+          <p class="campo-nota" id="vialidadGeometriaNota">Captura el inicio y el fin. Al moverlos se conservan los puntos intermedios. Los cambios de texto conservan el trazado completo.</p>
           <div class="form-grid">
             <div class="form-group">
               <label for="vialidadLatInicio">Latitud inicio</label>

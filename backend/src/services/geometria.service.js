@@ -207,6 +207,19 @@ export function distanciaPuntoALineaMetros(punto, linea) {
 
 /** Posición de un reporte sobre el eje: distancia y avance en metros. */
 export function posicionEnLinea(punto, linea) {
+  if (linea?.type === 'LineString') return posicionEnLinea(punto, linea.coordinates);
+  if (linea?.type === 'MultiLineString') {
+    let desplazamiento = 0;
+    let mejor = { distancia: Infinity, avance: 0 };
+    for (const parte of linea.coordinates) {
+      const posicion = posicionEnLinea(punto, parte);
+      if (posicion.distancia < mejor.distancia) {
+        mejor = { distancia: posicion.distancia, avance: desplazamiento + posicion.avance };
+      }
+      desplazamiento += muestrasDeLinea(parte, 8, { soloVertices: true }).total;
+    }
+    return mejor;
+  }
   if (!linea?.length) return { distancia: Infinity, avance: 0 };
   const referencia = referenciaDe(linea);
   const p = aMetros(Number(punto.lat), Number(punto.lng), referencia);
@@ -356,11 +369,29 @@ export function bufferizarEje(
   { segmentos = true, soloVertices = false, paso = 24, maxMuestras = 500 } = {}
 ) {
   const geometria = normalizarGeometria(eje);
-  const linea = geometria?.type === 'LineString'
-    ? geometria.coordinates
-    : geometria?.type === 'MultiLineString'
-      ? geometria.coordinates[0]
-      : null;
+  if (geometria?.type === 'MultiLineString') {
+    const partes = geometria.coordinates.map((coordinates) => bufferizarEje(
+      { type: 'LineString', coordinates }, anchoM, { segmentos, soloVertices, paso, maxMuestras }
+    ));
+    if (partes.some((parte) => !parte)) return null;
+    let longitud = 0;
+    const tramos = partes.flatMap((parte) => {
+      const desplazamiento = longitud;
+      longitud += parte.longitud;
+      return parte.segmentos.map((segmento) => ({
+        ...segmento,
+        avanceInicio: segmento.avanceInicio + desplazamiento,
+        avanceFin: segmento.avanceFin + desplazamiento,
+        avanceCentro: segmento.avanceCentro + desplazamiento
+      }));
+    });
+    return {
+      geometria: { type: 'MultiPolygon', coordinates: partes.map((parte) => parte.geometria.coordinates) },
+      segmentos: tramos,
+      longitud
+    };
+  }
+  const linea = geometria?.type === 'LineString' ? geometria.coordinates : null;
   if (!linea?.length) return null;
   if (linea.length === 1) {
     const poligonoUnico = circuloPoligono(

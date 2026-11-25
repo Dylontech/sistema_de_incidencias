@@ -257,8 +257,10 @@ export function viasDesdeContenido(contenido, { municipioId, limite = MAXIMO_IMP
         return Array.isArray(datos?.elements) ? viasOverpass(datos) : viasGeoJson(datos);
       })();
   const maximo = Math.min(Math.max(Number(limite) || MAXIMO_IMPORTACION, 1), MAXIMO_IMPORTACION);
+  if (crudas.length > maximo) {
+    throw AppError.solicitudInvalida(`El archivo supera el límite de ${maximo} vialidades. Divídelo en archivos más pequeños; no se importó ningún trazado.`);
+  }
   return crudas
-    .slice(0, maximo)
     .map((cruda, indice) => prepararViaImportada(cruda, { municipioId, indice }))
     .filter(Boolean);
 }

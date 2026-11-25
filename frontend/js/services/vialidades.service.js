@@ -32,7 +32,7 @@ export const vialidadesService = {
     return api.post(`/admin/vialidades/${encodeURIComponent(id)}/verificar`, {});
   },
   eliminar(id) {
-    return api.delete(`/admin/vialidades/${encodeURIComponent(id)}`);
+    return api.del(`/admin/vialidades/${encodeURIComponent(id)}`);
   },
   importar(datos) {
     return api.post('/admin/vialidades/importar', datos);

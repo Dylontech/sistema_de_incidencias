@@ -5,7 +5,7 @@
  * formulario abra sin red. La API y las evidencias nunca se cachean: los
  * reportes se guardan en la cola de IndexedDB (js/core/offline.js).
  */
-const CACHE = 'incidencias-shell-v2.17.1';
+const CACHE = 'incidencias-shell-v2.17.2';
 /**
  * Caché de teselas descargadas por el usuario desde «Descargar mapa».
  * Es independiente del armazón: `activate` no debe borrarla.

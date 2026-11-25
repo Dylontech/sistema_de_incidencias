@@ -229,6 +229,8 @@ export function estaVisible() {
 export function invalidar() {
   ultimosDatos = null;
   ultimasZonas = [];
+  grupo?.clearLayers();
+  pintarLeyenda(null);
 }
 
 /** Borra la capa al cambiar de municipio y deja el control apagado. */

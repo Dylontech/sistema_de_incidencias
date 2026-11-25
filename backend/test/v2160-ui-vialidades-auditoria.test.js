@@ -69,9 +69,10 @@ describe('V2.16.0: catálogo administrativo de vialidades', () => {
       geometriaDeFormulario(original, -100.44, 19.89, -100.43, 19.89),
       [
         [-100.44, 19.89],
+        [-100.4415, 19.8915],
         [-100.43, 19.89]
       ],
-      'mover los extremos reconstruye el tramo'
+      'mover los extremos conserva los puntos intermedios'
     );
   });
 });
